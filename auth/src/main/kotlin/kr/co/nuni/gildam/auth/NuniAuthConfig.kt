@@ -1,25 +1,28 @@
 package kr.co.nuni.gildam.auth
 
 /**
- * NUNI ID (https://id.nuni.co.kr) OAuth 2.0 + PKCE 설정 상수.
+ * NUNI ID (https://id.nuni.co.kr) OIDC 설정.
+ * 엔드포인트는 https://id.nuni.co.kr/.well-known/openid-configuration 기준.
  *
- * [오픈 퀘스천 반영 안내]:
- * 의뢰자(nuni 팀)로부터 실제 client_id, authorize/token 엔드포인트, App Links redirect_uri가
- * 확정되면 아래 상수만 교체하여 즉시 실서버 연동이 동작하도록 분리되어 있습니다.
+ * 사용자에게는 '카카오로 시작하기'로 보이도록 authorize 요청에 [IDP_HINT]=kakao 를 붙입니다.
+ * (NUNI ID 서버가 자체 로그인 화면 없이 바로 카카오 로그인으로 보내고, 끝나면 같은 요청으로 복귀)
  */
 object NuniAuthConfig {
-    const val ISSUER_BASE_URL = "https://id.nuni.co.kr"
+    const val ISSUER = "https://id.nuni.co.kr"
+    const val AUTHORIZE_ENDPOINT = "$ISSUER/oauth/authorize"
+    const val TOKEN_ENDPOINT = "$ISSUER/oauth/token"
+    const val REVOKE_ENDPOINT = "$ISSUER/oauth/revoke"
+    const val END_SESSION_ENDPOINT = "$ISSUER/oauth/end_session"
 
-    // TODO(Open Question #1): id.nuni.co.kr 의 실제 OAuth2 인가 및 토큰 교환 경로 확정 시 교체
-    const val AUTHORIZE_ENDPOINT = "$ISSUER_BASE_URL/oauth/authorize"
-    const val TOKEN_ENDPOINT = "$ISSUER_BASE_URL/oauth/token"
-    const val LOGOUT_ENDPOINT = "$ISSUER_BASE_URL/oauth/logout"
+    /** gradle property `nuniClientId` 로 주입 (기본값 gildam-android 자리표시). */
+    val CLIENT_ID: String = BuildConfig.NUNI_CLIENT_ID
 
-    // TODO(Open Question #2): 길담 Android 전용 발급 Client ID 입력
-    const val CLIENT_ID = "gildam-android-client"
+    /** 역도메인 커스텀 스킴 콜백. NUNI ID oauth_clients 에 정확히 같은 값으로 등록 필요. */
+    const val REDIRECT_SCHEME = "kr.co.nuni.gildam"
+    const val REDIRECT_URI = "$REDIRECT_SCHEME:/oauthredirect"
+    const val POST_LOGOUT_REDIRECT_URI = "$REDIRECT_SCHEME:/logout"
 
-    // TODO(Open Question #3): Android App Links (권장) 또는 커스텀 스킴 콜백 URI 확정 시 교체
-    const val REDIRECT_URI = "https://gildam.nuni.co.kr/auth/callback"
-
-    const val DEFAULT_SCOPE = "openid profile gildam.sync"
+    /** NUNI ID scopes_supported = ["openid"] */
+    const val DEFAULT_SCOPE = "openid"
+    const val IDP_HINT = "kakao"
 }

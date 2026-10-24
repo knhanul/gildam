@@ -1,11 +1,12 @@
 package kr.co.nuni.gildam.auth
 
-import android.util.Base64
 import java.security.MessageDigest
 import java.security.SecureRandom
+import java.util.Base64
 
 data class PkceSession(
     val state: String,
+    val nonce: String,
     val codeVerifier: String,
     val codeChallenge: String,
     val codeChallengeMethod: String = "S256"
@@ -13,33 +14,15 @@ data class PkceSession(
 
 object PkceGenerator {
     private val secureRandom = SecureRandom()
+    private val b64 = Base64.getUrlEncoder().withoutPadding()
+
+    private fun random(bytes: Int): String = ByteArray(bytes).also(secureRandom::nextBytes).let(b64::encodeToString)
+
+    fun challengeFor(codeVerifier: String): String =
+        b64.encodeToString(MessageDigest.getInstance("SHA-256").digest(codeVerifier.toByteArray(Charsets.US_ASCII)))
 
     fun generateSession(): PkceSession {
-        val verifierBytes = ByteArray(32)
-        secureRandom.nextBytes(verifierBytes)
-        val codeVerifier = Base64.encodeToString(
-            verifierBytes,
-            Base64.URL_SAFE or Base64.NO_WRAP or Base64.NO_PADDING
-        )
-
-        val digest = MessageDigest.getInstance("SHA-256")
-        val challengeBytes = digest.digest(codeVerifier.toByteArray(Charsets.US_ASCII))
-        val codeChallenge = Base64.encodeToString(
-            challengeBytes,
-            Base64.URL_SAFE or Base64.NO_WRAP or Base64.NO_PADDING
-        )
-
-        val stateBytes = ByteArray(16)
-        secureRandom.nextBytes(stateBytes)
-        val state = Base64.encodeToString(
-            stateBytes,
-            Base64.URL_SAFE or Base64.NO_WRAP or Base64.NO_PADDING
-        )
-
-        return PkceSession(
-            state = state,
-            codeVerifier = codeVerifier,
-            codeChallenge = codeChallenge
-        )
+        val verifier = random(32)
+        return PkceSession(state = random(16), nonce = random(16), codeVerifier = verifier, codeChallenge = challengeFor(verifier))
     }
 }

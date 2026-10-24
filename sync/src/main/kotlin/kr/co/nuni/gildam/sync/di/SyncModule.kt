@@ -7,6 +7,8 @@ import dagger.hilt.InstallIn
 import dagger.hilt.components.SingletonComponent
 import kotlinx.serialization.json.Json
 import kr.co.nuni.gildam.auth.KeystoreTokenStore
+import kr.co.nuni.gildam.auth.NuniAuthManager
+import okhttp3.Authenticator
 import kr.co.nuni.gildam.sync.api.GildamOvhApi
 import okhttp3.Interceptor
 import okhttp3.MediaType.Companion.toMediaType
@@ -38,8 +40,17 @@ object SyncModule {
     @Provides
     @Singleton
     fun provideOkHttpClient(
-        tokenStore: KeystoreTokenStore
+        tokenStore: KeystoreTokenStore,
+        authManager: NuniAuthManager
     ): OkHttpClient {
+        // 401 이면 refresh_token 으로 한 번 갱신(서버가 refresh 회전) 후 재시도, 실패 시 재로그인 배너
+        val refreshAuthenticator = Authenticator { _, response ->
+            if (response.priorResponse != null) return@Authenticator null
+            val stale = response.request.header("Authorization")?.removePrefix("Bearer ")
+            val fresh = authManager.refreshAccessTokenBlocking(stale) ?: return@Authenticator null
+            response.request.newBuilder().header("Authorization", "Bearer $fresh").build()
+        }
+
         val authInterceptor = Interceptor { chain ->
             val builder = chain.request().newBuilder()
             tokenStore.getAccessToken()?.let { token ->
@@ -69,6 +80,7 @@ object SyncModule {
 
         return OkHttpClient.Builder()
             .addInterceptor(authInterceptor)
+            .authenticator(refreshAuthenticator)
             .addInterceptor(gzipInterceptor)
             .addInterceptor(logging)
             .connectTimeout(15, TimeUnit.SECONDS)

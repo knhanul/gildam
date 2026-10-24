@@ -33,6 +33,19 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.TextButton
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.sp
 import kr.co.nuni.gildam.auth.NuniSessionState
 
 /**
@@ -44,8 +57,10 @@ fun SettingsScreen(
     sessionState: NuniSessionState,
     thumbnailCacheBytes: Long,
     isBatteryOptimizationIgnored: Boolean,
-    onLaunchNuniCustomTabLogin: () -> Unit,
-    onDemoSimulateLogin: () -> Unit,
+    onKakaoLogin: () -> Unit,
+    onSwitchAccount: () -> Unit,
+    /** 디버그 빌드에서만 전달 (릴리스는 null → 버튼 숨김) */
+    onDemoSimulateLogin: (() -> Unit)?,
     onManualSync: () -> Unit,
     onLogout: () -> Unit,
     onClearThumbnailCache: () -> Unit,
@@ -56,7 +71,7 @@ fun SettingsScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("설정 및 NUNI ID 동기화") },
+                title = { Text("설정") },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
                         Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = "뒤로")
@@ -73,57 +88,57 @@ fun SettingsScreen(
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            // 1. NUNI ID 통합 로그인 & 동기화 카드
+            // 1. 계정 카드: 사용자에게는 카카오 로그인, 내부적으로는 NUNI ID(id.nuni.co.kr)
             Card(
                 shape = RoundedCornerShape(18.dp),
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
-                    Text(
-                        text = "NUNI ID 통합 계정 (https://id.nuni.co.kr)",
-                        style = MaterialTheme.typography.titleMedium
-                    )
+                    Text(text = "계정", style = MaterialTheme.typography.titleMedium)
                     Spacer(modifier = Modifier.height(6.dp))
                     if (sessionState.isLoggedIn) {
                         Text(
-                            text = "🟢 연결됨: ${sessionState.userDisplayEmail ?: sessionState.nuniUserId}",
+                            text = "🟢 카카오 계정으로 로그인됨",
                             style = MaterialTheme.typography.bodyLarge,
                             fontWeight = FontWeight.SemiBold
                         )
                         Text(
-                            text = "날씨 이날 등 다른 nuni 서비스와 함께 사용하는 계정입니다. 궤적과 메모만 안전하게 동기화됩니다.",
-                            style = MaterialTheme.typography.labelSmall,
+                            text = "회원번호 ${shortSub(sessionState.nuniUserId)}",
+                            style = MaterialTheme.typography.labelMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
+                        if (sessionState.requiresReauthBanner) {
+                            Spacer(modifier = Modifier.height(6.dp))
+                            Text(
+                                text = "⚠️ 로그인이 만료됐어요. 다시 로그인하면 동기화가 이어져요.",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.error
+                            )
+                            Spacer(modifier = Modifier.height(8.dp))
+                            KakaoLoginButton(onClick = onKakaoLogin)
+                        }
                         Spacer(modifier = Modifier.height(12.dp))
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            Button(onClick = onManualSync) {
-                                Text("지금 동기화")
-                            }
-                            OutlinedButton(onClick = onLogout) {
-                                Text("로그아웃")
-                            }
+                            Button(onClick = onManualSync) { Text("지금 동기화") }
+                            OutlinedButton(onClick = onLogout) { Text("로그아웃") }
                         }
+                        TextButton(onClick = onSwitchAccount) { Text("다른 카카오 계정으로 전환") }
+                        NuniFootnote()
                     } else {
                         Text(
-                            text = "NUNI ID로 로그인하면 기기를 바꿔도 이동 궤적과 길 위의 메모를 그대로 이어서 볼 수 있습니다. (카카오 로그인도 NUNI ID 화면에서 지원)",
+                            text = "로그인하면 기기를 바꿔도 이동 궤적과 길 위의 메모를 그대로 이어서 볼 수 있어요. 사진은 동기화되지 않아요.",
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                         Spacer(modifier = Modifier.height(12.dp))
-                        Button(
-                            onClick = onLaunchNuniCustomTabLogin,
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Text("NUNI ID로 로그인 (Custom Tabs + PKCE)")
-                        }
-                        Spacer(modifier = Modifier.height(6.dp))
-                        OutlinedButton(
-                            onClick = onDemoSimulateLogin,
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Text("개발용 데모 세션 활성화 (스튜디오 테스트용)")
+                        KakaoLoginButton(onClick = onKakaoLogin)
+                        NuniFootnote()
+                        if (onDemoSimulateLogin != null) {
+                            Spacer(modifier = Modifier.height(6.dp))
+                            OutlinedButton(onClick = onDemoSimulateLogin, modifier = Modifier.fillMaxWidth()) {
+                                Text("[디버그] 데모 세션 활성화")
+                            }
                         }
                     }
                 }
@@ -199,3 +214,49 @@ fun SettingsScreen(
         }
     }
 }
+
+private val KakaoYellow = Color(0xFFFEE500)
+private val KakaoLabel = Color(0xD9000000) // 85% black (카카오 디자인 가이드)
+
+/** 카카오 로그인 디자인 가이드: #FEE500 배경, 검정 말풍선 심볼, 85% 검정 라벨, 모서리 12px. */
+@Composable
+internal fun KakaoLoginButton(onClick: () -> Unit, modifier: Modifier = Modifier) {
+    Button(
+        onClick = onClick,
+        modifier = modifier.fillMaxWidth().height(52.dp),
+        shape = RoundedCornerShape(12.dp),
+        colors = ButtonDefaults.buttonColors(containerColor = KakaoYellow, contentColor = KakaoLabel)
+    ) {
+        KakaoSymbol(modifier = Modifier.size(18.dp))
+        Spacer(modifier = Modifier.width(8.dp))
+        Text("카카오로 시작하기", fontSize = 16.sp, fontWeight = FontWeight.SemiBold, color = KakaoLabel)
+    }
+}
+
+@Composable
+private fun KakaoSymbol(modifier: Modifier = Modifier) {
+    Canvas(modifier = modifier) {
+        val w = size.width; val h = size.height
+        drawOval(Color.Black, topLeft = Offset(0f, 0f), size = Size(w, h * 0.82f))
+        val tail = Path().apply {
+            moveTo(w * 0.24f, h * 0.62f); lineTo(w * 0.18f, h); lineTo(w * 0.46f, h * 0.76f); close()
+        }
+        drawPath(tail, Color.Black)
+    }
+}
+
+@Composable
+private fun NuniFootnote() {
+    Spacer(modifier = Modifier.height(6.dp))
+    Text(
+        text = "누니 통합계정(NUNI ID)으로 안전하게 연결돼요",
+        style = MaterialTheme.typography.labelSmall,
+        fontSize = 11.sp,
+        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+        textAlign = TextAlign.Center,
+        modifier = Modifier.fillMaxWidth()
+    )
+}
+
+internal fun shortSub(sub: String?): String =
+    if (sub.isNullOrBlank()) "-" else if (sub.length <= 12) sub else sub.take(6) + "…" + sub.takeLast(4)

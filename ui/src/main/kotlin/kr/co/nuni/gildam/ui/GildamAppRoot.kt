@@ -131,10 +131,11 @@ fun GildamAppRoot(
                     sessionState = sessionState,
                     thumbnailCacheBytes = thumbnailCacheBytes,
                     isBatteryOptimizationIgnored = viewModel.isIgnoringBatteryOptimizations(),
-                    onLaunchNuniCustomTabLogin = { viewModel.launchNuniLogin(context) },
-                    onDemoSimulateLogin = viewModel::triggerDemoLoginAndSync,
+                    onKakaoLogin = { viewModel.launchKakaoLogin(context) },
+                    onSwitchAccount = { viewModel.launchKakaoLogin(context, switchAccount = true) },
+                    onDemoSimulateLogin = if (BuildConfig.DEBUG) viewModel::triggerDemoLoginAndSync else null,
                     onManualSync = viewModel::triggerManualSync,
-                    onLogout = viewModel::logout,
+                    onLogout = { viewModel.logout(context) },
                     onClearThumbnailCache = viewModel::clearThumbnailCache,
                     onNavigateBack = { navController.popBackStack() }
                 )

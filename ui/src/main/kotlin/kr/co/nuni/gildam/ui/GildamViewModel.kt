@@ -165,8 +165,8 @@ class GildamViewModel @Inject constructor(
         }
     }
 
-    fun launchNuniLogin(activityContext: Context) {
-        authManager.launchNuniIdCustomTabLogin(activityContext)
+    fun launchKakaoLogin(activityContext: Context, switchAccount: Boolean = false) {
+        authManager.launchLogin(activityContext, switchAccount)
     }
 
     fun triggerDemoLoginAndSync() {
@@ -178,8 +178,8 @@ class GildamViewModel @Inject constructor(
         GildamSyncWorker.enqueueImmediateSync(appContext)
     }
 
-    fun logout() {
-        authManager.logout()
+    fun logout(activityContext: Context) {
+        viewModelScope.launch { authManager.logout(activityContext) }
     }
 
     fun clearThumbnailCache() {
