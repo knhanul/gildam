@@ -1,0 +1,2 @@
+-keepattributes *Annotation*,InnerClasses,Signature
+-keepclassmembers class kr.co.nuni.gildam.sync.api.** { *; }

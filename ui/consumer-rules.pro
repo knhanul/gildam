@@ -1,0 +1,1 @@
+-keepclassmembers class kr.co.nuni.gildam.ui.navigation.** { *; }

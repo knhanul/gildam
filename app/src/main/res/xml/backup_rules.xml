@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  확정된 사진 및 보안 정책 반영:
+  1. Keystore 암호화 토큰 파일(nuni_auth_secure_prefs)은 기기 백업에서 제외합니다.
+  2. 로컬 전용 썸네일 캐시(filesDir/thumbnails)도 클라우드 백업에서 제외하며,
+     "기기 백업이 사진 보관을 보장한다"고 오해할 수 있는 동작을 방지합니다.
+-->
+<full-backup-content>
+    <exclude domain="sharedpref" path="nuni_auth_secure_prefs.xml" />
+    <exclude domain="file" path="thumbnails" />
+</full-backup-content>
