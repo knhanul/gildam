@@ -27,7 +27,8 @@ import javax.inject.Singleton
 object SyncModule {
 
     // TODO(Open Question #7): OVH 서버의 실제 길담 API 서브도메인 확정 시 변경
-    private const val OVH_BASE_URL = "https://api.gildam.nuni.co.kr/"
+    /** knhanul/gildam-api 운영 주소 (끝의 / 필수) */
+    private const val OVH_BASE_URL = "https://www.nuni.co.kr/gildam-api/"
 
     @Provides
     @Singleton

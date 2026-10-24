@@ -64,7 +64,9 @@ fun SettingsScreen(
     onManualSync: () -> Unit,
     onLogout: () -> Unit,
     onClearThumbnailCache: () -> Unit,
-    onNavigateBack: () -> Unit
+    onNavigateBack: () -> Unit,
+    /** 로그인 후 서버(GET /v1/me)에 저장된 기록 수, 모르면 null */
+    serverTrackCount: Int? = null
 ) {
     val context = LocalContext.current
 
@@ -106,6 +108,11 @@ fun SettingsScreen(
                         Text(
                             text = "회원번호 ${shortSub(sessionState.nuniUserId)}",
                             style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Text(
+                            text = if (serverTrackCount != null) "☁️ 서버에 저장된 기록 ${serverTrackCount}개" else "☁️ 서버 기록 확인 중…",
+                            style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                         if (sessionState.requiresReauthBanner) {

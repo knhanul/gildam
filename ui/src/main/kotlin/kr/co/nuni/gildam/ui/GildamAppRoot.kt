@@ -5,6 +5,7 @@ import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.platform.LocalContext
@@ -127,7 +128,10 @@ fun GildamAppRoot(
             }
 
             composable<SettingsRoute> {
+                val serverTrackCount by viewModel.serverTrackCount.collectAsState()
+                LaunchedEffect(sessionState.isLoggedIn) { viewModel.refreshServerAccount() }
                 SettingsScreen(
+                    serverTrackCount = serverTrackCount,
                     sessionState = sessionState,
                     thumbnailCacheBytes = thumbnailCacheBytes,
                     isBatteryOptimizationIgnored = viewModel.isIgnoringBatteryOptimizations(),

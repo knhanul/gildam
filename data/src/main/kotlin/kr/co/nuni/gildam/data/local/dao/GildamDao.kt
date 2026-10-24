@@ -99,4 +99,44 @@ interface GildamDao {
 
     @Query("DELETE FROM activities")
     suspend fun wipeAllLocalData()
+
+    // ---- gildam-api 동기화 (updated_at 을 건드리지 않는 전용 쿼리) ----
+
+    @Query("SELECT * FROM activities WHERE status = 'COMPLETED' AND deleted_at IS NULL AND sync_state IN ('LOCAL_ONLY', 'PENDING_UPLOAD', 'SYNC_ERROR')")
+    suspend fun getActivitiesToUpload(): List<ActivityEntity>
+
+    @Query("SELECT * FROM activities WHERE sync_state = 'PENDING_DELETE' OR (deleted_at IS NOT NULL AND sync_state != 'SYNCED')")
+    suspend fun getActivitiesToDelete(): List<ActivityEntity>
+
+    /** 업로드한 시점 이후 로컬에서 바뀌지 않았을 때만 SYNCED 로 표시 */
+    @Query("UPDATE activities SET sync_state = 'SYNCED', points_synced = 1 WHERE id = :activityId AND updated_at = :uploadedUpdatedAt")
+    suspend fun markActivitySyncedIfUnchanged(activityId: String, uploadedUpdatedAt: Long): Int
+
+    @Query("UPDATE activities SET sync_state = :syncState WHERE id = :activityId")
+    suspend fun setActivitySyncStateOnly(activityId: String, syncState: SyncState)
+
+    @Query("UPDATE waypoints SET sync_state = 'SYNCED' WHERE activity_id = :activityId AND deleted_at IS NULL")
+    suspend fun markWaypointsSyncedForActivity(activityId: String)
+
+    @Query("DELETE FROM track_points WHERE activity_id = :activityId")
+    suspend fun deleteTrackPoints(activityId: String)
+
+    @Query("SELECT * FROM waypoints WHERE activity_id = :activityId")
+    suspend fun getAllWaypointsForActivity(activityId: String): List<WaypointEntity>
+
+    @Query("DELETE FROM waypoints WHERE activity_id = :activityId AND id NOT IN (:keepIds)")
+    suspend fun deleteWaypointsNotIn(activityId: String, keepIds: List<String>)
+
+    @Query("DELETE FROM activities WHERE id = :activityId")
+    suspend fun hardDeleteActivity(activityId: String)
+
+    /** 서버 트랙 한 건을 로컬에 통째로 반영 (트랙포인트 교체, 웨이포인트 병합) */
+    @Transaction
+    suspend fun replaceActivityFromServer(activity: ActivityEntity, points: List<TrackPointEntity>, waypoints: List<WaypointEntity>) {
+        upsertActivity(activity)
+        deleteTrackPoints(activity.id)
+        if (points.isNotEmpty()) points.chunked(5000).forEach { insertTrackPointsBatch(it) }
+        deleteWaypointsNotIn(activity.id, waypoints.map { it.id }.ifEmpty { listOf("") })
+        waypoints.forEach { upsertWaypoint(it) }
+    }
 }

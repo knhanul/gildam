@@ -3,78 +3,69 @@ package kr.co.nuni.gildam.sync.api
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
+/**
+ * gildam-api (https://www.nuni.co.kr/gildam-api) 트랙 JSON. 시각은 모두 epoch ms.
+ * 사진·미디어 필드(uri/url/path/image/base64)는 서버가 400 으로 거부하므로 절대 넣지 않습니다.
+ */
 @Serializable
-data class TrackUpsertRequestDto(
-    @SerialName("track_id") val trackId: String,
-    @SerialName("title") val title: String,
-    @SerialName("transport_type") val transportType: String,
-    @SerialName("started_at") val startedAtEpochMs: Long,
-    @SerialName("ended_at") val endedAtEpochMs: Long?,
-    @SerialName("total_duration_ms") val totalDurationMs: Long,
-    @SerialName("moving_duration_ms") val movingDurationMs: Long,
-    @SerialName("distance_m") val distanceMeters: Double,
-    @SerialName("avg_speed_mps") val avgSpeedMps: Float,
-    @SerialName("moving_avg_speed_mps") val movingAvgSpeedMps: Float,
-    @SerialName("max_speed_mps") val maxSpeedMps: Float,
-    @SerialName("elevation_gain_m") val elevationGainMeters: Float,
-    @SerialName("visibility") val visibility: String,
-    @SerialName("version") val version: Int,
-    @SerialName("client_updated_at") val clientUpdatedAtEpochMs: Long
+data class TrackDto(
+    val id: String? = null,
+    @SerialName("updated_at") val updatedAt: Long,
+    val title: String? = null,
+    val memo: String? = null,
+    @SerialName("started_at") val startedAt: Long? = null,
+    @SerialName("ended_at") val endedAt: Long? = null,
+    @SerialName("distance_m") val distanceM: Double? = null,
+    @SerialName("duration_s") val durationS: Double? = null,
+    @SerialName("elevation_gain_m") val elevationGainM: Double? = null,
+    val points: List<TrackPointDto> = emptyList(),
+    val waypoints: List<WaypointDto> = emptyList(),
+    /** 응답 전용 */
+    val deleted: Boolean? = null,
+    @SerialName("server_seq") val serverSeq: Long? = null
 )
 
 @Serializable
 data class TrackPointDto(
-    @SerialName("seq") val seq: Int,
-    @SerialName("lat") val lat: Double,
-    @SerialName("lon") val lon: Double,
-    @SerialName("ele") val ele: Float? = null,
-    @SerialName("speed_mps") val speedMps: Float? = null,
-    @SerialName("recorded_at") val recordedAtEpochMs: Long,
-    @SerialName("is_pause_boundary") val isPauseBoundary: Boolean = false
+    val lat: Double,
+    val lon: Double,
+    val t: Long,
+    val ele: Double? = null,
+    val acc: Double? = null,
+    val spd: Double? = null
 )
 
 @Serializable
-data class TrackPointsChunkRequestDto(
-    @SerialName("track_id") val trackId: String,
-    @SerialName("chunk_seq") val chunkSeq: Int,
-    @SerialName("points") val points: List<TrackPointDto>
-)
-
-/**
- * 사진 원본이나 썸네일은 절대 포함하지 않으며,
- * 다른 기기에서 "사진은 촬영한 기기(○○)에만 있어요"를 표시하기 위한 메타데이터만 전송합니다.
- */
-@Serializable
-data class WaypointPhotoMetaDto(
-    @SerialName("has_photo") val hasPhoto: Boolean,
-    @SerialName("photo_local_only") val photoLocalOnly: Boolean = true,
-    @SerialName("photo_id") val photoId: String? = null,
-    @SerialName("captured_device_id_hash") val capturedDeviceIdHash: String? = null,
-    @SerialName("captured_device_name") val capturedDeviceName: String? = null
+data class WaypointDto(
+    val id: String,
+    val lat: Double,
+    val lon: Double,
+    val t: Long? = null,
+    val title: String? = null,
+    val memo: String? = null,
+    @SerialName("photo_local_only") val photoLocalOnly: Boolean = false,
+    @SerialName("photo_count") val photoCount: Int = 0
 )
 
 @Serializable
-data class WaypointSyncDto(
-    @SerialName("waypoint_id") val waypointId: String,
-    @SerialName("track_id") val trackId: String,
-    @SerialName("lat") val lat: Double,
-    @SerialName("lon") val lon: Double,
-    @SerialName("ele") val ele: Float? = null,
-    @SerialName("recorded_at") val recordedAtEpochMs: Long,
-    @SerialName("memo_text") val memoText: String,
-    @SerialName("caption") val caption: String? = null,
-    @SerialName("photo_meta") val photoMeta: WaypointPhotoMetaDto,
-    @SerialName("version") val version: Int,
-    @SerialName("client_updated_at") val clientUpdatedAtEpochMs: Long
+data class TrackListResponseDto(
+    val items: List<TrackDto> = emptyList(),
+    val cursor: Long = 0,
+    @SerialName("has_more") val hasMore: Boolean = false
 )
 
 @Serializable
-data class WaypointBatchUpsertRequestDto(
-    @SerialName("waypoints") val waypoints: List<WaypointSyncDto>
+data class MeResponseDto(
+    val sub: String,
+    @SerialName("brand_id") val brandId: String? = null,
+    @SerialName("brand_role") val brandRole: String? = null,
+    @SerialName("created_at") val createdAt: Long? = null,
+    @SerialName("track_count") val trackCount: Int = 0,
+    val cursor: Long = 0
 )
 
 @Serializable
-data class SyncAckResponseDto(
-    @SerialName("status") val status: String = "ok",
-    @SerialName("server_updated_at") val serverUpdatedAtEpochMs: Long = System.currentTimeMillis()
+data class ConflictResponseDto(
+    val error: String? = null,
+    val current: TrackDto? = null
 )
