@@ -13,6 +13,9 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.toRoute
+import androidx.lifecycle.viewmodel.compose.viewModel
+import kr.co.nuni.gildam.ui.navigation.GpxCompareRoute
+import kr.co.nuni.gildam.ui.screens.GpxCompareScreen
 import kr.co.nuni.gildam.ui.navigation.ActivityDetailRoute
 import kr.co.nuni.gildam.ui.navigation.ActivityListRoute
 import kr.co.nuni.gildam.ui.navigation.LiveRecordingRoute
@@ -80,6 +83,25 @@ fun GildamAppRoot(
                 )
             }
 
+            composable<GpxCompareRoute> {
+                val compareViewModel: GpxCompareViewModel = viewModel()
+                val entries by compareViewModel.entries.collectAsState()
+                val loading by compareViewModel.loading.collectAsState()
+                // SAF: 읽기 전용, 영구 권한 요청 없음
+                val pickGpx = rememberLauncherForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { uris ->
+                    compareViewModel.addFiles(context, uris)
+                }
+                GpxCompareScreen(
+                    entries = entries,
+                    isLoading = loading,
+                    maxFiles = GpxCompareViewModel.MAX_FILES,
+                    onPickFiles = { pickGpx.launch(arrayOf("application/gpx+xml", "application/xml", "text/xml", "application/octet-stream", "*/*")) },
+                    onRemove = compareViewModel::remove,
+                    onClear = compareViewModel::clear,
+                    onNavigateBack = { navController.popBackStack() }
+                )
+            }
+
             composable<ActivityListRoute> {
                 ActivityListScreen(
                     activities = activities,
@@ -89,7 +111,8 @@ fun GildamAppRoot(
                     onSearchQueryChange = viewModel::setSearchQuery,
                     onSelectActivity = { id -> navController.navigate(ActivityDetailRoute(id)) },
                     onNavigateBackToRecorder = { navController.popBackStack() },
-                    onNavigateToSettings = { navController.navigate(SettingsRoute) }
+                    onNavigateToSettings = { navController.navigate(SettingsRoute) },
+                    onNavigateToGpxCompare = { navController.navigate(GpxCompareRoute) }
                 )
             }
 
