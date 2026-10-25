@@ -60,6 +60,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import kr.co.nuni.gildam.data.model.TransportType
 import kr.co.nuni.gildam.map.GildamMapLibreView
+import kr.co.nuni.gildam.ui.illustration.TooltipIconButton
+import kr.co.nuni.gildam.ui.illustration.IconButtonStyle
+import androidx.compose.material.icons.outlined.AddLocationAlt
 import kr.co.nuni.gildam.map.MapCameraMode
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -289,62 +292,38 @@ fun LiveRecordingScreen(
                         }
                     )
                 } else {
+                    // 작은 아이콘 버튼 (길게 누르면 이름 말풍선) — 좁은 화면에서도 잘리지 않음
                     Row(
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        horizontalArrangement = Arrangement.spacedBy(18.dp, Alignment.CenterHorizontally),
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        OutlinedButton(
+                        TooltipIconButton(
+                            icon = if (liveState.isPaused) Icons.Outlined.PlayArrow else Icons.Outlined.Pause,
+                            label = if (liveState.isPaused) "기록 재개" else "일시정지",
                             onClick = {
                                 haptics.performHapticFeedback(HapticFeedbackType.LongPress)
                                 if (liveState.isPaused) onResumeRecording() else onPauseRecording()
                             },
-                            modifier = Modifier.height(52.dp),
-                            shape = RoundedCornerShape(14.dp),
-                            contentPadding = PaddingValues(horizontal = 12.dp)
-                        ) {
-                            Icon(
-                                imageVector = if (liveState.isPaused) Icons.Outlined.PlayArrow else Icons.Outlined.Pause,
-                                contentDescription = null
-                            )
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text(if (liveState.isPaused) "재개" else "일시정지")
-                        }
-
-                        Button(
+                            style = IconButtonStyle.OUTLINED
+                        )
+                        TooltipIconButton(
+                            icon = Icons.Outlined.AddLocationAlt,
+                            label = "여기에 메모·사진 남기기",
                             onClick = { showAddMemoSheet = true },
-                            modifier = Modifier
-                                .weight(1f)
-                                .height(52.dp),
-                            shape = RoundedCornerShape(14.dp),
-                            contentPadding = PaddingValues(horizontal = 8.dp)
-                        ) {
-                            Icon(Icons.Outlined.EditNote, contentDescription = null, modifier = Modifier.size(20.dp))
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text(
-                                "여기에 메모·사진",
-                                maxLines = 1,
-                                softWrap = false,
-                                overflow = TextOverflow.Ellipsis,
-                                fontSize = 14.sp
-                            )
-                        }
-
-                        FilledTonalButton(
+                            style = IconButtonStyle.BRAND,
+                            visualSize = 52.dp,
+                            iconSize = 26.dp
+                        )
+                        TooltipIconButton(
+                            icon = Icons.Outlined.Stop,
+                            label = "기록 종료",
                             onClick = {
                                 haptics.performHapticFeedback(HapticFeedbackType.LongPress)
                                 onStopRecording()
                             },
-                            colors = ButtonDefaults.filledTonalButtonColors(
-                                containerColor = MaterialTheme.colorScheme.secondaryContainer
-                            ),
-                            modifier = Modifier.height(52.dp),
-                            shape = RoundedCornerShape(14.dp),
-                            contentPadding = PaddingValues(horizontal = 12.dp)
-                        ) {
-                            Icon(Icons.Outlined.Stop, contentDescription = null)
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text("종료")
-                        }
+                            style = IconButtonStyle.TONAL
+                        )
                     }
                 }
             }
