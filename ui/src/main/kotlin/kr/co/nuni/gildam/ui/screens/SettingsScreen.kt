@@ -15,6 +15,8 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import kr.co.nuni.gildam.ui.theme.DarkModePref
+import kr.co.nuni.gildam.ui.theme.GildamPalette
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -68,7 +70,11 @@ fun SettingsScreen(
     /** 로그인 후 서버(GET /v1/me)에 저장된 기록 수, 모르면 null */
     serverTrackCount: Int? = null,
     /** 하단 탭바가 있을 때는 뒤로 아이콘을 숨김 */
-    isTopLevelTab: Boolean = false
+    isTopLevelTab: Boolean = false,
+    palette: GildamPalette = GildamPalette.DEFAULT,
+    darkMode: DarkModePref = DarkModePref.SYSTEM,
+    onSelectPalette: (GildamPalette) -> Unit = {},
+    onSelectDarkMode: (DarkModePref) -> Unit = {}
 ) {
     val context = LocalContext.current
 
@@ -94,6 +100,8 @@ fun SettingsScreen(
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
+            ThemeSection(palette, darkMode, onSelectPalette, onSelectDarkMode)
+
             // 1. 계정 카드: 사용자에게는 카카오 로그인, 내부적으로는 NUNI ID(id.nuni.co.kr)
             Card(
                 shape = RoundedCornerShape(18.dp),

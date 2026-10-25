@@ -39,13 +39,20 @@ private val DarkNightOledScheme = darkColorScheme(
     onSurfaceVariant = OnDarkSurfaceVariant
 )
 
-/** 색 팔레트 후보. 기본은 CLASSIC(현재 숲색). 최종 선택 전까지 기본값을 바꾸지 않습니다. */
-enum class GildamPalette(val labelKo: String) {
-    CLASSIC("숲길 (현재)"),
-    SUNNY("A · 햇살 산책"),
-    MINT("B · 민트 소풍"),
-    SUNSET("C · 노을 러닝")
+/** 사용자가 고르는 테마 색. 기본은 A 햇살 산책. CLASSIC 은 이전 숲길 색(설정 목록에는 안 보임). */
+enum class GildamPalette(val labelKo: String, val moodKo: String) {
+    CLASSIC("숲길", "차분한 숲색"),
+    SUNNY("햇살 산책", "따뜻하고 경쾌한 주말 산책"),
+    MINT("민트 소풍", "시원하고 상쾌한 물가 소풍"),
+    SUNSET("노을 러닝", "에너지 넘치는 저녁 러닝");
+    companion object {
+        val DEFAULT = SUNNY
+        val selectable = listOf(SUNNY, MINT, SUNSET)
+    }
 }
+
+/** 밝기 모드 */
+enum class DarkModePref(val labelKo: String) { SYSTEM("시스템"), LIGHT("밝게"), DARK("어둡게") }
 
 private val SunnyLight = lightColorScheme(
     primary = Color(0xFFF2552C), onPrimary = Color.White,
@@ -121,7 +128,7 @@ fun gildamColorScheme(palette: GildamPalette, dark: Boolean) = when (palette) {
 @Composable
 fun GildamTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
-    palette: GildamPalette = GildamPalette.CLASSIC,
+    palette: GildamPalette = GildamPalette.DEFAULT,
     content: @Composable () -> Unit
 ) {
     val colorScheme = gildamColorScheme(palette, darkTheme)

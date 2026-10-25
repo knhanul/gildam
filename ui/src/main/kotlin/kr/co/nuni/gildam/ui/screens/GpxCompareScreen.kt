@@ -46,6 +46,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.lerp
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.StrokeCap
@@ -73,16 +75,29 @@ sealed interface GpxCompareEntry {
 }
 
 /** 비교 선 색 (테마 톤과 어울리는 4색) */
-internal val CompareColors = listOf(Color(0xFFD95D39), Color(0xFF2E4F3E), Color(0xFF4A6B82), Color(0xFFD9822B))
+/** 비교 선 색: 현재 테마의 주색·보조색·강조색 + 중간색 */
+internal val CompareColors: List<Color>
+    @Composable get() {
+        val cs = MaterialTheme.colorScheme
+        return listOf(cs.primary, cs.secondary, cs.tertiary, lerp(cs.primary, cs.onSurface, 0.45f))
+    }
 private val BucketColors = listOf(Color(0xFFD4E8DC), Color(0xFF8AB89E), Color(0xFFE9C46A), Color(0xFFE07A4F), Color(0xFFA63A22))
 
 @Composable
-internal fun gradeColor(g: RuggednessGrade): Pair<Color, Color> = when (g) {
-    RuggednessGrade.EASY -> Color(0xFFD4E8DC) to Color(0xFF0B2418)
-    RuggednessGrade.MODERATE -> Color(0xFFE6EFD0) to Color(0xFF2D3A10)
-    RuggednessGrade.SOMEWHAT_HARD -> Color(0xFFFBE7C6) to Color(0xFF5A3A00)
-    RuggednessGrade.HARD -> Color(0xFFFFDBD1) to Color(0xFF7A2710)
-    RuggednessGrade.VERY_HARD -> Color(0xFFA63A22) to Color.White
+internal fun gradeColor(g: RuggednessGrade): Pair<Color, Color> {
+    // 쉬움(초록)→매우 험함(빨강) 의미 색을 유지하되 테마 표면색과 섞어 팔레트에 어울리게
+    val cs = MaterialTheme.colorScheme
+    val dark = cs.surface.luminance() < 0.5f
+    val base = when (g) {
+        RuggednessGrade.EASY -> Color(0xFF2FA866)
+        RuggednessGrade.MODERATE -> Color(0xFF8DB23A)
+        RuggednessGrade.SOMEWHAT_HARD -> Color(0xFFE6A11F)
+        RuggednessGrade.HARD -> Color(0xFFE8613C)
+        RuggednessGrade.VERY_HARD -> Color(0xFFC4314B)
+    }
+    return if (g == RuggednessGrade.VERY_HARD) base to Color.White
+    else if (dark) lerp(base, cs.surface, 0.55f) to lerp(base, Color.White, 0.6f)
+    else lerp(base, cs.surface, 0.78f) to lerp(base, Color.Black, 0.55f)
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -277,6 +292,7 @@ internal fun ElevationChart(loaded: List<GpxCompareEntry.Loaded>) {
     val labelColor = MaterialTheme.colorScheme.onSurfaceVariant
     val gridColor = MaterialTheme.colorScheme.outlineVariant
     val single = MaterialTheme.colorScheme.primary
+    val cc = CompareColors
     val withEle = loaded.withIndex().filter { it.value.result.hasElevation }
     val maxKm = withEle.maxOf { it.value.result.distanceM } / 1000.0
     val minE = withEle.minOf { it.value.result.minElevationM!! }
@@ -309,7 +325,7 @@ internal fun ElevationChart(loaded: List<GpxCompareEntry.Loaded>) {
             val path = Path().apply {
                 prof.forEachIndexed { j, p -> if (j == 0) moveTo(x(p.distanceKm), y(p.elevationM)) else lineTo(x(p.distanceKm), y(p.elevationM)) }
             }
-            drawPath(path, if (loaded.size == 1) single else CompareColors[i % 4], style = Stroke(width = 2.5.dp.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round))
+            drawPath(path, if (loaded.size == 1) single else cc[i % 4], style = Stroke(width = 2.5.dp.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round))
         }
     }
     Spacer(Modifier.height(8.dp))
