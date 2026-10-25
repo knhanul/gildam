@@ -19,6 +19,7 @@ import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.outlined.CloudDone
 import androidx.compose.material.icons.outlined.CloudQueue
 import androidx.compose.material.icons.outlined.Settings
+import androidx.compose.material.icons.outlined.Terrain
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -53,7 +54,8 @@ fun ActivityListScreen(
     onSearchQueryChange: (String) -> Unit,
     onSelectActivity: (String) -> Unit,
     onNavigateBackToRecorder: () -> Unit,
-    onNavigateToSettings: () -> Unit
+    onNavigateToSettings: () -> Unit,
+    onNavigateToGpxCompare: () -> Unit = {}
 ) {
     Scaffold(
         topBar = {
@@ -65,6 +67,9 @@ fun ActivityListScreen(
                     }
                 },
                 actions = {
+                    IconButton(onClick = onNavigateToGpxCompare) {
+                        Icon(Icons.Outlined.Terrain, contentDescription = "GPX 길 비교")
+                    }
                     IconButton(onClick = onNavigateToSettings) {
                         Icon(Icons.Outlined.Settings, contentDescription = "설정")
                     }
