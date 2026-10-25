@@ -94,7 +94,9 @@ fun GpxCompareScreen(
     onPickFiles: () -> Unit,
     onRemove: (String) -> Unit,
     onClear: () -> Unit,
-    onNavigateBack: () -> Unit
+    onNavigateBack: () -> Unit,
+    /** 하단 탭으로 열 때는 뒤로 아이콘을 숨김 */
+    isTopLevelTab: Boolean = false
 ) {
     val loaded = entries.filterIsInstance<GpxCompareEntry.Loaded>()
     Scaffold(
@@ -102,7 +104,7 @@ fun GpxCompareScreen(
             TopAppBar(
                 title = { Text("GPX 길 비교") },
                 navigationIcon = {
-                    IconButton(onClick = onNavigateBack) { Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = "뒤로") }
+                    if (!isTopLevelTab) IconButton(onClick = onNavigateBack) { Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = "뒤로") }
                 },
                 actions = { if (entries.isNotEmpty()) TextButton(onClick = onClear) { Text("모두 지우기") } }
             )

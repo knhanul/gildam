@@ -6,6 +6,8 @@ import androidx.compose.material.icons.automirrored.filled.FormatListBulleted
 import androidx.compose.material.icons.automirrored.outlined.FormatListBulleted
 import androidx.compose.material.icons.filled.FiberManualRecord
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Terrain
+import androidx.compose.material.icons.outlined.Terrain
 import androidx.compose.material.icons.outlined.FiberManualRecord
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material3.HorizontalDivider
@@ -29,6 +31,7 @@ enum class GildamTab(
 ) {
     RECORD("기록", Icons.Filled.FiberManualRecord, Icons.Outlined.FiberManualRecord, LiveRecordingRoute),
     LIST("기록 목록", Icons.AutoMirrored.Filled.FormatListBulleted, Icons.AutoMirrored.Outlined.FormatListBulleted, ActivityListRoute),
+    COMPARE("비교", Icons.Filled.Terrain, Icons.Outlined.Terrain, GpxCompareRoute),
     SETTINGS("설정", Icons.Filled.Settings, Icons.Outlined.Settings, SettingsRoute)
 }
 

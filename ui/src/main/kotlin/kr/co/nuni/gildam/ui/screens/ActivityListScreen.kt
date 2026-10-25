@@ -71,8 +71,10 @@ fun ActivityListScreen(
                     }
                 },
                 actions = {
-                    IconButton(onClick = onNavigateToGpxCompare) {
-                        Icon(Icons.Outlined.Terrain, contentDescription = "GPX 길 비교")
+                    if (!isTopLevelTab) {
+                        IconButton(onClick = onNavigateToGpxCompare) {
+                            Icon(Icons.Outlined.Terrain, contentDescription = "GPX 길 비교")
+                        }
                     }
                     if (!isTopLevelTab) {
                         IconButton(onClick = onNavigateToSettings) {

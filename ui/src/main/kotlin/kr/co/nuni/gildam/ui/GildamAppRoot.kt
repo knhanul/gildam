@@ -71,6 +71,7 @@ fun GildamAppRoot(
         destination == null -> GildamTab.RECORD
         destination.hasRoute<LiveRecordingRoute>() -> GildamTab.RECORD
         destination.hasRoute<ActivityListRoute>() -> GildamTab.LIST
+        destination.hasRoute<GpxCompareRoute>() -> GildamTab.COMPARE
         destination.hasRoute<SettingsRoute>() -> GildamTab.SETTINGS
         else -> null
     }
@@ -137,7 +138,8 @@ fun GildamAppRoot(
                     onPickFiles = { pickGpx.launch(arrayOf("application/gpx+xml", "application/xml", "text/xml", "application/octet-stream", "*/*")) },
                     onRemove = compareViewModel::remove,
                     onClear = compareViewModel::clear,
-                    onNavigateBack = { navController.popBackStack() }
+                    onNavigateBack = { navController.popBackStack() },
+                    isTopLevelTab = true
                 )
             }
 
@@ -151,7 +153,7 @@ fun GildamAppRoot(
                     onSelectActivity = { id -> navController.navigate(ActivityDetailRoute(id)) },
                     onNavigateBackToRecorder = { selectTab(GildamTab.RECORD) },
                     onNavigateToSettings = { selectTab(GildamTab.SETTINGS) },
-                    onNavigateToGpxCompare = { navController.navigate(GpxCompareRoute) },
+                    onNavigateToGpxCompare = { selectTab(GildamTab.COMPARE) },
                     isTopLevelTab = true
                 )
             }
