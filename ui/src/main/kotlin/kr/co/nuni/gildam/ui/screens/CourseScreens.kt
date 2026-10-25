@@ -130,8 +130,8 @@ private fun CompareEntryCard(enabled: Boolean, onClick: () -> Unit) {
         modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(18.dp)).clickable(enabled = enabled, onClick = onClick)
     ) {
         Row(Modifier.padding(horizontal = 16.dp, vertical = 14.dp), verticalAlignment = Alignment.CenterVertically) {
-            Box(Modifier.size(40.dp).clip(CircleShape).background(MaterialTheme.colorScheme.primary), contentAlignment = Alignment.Center) {
-                Icon(Icons.Outlined.CompareArrows, null, tint = MaterialTheme.colorScheme.onPrimary)
+            Box(Modifier.size(44.dp).clip(CircleShape).background(kr.co.nuni.gildam.ui.illustration.brandGradient()), contentAlignment = Alignment.Center) {
+                Icon(Icons.Outlined.CompareArrows, null, tint = Color.White)
             }
             Spacer(Modifier.width(14.dp))
             Column(Modifier.weight(1f)) {
@@ -146,10 +146,8 @@ private fun CompareEntryCard(enabled: Boolean, onClick: () -> Unit) {
 
 @Composable
 private fun EmptyCourses(onImport: () -> Unit) {
-    Column(Modifier.fillMaxWidth().padding(top = 48.dp, start = 24.dp, end = 24.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-        Box(Modifier.size(96.dp).clip(CircleShape).background(MaterialTheme.colorScheme.surfaceVariant), contentAlignment = Alignment.Center) {
-            Icon(Icons.Outlined.Route, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(44.dp))
-        }
+    Column(Modifier.fillMaxWidth().padding(top = 16.dp, start = 4.dp, end = 4.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+        kr.co.nuni.gildam.ui.illustration.EmptyCoursesIllustration()
         Spacer(Modifier.height(20.dp))
         Text("아직 코스가 없어요", style = MaterialTheme.typography.titleLarge)
         Spacer(Modifier.height(8.dp))
@@ -241,14 +239,13 @@ fun CourseDetailScreen(
         },
         bottomBar = {
             if (detail != null) Surface(color = MaterialTheme.colorScheme.surface, shadowElevation = 8.dp) {
-                Button(
-                    onClick = { onFollow(detail.id) }, shape = RoundedCornerShape(18.dp),
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp).height(58.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
-                ) {
-                    Icon(Icons.AutoMirrored.Outlined.DirectionsWalk, null); Spacer(Modifier.width(10.dp))
-                    Text("이 코스 따라 걷기", style = MaterialTheme.typography.titleMedium)
-                }
+                kr.co.nuni.gildam.ui.illustration.VividActionButton(
+                    title = "이 코스 따라 걷기",
+                    subtitle = "예상 " + HikingTimeEstimator.formatKo(detail.etaSec) + " · 남은 거리와 도착 시간을 알려드려요",
+                    type = kr.co.nuni.gildam.data.model.TransportType.HIKE,
+                    onClick = { onFollow(detail.id) },
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)
+                )
             }
         }
     ) { inner ->

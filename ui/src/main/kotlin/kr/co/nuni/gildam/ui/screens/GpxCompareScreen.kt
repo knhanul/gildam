@@ -276,6 +276,7 @@ internal fun ElevationChart(loaded: List<GpxCompareEntry.Loaded>) {
     val measurer = rememberTextMeasurer()
     val labelColor = MaterialTheme.colorScheme.onSurfaceVariant
     val gridColor = MaterialTheme.colorScheme.outlineVariant
+    val single = MaterialTheme.colorScheme.primary
     val withEle = loaded.withIndex().filter { it.value.result.hasElevation }
     val maxKm = withEle.maxOf { it.value.result.distanceM } / 1000.0
     val minE = withEle.minOf { it.value.result.minElevationM!! }
@@ -308,7 +309,7 @@ internal fun ElevationChart(loaded: List<GpxCompareEntry.Loaded>) {
             val path = Path().apply {
                 prof.forEachIndexed { j, p -> if (j == 0) moveTo(x(p.distanceKm), y(p.elevationM)) else lineTo(x(p.distanceKm), y(p.elevationM)) }
             }
-            drawPath(path, CompareColors[i % 4], style = Stroke(width = 2.5.dp.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round))
+            drawPath(path, if (loaded.size == 1) single else CompareColors[i % 4], style = Stroke(width = 2.5.dp.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round))
         }
     }
     Spacer(Modifier.height(8.dp))
@@ -324,7 +325,7 @@ private fun Legend(loaded: List<GpxCompareEntry.Loaded>) {
     Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
         loaded.forEachIndexed { i, e ->
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Box(Modifier.width(14.dp).height(4.dp).clip(RoundedCornerShape(2.dp)).background(CompareColors[i % 4]))
+                Box(Modifier.width(14.dp).height(4.dp).clip(RoundedCornerShape(2.dp)).background(if (loaded.size == 1) MaterialTheme.colorScheme.primary else CompareColors[i % 4]))
                 Spacer(Modifier.width(5.dp))
                 Text(e.result.displayName, style = MaterialTheme.typography.labelMedium, maxLines = 1)
             }

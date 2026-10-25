@@ -60,6 +60,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import kr.co.nuni.gildam.data.model.TransportType
 import kr.co.nuni.gildam.map.GildamMapLibreView
+import kr.co.nuni.gildam.ui.illustration.TransportChip
+import kr.co.nuni.gildam.ui.illustration.VividActionButton
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import kr.co.nuni.gildam.recording.LiveRecordingState
 import kr.co.nuni.gildam.ui.theme.TabularStatHeroStyle
 import kr.co.nuni.gildam.ui.theme.TabularStatMediumStyle
@@ -184,15 +188,11 @@ fun LiveRecordingScreen(
                 // 이동 수단 태그 선택 (도보 / 자전거 / 자동차)
                 Row(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState())
                 ) {
                     TransportType.entries.forEach { type ->
                         val selected = (if (liveState.isRecording) liveState.transportType else selectedTransport) == type
-                        FilterChip(
-                            selected = selected,
-                            onClick = { if (!liveState.isRecording) onSelectTransport(type) },
-                            label = { Text(type.labelKo) }
-                        )
+                        TransportChip(type, selected, enabled = !liveState.isRecording) { onSelectTransport(type) }
                     }
                 }
 
@@ -252,24 +252,15 @@ fun LiveRecordingScreen(
 
                 // 컨트롤 액션 버튼 영역
                 if (!liveState.isRecording) {
-                    Button(
+                    VividActionButton(
+                        title = "길 기록 시작하기",
+                        subtitle = if (follow != null) "코스를 따라 출발해요" else "${selectedTransport.labelKo} · 탭 한 번으로 출발!",
+                        type = selectedTransport,
                         onClick = {
                             haptics.performHapticFeedback(HapticFeedbackType.LongPress)
                             onStartRecording()
-                        },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(56.dp),
-                        shape = RoundedCornerShape(16.dp)
-                    ) {
-                        Icon(Icons.Outlined.PlayArrow, contentDescription = null)
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            text = "길 기록 시작하기",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.SemiBold
-                        )
-                    }
+                        }
+                    )
                 } else {
                     Row(
                         modifier = Modifier.fillMaxWidth(),

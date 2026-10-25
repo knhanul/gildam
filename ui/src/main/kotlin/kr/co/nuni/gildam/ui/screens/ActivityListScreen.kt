@@ -30,6 +30,8 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
@@ -109,7 +111,7 @@ fun ActivityListScreen(
 
             Spacer(modifier = Modifier.height(10.dp))
 
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.horizontalScroll(rememberScrollState())) {
                 FilterChip(
                     selected = selectedTransportFilter == null,
                     onClick = { onSelectTransportFilter(null) },
@@ -246,6 +248,8 @@ private fun BoxEmptyListState(onStartClick: () -> Unit) {
             modifier = Modifier.padding(24.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
+            kr.co.nuni.gildam.ui.illustration.EmptyRecordsIllustration()
+            Spacer(modifier = Modifier.height(12.dp))
             Text(
                 text = "첫 번째 길이야기를 시작해 보세요",
                 style = MaterialTheme.typography.titleLarge

@@ -22,6 +22,8 @@ import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalInspectionMode
+import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.Lifecycle
@@ -68,7 +70,11 @@ fun GildamMapLibreView(
     fitToTrack: Boolean = false
 ) {
     val isPreview = LocalInspectionMode.current
+    val themeRoute = MaterialTheme.colorScheme.primary
+    val themeCourse = MaterialTheme.colorScheme.secondary
+    val themeBg = MaterialTheme.colorScheme.surfaceVariant
     if (isPreview) {
+        androidx.compose.runtime.CompositionLocalProvider(LocalMapPreviewColors provides Triple(themeBg, themeRoute, themeCourse)) {
         PreviewFallbackMapCanvas(
             trackPoints = trackPoints,
             coursePoints = coursePoints,
@@ -76,6 +82,7 @@ fun GildamMapLibreView(
             isDarkTheme = isDarkTheme,
             modifier = modifier
         )
+        }
         return
     }
 
@@ -151,7 +158,7 @@ fun GildamMapLibreView(
                             applyKoreanLabelsAtRuntime(style)
                             style.addSource(GeoJsonSource(COURSE_SOURCE_ID, courseGeoJson))
                             style.addLayer(LineLayer(COURSE_LAYER_ID, COURSE_SOURCE_ID).withProperties(
-                                PropertyFactory.lineColor(Color.parseColor(if (isDarkTheme) "#8AB89E" else "#2E4F3E")),
+                                PropertyFactory.lineColor(themeCourse.toArgb()),
                                 PropertyFactory.lineOpacity(0.75f),
                                 PropertyFactory.lineWidth(8f),
                                 PropertyFactory.lineCap(Property.LINE_CAP_ROUND),
@@ -159,7 +166,7 @@ fun GildamMapLibreView(
                             ))
                             val source = GeoJsonSource(ROUTE_SOURCE_ID, geoJson)
                             style.addSource(source)
-                            val lineColor = if (isDarkTheme) "#FF8A65" else "#D95D39"
+                            val lineColor = String.format("#%06X", 0xFFFFFF and themeRoute.toArgb())
                             val lineLayer = LineLayer(ROUTE_LAYER_ID, ROUTE_SOURCE_ID).withProperties(
                                 PropertyFactory.lineColor(Color.parseColor(lineColor)),
                                 PropertyFactory.lineWidth(5.5f),
@@ -204,14 +211,11 @@ private fun PreviewFallbackMapCanvas(
 ) {
     val bgColor = if (isDarkTheme) androidx.compose.ui.graphics.Color(0xFF141816)
     else androidx.compose.ui.graphics.Color(0xFFEAE4D8)
-    val gridColor = if (isDarkTheme) androidx.compose.ui.graphics.Color(0xFF1F2522)
-    else androidx.compose.ui.graphics.Color(0xFFE0D9CB)
-    val routeColor = if (isDarkTheme) androidx.compose.ui.graphics.Color(0xFFFF8A65)
-    else androidx.compose.ui.graphics.Color(0xFFD95D39)
-    val courseColor = if (isDarkTheme) androidx.compose.ui.graphics.Color(0xFF8AB89E)
-    else androidx.compose.ui.graphics.Color(0xFF2E4F3E)
+    val (themeBg, routeColor, courseColor) = LocalMapPreviewColors.current
 
-    Box(modifier = modifier.background(bgColor)) {
+    val finalBg = if (themeBg.luminance() < 0.5f) themeBg else androidx.compose.ui.graphics.lerp(bgColor, themeBg, 0.6f)
+    @Suppress("NAME_SHADOWING") val gridColor = androidx.compose.ui.graphics.lerp(finalBg, androidx.compose.ui.graphics.Color.Gray, 0.14f)
+    Box(modifier = modifier.background(finalBg)) {
         Canvas(modifier = Modifier.fillMaxSize()) {
             val step = 48f
             var gx = 0f; while (gx < size.width) { drawLine(gridColor, Offset(gx, 0f), Offset(gx, size.height), 1.5f); gx += step }
@@ -260,6 +264,10 @@ private fun buildLineStringGeoJson(points: List<LatLonPoint>): String {
     }
     val coords = points.joinToString(",") { "[${it.longitude},${it.latitude}]" }
     return """{"type":"FeatureCollection","features":[{"type":"Feature","geometry":{"type":"LineString","coordinates":[$coords]}}]}"""
+}
+
+private val LocalMapPreviewColors = androidx.compose.runtime.staticCompositionLocalOf {
+    Triple(androidx.compose.ui.graphics.Color(0xFFF0ECE3), androidx.compose.ui.graphics.Color(0xFFD95D39), androidx.compose.ui.graphics.Color(0xFF2E4F3E))
 }
 
 private const val ROUTE_SOURCE_ID = "gildam-route-source"

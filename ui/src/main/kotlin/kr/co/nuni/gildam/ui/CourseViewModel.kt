@@ -130,7 +130,7 @@ class CourseViewModel @Inject constructor(
     private suspend fun computePersonalPace(): Double? = withContext(Dispatchers.Default) {
         runCatching {
             val walks = activities.observeAllActivities().first()
-                .filter { it.transportType == TransportType.WALK && it.status == ActivityStatus.COMPLETED && it.distanceMeters >= 1000 && it.movingDurationMs > 0 }
+                .filter { (it.transportType == TransportType.WALK || it.transportType == TransportType.HIKE) && it.status == ActivityStatus.COMPLETED && it.distanceMeters >= 1000 && it.movingDurationMs > 0 }
                 .take(5)
             val samples = walks.mapNotNull { a ->
                 val pts = activities.getTrackPoints(a.id)

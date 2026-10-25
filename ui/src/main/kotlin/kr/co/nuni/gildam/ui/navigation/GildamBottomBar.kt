@@ -54,9 +54,14 @@ fun GildamBottomBar(
                     selected = selected,
                     onClick = { onSelectTab(tab) },
                     icon = {
-                        Icon(
-                            if (selected) tab.selectedIcon else tab.unselectedIcon,
-                            contentDescription = null
+                        kr.co.nuni.gildam.ui.illustration.TabIllustration(
+                            when (tab) {
+                                GildamTab.RECORD -> kr.co.nuni.gildam.ui.illustration.TabIllo.RECORD
+                                GildamTab.LIST -> kr.co.nuni.gildam.ui.illustration.TabIllo.LIST
+                                GildamTab.COURSES -> kr.co.nuni.gildam.ui.illustration.TabIllo.COURSES
+                                GildamTab.SETTINGS -> kr.co.nuni.gildam.ui.illustration.TabIllo.SETTINGS
+                            },
+                            selected
                         )
                     },
                     label = {
