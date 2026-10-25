@@ -52,6 +52,7 @@ fun GildamAppRoot(
 ) {
     val palette by appearanceViewModel.palette.collectAsState()
     val darkMode by appearanceViewModel.darkMode.collectAsState()
+    val recordMapMode by appearanceViewModel.recordMapMode.collectAsState()
     val systemDark = androidx.compose.foundation.isSystemInDarkTheme()
     val isDark = when (darkMode) {
         kr.co.nuni.gildam.ui.theme.DarkModePref.SYSTEM -> systemDark
@@ -148,7 +149,8 @@ fun GildamAppRoot(
                     onNavigateToSettings = { selectTab(GildamTab.SETTINGS) },
                     showTopNavIcons = false,
                     follow = followUi,
-                    onStopFollow = courseViewModel::stopFollow
+                    onStopFollow = courseViewModel::stopFollow,
+                    defaultCameraMode = recordMapMode
                 )
             }
 
@@ -265,7 +267,9 @@ fun GildamAppRoot(
                     palette = palette,
                     darkMode = darkMode,
                     onSelectPalette = appearanceViewModel::setPalette,
-                    onSelectDarkMode = appearanceViewModel::setDarkMode
+                    onSelectDarkMode = appearanceViewModel::setDarkMode,
+                    recordMapMode = recordMapMode,
+                    onSelectRecordMapMode = appearanceViewModel::setRecordMapMode
                 )
             }
         }

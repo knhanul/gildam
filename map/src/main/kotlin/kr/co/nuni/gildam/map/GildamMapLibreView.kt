@@ -67,7 +67,20 @@ fun GildamMapLibreView(
     /** 따라 걷는 코스 선 (기록 선 아래에 숲색으로 그림) */
     coursePoints: List<LatLonPoint> = emptyList(),
     /** true 면 선 전체가 보이게 카메라를 맞춤 (코스 미리보기) */
-    fitToTrack: Boolean = false
+    fitToTrack: Boolean = false,
+    /** 기록 화면 카메라 모드. null 이면 예전 방식(현재 위치 고정 줌) */
+    cameraMode: MapCameraMode? = null,
+    /** 사용자가 지도를 직접 움직여 자동 카메라를 멈춘 상태 */
+    autoCameraPaused: Boolean = false,
+    /** 지도 위 카드가 가리는 위/아래 높이(px) */
+    overlayTopPx: Int = 0,
+    overlayBottomPx: Int = 0,
+    speedMps: Float = 0f,
+    distanceM: Double = 0.0,
+    /** 사용자가 손으로 지도를 움직였을 때 */
+    onUserGesture: () -> Unit = {},
+    /** 바뀌면 자동 카메라를 즉시 다시 맞춤 ('다시 맞추기') */
+    recenterKey: Int = 0
 ) {
     val isPreview = LocalInspectionMode.current
     val themeRoute = MaterialTheme.colorScheme.primary
@@ -79,6 +92,8 @@ fun GildamMapLibreView(
             trackPoints = trackPoints,
             coursePoints = coursePoints,
             currentLocation = currentLocation,
+            followSpanM = if (cameraMode == MapCameraMode.FOLLOW) 900.0 * Math.pow(2.0, 17.0 - MapCameraPlanner.followZoom(speedMps, distanceM)) else null,
+            overlayTopPx = overlayTopPx, overlayBottomPx = overlayBottomPx,
             isDarkTheme = isDarkTheme,
             modifier = modifier
         )
@@ -101,6 +116,9 @@ fun GildamMapLibreView(
         }
     }
     val loadedStyleKey = remember { arrayOfNulls<String>(1) }
+    // 카메라 상태: [마지막 맞춤 경계, 마지막 맞춤 시각, 제스처 리스너 등록 여부]
+    val camState = remember { object { var lastFit: GeoBounds? = null; var lastFitMs = 0L; var lastFollowMs = 0L; var listener = false; var lastMode: MapCameraMode? = null; var lastKey = 0 } }
+    val gestureCallback = androidx.compose.runtime.rememberUpdatedState(onUserGesture)
 
     DisposableEffect(lifecycleOwner, mapView) {
         val observer = LifecycleEventObserver { _, event ->
@@ -134,20 +152,58 @@ fun GildamMapLibreView(
                         ?: trackPoints.lastOrNull()?.longitude
                         ?: GildamMapConfig.SEOUL_DEFAULT_LON
 
-                    val fitPts = if (fitToTrack) trackPoints.ifEmpty { coursePoints } else emptyList()
-                    if (fitPts.size >= 2) {
-                        val b = org.maplibre.android.geometry.LatLngBounds.Builder()
-                        fitPts.forEach { b.include(LatLng(it.latitude, it.longitude)) }
-                        view.post {
-                            runCatching { map.moveCamera(org.maplibre.android.camera.CameraUpdateFactory.newLatLngBounds(b.build(), 64)) }
+                    if (!camState.listener) {
+                        camState.listener = true
+                        map.addOnCameraMoveStartedListener { reason ->
+                            if (reason == org.maplibre.android.maps.MapLibreMap.OnCameraMoveStartedListener.REASON_API_GESTURE) gestureCallback.value()
                         }
-                    } else {
-                        val c = if (currentLocation == null && trackPoints.isEmpty()) coursePoints.firstOrNull() else null
-                        map.cameraPosition = CameraPosition.Builder()
-                            .target(LatLng(c?.latitude ?: targetLat, c?.longitude ?: targetLon))
-                            .zoom(15.2)
-                            .build()
                     }
+                    if (camState.lastMode != cameraMode || camState.lastKey != recenterKey) { camState.lastMode = cameraMode; camState.lastKey = recenterKey; camState.lastFit = null; camState.lastFollowMs = 0L }
+                    val now = android.os.SystemClock.elapsedRealtime()
+                    when {
+                        cameraMode == null -> {
+                            val fitPts = if (fitToTrack) trackPoints.ifEmpty { coursePoints } else emptyList()
+                            if (fitPts.size >= 2) {
+                                val b = org.maplibre.android.geometry.LatLngBounds.Builder()
+                                fitPts.forEach { b.include(LatLng(it.latitude, it.longitude)) }
+                                view.post {
+                                    runCatching { map.moveCamera(org.maplibre.android.camera.CameraUpdateFactory.newLatLngBounds(b.build(), 64)) }
+                                }
+                            } else {
+                                val c = if (currentLocation == null && trackPoints.isEmpty()) coursePoints.firstOrNull() else null
+                                map.cameraPosition = CameraPosition.Builder()
+                                    .target(LatLng(c?.latitude ?: targetLat, c?.longitude ?: targetLon))
+                                    .zoom(15.2)
+                                    .build()
+                            }
+                        }
+                        autoCameraPaused -> Unit
+                        cameraMode == MapCameraMode.OVERVIEW -> {
+                            val pad = MapCameraPlanner.overlayPadding(view.width, view.height, overlayTopPx, overlayBottomPx)
+                            val fit = MapCameraPlanner.overviewFit(trackPoints, currentLocation, coursePoints, pad)
+                            if (fit == null) {
+                                map.cameraPosition = CameraPosition.Builder().target(LatLng(targetLat, targetLon)).zoom(15.2).build()
+                            } else if (MapCameraPlanner.needsRefit(camState.lastFit, fit.bounds, currentLocation, now, camState.lastFitMs)) {
+                                camState.lastFit = fit.bounds; camState.lastFitMs = now
+                                val bb = org.maplibre.android.geometry.LatLngBounds.from(fit.bounds.maxLat, fit.bounds.maxLon, fit.bounds.minLat, fit.bounds.minLon)
+                                view.post {
+                                    runCatching {
+                                        map.animateCamera(org.maplibre.android.camera.CameraUpdateFactory.newLatLngBounds(bb, pad.left, pad.top, pad.right, pad.bottom), 900)
+                                    }
+                                }
+                            }
+                        }
+                        else -> { // FOLLOW
+                            if (now - camState.lastFollowMs >= 900) {
+                                camState.lastFollowMs = now
+                                val pad = MapCameraPlanner.overlayPadding(view.width, view.height, overlayTopPx, overlayBottomPx)
+                                map.setPadding(0, pad.top, 0, pad.bottom)
+                                val pos = CameraPosition.Builder().target(LatLng(targetLat, targetLon)).zoom(MapCameraPlanner.followZoom(speedMps, distanceM)).build()
+                                runCatching { map.animateCamera(org.maplibre.android.camera.CameraUpdateFactory.newCameraPosition(pos), 700) }
+                            }
+                        }
+                    }
+                    if (cameraMode == MapCameraMode.OVERVIEW) map.setPadding(0, 0, 0, 0)
 
                     val geoJson = buildLineStringGeoJson(trackPoints)
                     val courseGeoJson = buildLineStringGeoJson(coursePoints)
@@ -207,7 +263,11 @@ private fun PreviewFallbackMapCanvas(
     coursePoints: List<LatLonPoint>,
     currentLocation: LatLonPoint?,
     isDarkTheme: Boolean,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    /** 따라가기 모드: 현재 위치를 가운데에 두고 이 폭(m)만 보여줌 */
+    followSpanM: Double? = null,
+    overlayTopPx: Int = 0,
+    overlayBottomPx: Int = 0
 ) {
     val bgColor = if (isDarkTheme) androidx.compose.ui.graphics.Color(0xFF141816)
     else androidx.compose.ui.graphics.Color(0xFFEAE4D8)
@@ -229,13 +289,25 @@ private fun PreviewFallbackMapCanvas(
                 drawPath(path, routeColor, style = Stroke(width = 12f, cap = StrokeCap.Round, join = StrokeJoin.Round))
                 return@Canvas
             }
-            val minLat = all.minOf { it.latitude }; val maxLat = all.maxOf { it.latitude }
-            val minLon = all.minOf { it.longitude }; val maxLon = all.maxOf { it.longitude }
-            val kx = kotlin.math.cos(Math.toRadians((minLat + maxLat) / 2))
-            val spanX = ((maxLon - minLon) * kx).coerceAtLeast(1e-6); val spanY = (maxLat - minLat).coerceAtLeast(1e-6)
-            val pad = 0.12f
-            val sc = minOf(size.width * (1 - 2 * pad) / spanX.toFloat(), size.height * (1 - 2 * pad) / spanY.toFloat())
-            val ox = (size.width - spanX.toFloat() * sc) / 2; val oy = (size.height - spanY.toFloat() * sc) / 2
+            val pad = MapCameraPlanner.overlayPadding(size.width.toInt(), size.height.toInt(), overlayTopPx, overlayBottomPx)
+            val availW = size.width - pad.left - pad.right; val availH = size.height - pad.top - pad.bottom
+            val center = currentLocation ?: trackPoints.lastOrNull()
+            val sc: Float; val ox: Float; val oy: Float; val minLon: Double; val maxLat: Double; val kx: Double
+            if (followSpanM != null && center != null) {
+                // 따라가기: 현재 위치 중심, 고정 폭
+                kx = kotlin.math.cos(Math.toRadians(center.latitude))
+                val spanDeg = followSpanM / 111_320.0
+                sc = (availW / spanDeg).toFloat()
+                minLon = center.longitude; maxLat = center.latitude
+                ox = pad.left + availW / 2; oy = pad.top + availH / 2
+            } else {
+                val fit = MapCameraPlanner.expand(MapCameraPlanner.boundsOf(all + listOfNotNull(currentLocation))!!)
+                kx = kotlin.math.cos(Math.toRadians((fit.minLat + fit.maxLat) / 2))
+                val spanX = fit.lonSpan * kx; val spanY = fit.latSpan
+                sc = minOf(availW / spanX.toFloat(), availH / spanY.toFloat())
+                minLon = fit.minLon; maxLat = fit.maxLat
+                ox = pad.left + (availW - spanX.toFloat() * sc) / 2; oy = pad.top + (availH - spanY.toFloat() * sc) / 2
+            }
             fun pt(p: LatLonPoint) = Offset(ox + ((p.longitude - minLon) * kx).toFloat() * sc, oy + (maxLat - p.latitude).toFloat() * sc)
             fun line(ps: List<LatLonPoint>) = Path().apply { ps.forEachIndexed { i, p -> val o = pt(p); if (i == 0) moveTo(o.x, o.y) else lineTo(o.x, o.y) } }
             if (coursePoints.size >= 2) {

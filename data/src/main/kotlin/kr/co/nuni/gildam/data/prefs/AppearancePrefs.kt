@@ -17,9 +17,14 @@ private val Context.appearanceStore by preferencesDataStore(name = "appearance")
 class AppearancePrefs @Inject constructor(@ApplicationContext private val context: Context) {
     private val paletteKey = stringPreferencesKey("palette")
     private val modeKey = stringPreferencesKey("dark_mode")
+    private val mapModeKey = stringPreferencesKey("record_map_mode")
 
     val palette: Flow<String?> = context.appearanceStore.data.map { it[paletteKey] }
     val darkMode: Flow<String?> = context.appearanceStore.data.map { it[modeKey] }
+
+    /** 기록 중 지도 보기 기본값 (FOLLOW/OVERVIEW) */
+    val recordMapMode: Flow<String?> = context.appearanceStore.data.map { it[mapModeKey] }
+    suspend fun setRecordMapMode(name: String) { context.appearanceStore.edit { it[mapModeKey] = name } }
 
     suspend fun setPalette(name: String) { context.appearanceStore.edit { it[paletteKey] = name } }
     suspend fun setDarkMode(name: String) { context.appearanceStore.edit { it[modeKey] = name } }
