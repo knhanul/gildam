@@ -66,7 +66,9 @@ fun SettingsScreen(
     onClearThumbnailCache: () -> Unit,
     onNavigateBack: () -> Unit,
     /** 로그인 후 서버(GET /v1/me)에 저장된 기록 수, 모르면 null */
-    serverTrackCount: Int? = null
+    serverTrackCount: Int? = null,
+    /** 하단 탭바가 있을 때는 뒤로 아이콘을 숨김 */
+    isTopLevelTab: Boolean = false
 ) {
     val context = LocalContext.current
 
@@ -75,8 +77,10 @@ fun SettingsScreen(
             TopAppBar(
                 title = { Text("설정") },
                 navigationIcon = {
-                    IconButton(onClick = onNavigateBack) {
-                        Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = "뒤로")
+                    if (!isTopLevelTab) {
+                        IconButton(onClick = onNavigateBack) {
+                            Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = "뒤로")
+                        }
                     }
                 }
             )

@@ -14,6 +14,16 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.toRoute
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.consumeWindowInsets
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.material3.Scaffold
+import androidx.compose.ui.Modifier
+import androidx.navigation.NavDestination.Companion.hasRoute
+import androidx.navigation.NavGraph.Companion.findStartDestination
+import androidx.navigation.compose.currentBackStackEntryAsState
+import kr.co.nuni.gildam.ui.navigation.GildamBottomBar
+import kr.co.nuni.gildam.ui.navigation.GildamTab
 import androidx.lifecycle.viewmodel.compose.viewModel
 import kr.co.nuni.gildam.ui.navigation.GpxCompareRoute
 import kr.co.nuni.gildam.ui.screens.GpxCompareScreen
@@ -55,10 +65,37 @@ fun GildamAppRoot(
         }
     }
 
+    val backStackEntry by navController.currentBackStackEntryAsState()
+    val destination = backStackEntry?.destination
+    val currentTab = when {
+        destination == null -> GildamTab.RECORD
+        destination.hasRoute<LiveRecordingRoute>() -> GildamTab.RECORD
+        destination.hasRoute<ActivityListRoute>() -> GildamTab.LIST
+        destination.hasRoute<SettingsRoute>() -> GildamTab.SETTINGS
+        else -> null
+    }
+    // 기록 중(일시정지 포함)·상세·내보내기·온보딩 등 탭 이외 화면에서는 숨김
+    val showBottomBar = currentTab != null && !liveState.isRecording
+
+    val selectTab: (GildamTab) -> Unit = { tab ->
+        navController.navigate(tab.route) {
+            popUpTo(navController.graph.findStartDestination().id) { saveState = true }
+            launchSingleTop = true
+            restoreState = true
+        }
+    }
+
     GildamTheme {
+      Scaffold(
+        contentWindowInsets = WindowInsets(0),
+        bottomBar = {
+            if (showBottomBar) GildamBottomBar(currentTab = currentTab, onSelectTab = selectTab)
+        }
+      ) { innerPadding ->
         NavHost(
             navController = navController,
-            startDestination = LiveRecordingRoute
+            startDestination = LiveRecordingRoute,
+            modifier = Modifier.padding(innerPadding).consumeWindowInsets(innerPadding)
         ) {
             composable<LiveRecordingRoute> {
                 LiveRecordingScreen(
@@ -79,8 +116,9 @@ fun GildamAppRoot(
                     onResumeRecording = viewModel::resumeRecording,
                     onStopRecording = viewModel::stopRecording,
                     onAddWaypoint = viewModel::addWaypointMemo,
-                    onNavigateToList = { navController.navigate(ActivityListRoute) },
-                    onNavigateToSettings = { navController.navigate(SettingsRoute) }
+                    onNavigateToList = { selectTab(GildamTab.LIST) },
+                    onNavigateToSettings = { selectTab(GildamTab.SETTINGS) },
+                    showTopNavIcons = false
                 )
             }
 
@@ -111,9 +149,10 @@ fun GildamAppRoot(
                     onSelectTransportFilter = viewModel::setTransportFilter,
                     onSearchQueryChange = viewModel::setSearchQuery,
                     onSelectActivity = { id -> navController.navigate(ActivityDetailRoute(id)) },
-                    onNavigateBackToRecorder = { navController.popBackStack() },
-                    onNavigateToSettings = { navController.navigate(SettingsRoute) },
-                    onNavigateToGpxCompare = { navController.navigate(GpxCompareRoute) }
+                    onNavigateBackToRecorder = { selectTab(GildamTab.RECORD) },
+                    onNavigateToSettings = { selectTab(GildamTab.SETTINGS) },
+                    onNavigateToGpxCompare = { navController.navigate(GpxCompareRoute) },
+                    isTopLevelTab = true
                 )
             }
 
@@ -164,9 +203,11 @@ fun GildamAppRoot(
                     onManualSync = viewModel::triggerManualSync,
                     onLogout = { viewModel.logout(context) },
                     onClearThumbnailCache = viewModel::clearThumbnailCache,
-                    onNavigateBack = { navController.popBackStack() }
+                    onNavigateBack = { navController.popBackStack() },
+                    isTopLevelTab = true
                 )
             }
         }
+      }
     }
 }

@@ -55,23 +55,29 @@ fun ActivityListScreen(
     onSelectActivity: (String) -> Unit,
     onNavigateBackToRecorder: () -> Unit,
     onNavigateToSettings: () -> Unit,
-    onNavigateToGpxCompare: () -> Unit = {}
+    onNavigateToGpxCompare: () -> Unit = {},
+    /** 하단 탭바가 있을 때는 뒤로/설정 아이콘을 숨김 */
+    isTopLevelTab: Boolean = false
 ) {
     Scaffold(
         topBar = {
             TopAppBar(
                 title = { Text("길담 보관함") },
                 navigationIcon = {
-                    IconButton(onClick = onNavigateBackToRecorder) {
-                        Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = "기록 화면으로")
+                    if (!isTopLevelTab) {
+                        IconButton(onClick = onNavigateBackToRecorder) {
+                            Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = "기록 화면으로")
+                        }
                     }
                 },
                 actions = {
                     IconButton(onClick = onNavigateToGpxCompare) {
                         Icon(Icons.Outlined.Terrain, contentDescription = "GPX 길 비교")
                     }
-                    IconButton(onClick = onNavigateToSettings) {
-                        Icon(Icons.Outlined.Settings, contentDescription = "설정")
+                    if (!isTopLevelTab) {
+                        IconButton(onClick = onNavigateToSettings) {
+                            Icon(Icons.Outlined.Settings, contentDescription = "설정")
+                        }
                     }
                 }
             )

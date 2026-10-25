@@ -77,7 +77,9 @@ fun LiveRecordingScreen(
     onStopRecording: () -> Unit,
     onAddWaypoint: (memoText: String, caption: String?, photoUri: android.net.Uri?) -> Unit,
     onNavigateToList: () -> Unit,
-    onNavigateToSettings: () -> Unit
+    onNavigateToSettings: () -> Unit,
+    /** 하단 탭바가 있을 때는 상단 목록/설정 아이콘을 숨김 */
+    showTopNavIcons: Boolean = true
 ) {
     val haptics = LocalHapticFeedback.current
     var showAddMemoSheet by remember { mutableStateOf(false) }
@@ -126,7 +128,7 @@ fun LiveRecordingScreen(
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
-                    Row {
+                    if (showTopNavIcons) Row {
                         IconButton(onClick = onNavigateToList) {
                             Icon(Icons.Outlined.FormatListBulleted, contentDescription = "기록 목록")
                         }
