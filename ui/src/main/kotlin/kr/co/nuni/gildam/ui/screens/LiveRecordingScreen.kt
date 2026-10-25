@@ -1,5 +1,9 @@
 package kr.co.nuni.gildam.ui.screens
 
+import androidx.compose.ui.unit.sp
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
@@ -269,7 +273,8 @@ fun LiveRecordingScreen(
                                 if (liveState.isPaused) onResumeRecording() else onPauseRecording()
                             },
                             modifier = Modifier.height(52.dp),
-                            shape = RoundedCornerShape(14.dp)
+                            shape = RoundedCornerShape(14.dp),
+                            contentPadding = PaddingValues(horizontal = 12.dp)
                         ) {
                             Icon(
                                 imageVector = if (liveState.isPaused) Icons.Outlined.PlayArrow else Icons.Outlined.Pause,
@@ -284,11 +289,18 @@ fun LiveRecordingScreen(
                             modifier = Modifier
                                 .weight(1f)
                                 .height(52.dp),
-                            shape = RoundedCornerShape(14.dp)
+                            shape = RoundedCornerShape(14.dp),
+                            contentPadding = PaddingValues(horizontal = 8.dp)
                         ) {
-                            Icon(Icons.Outlined.EditNote, contentDescription = null)
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text("여기에 메모·사진")
+                            Icon(Icons.Outlined.EditNote, contentDescription = null, modifier = Modifier.size(20.dp))
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(
+                                "여기에 메모·사진",
+                                maxLines = 1,
+                                softWrap = false,
+                                overflow = TextOverflow.Ellipsis,
+                                fontSize = 14.sp
+                            )
                         }
 
                         FilledTonalButton(
@@ -300,7 +312,8 @@ fun LiveRecordingScreen(
                                 containerColor = MaterialTheme.colorScheme.secondaryContainer
                             ),
                             modifier = Modifier.height(52.dp),
-                            shape = RoundedCornerShape(14.dp)
+                            shape = RoundedCornerShape(14.dp),
+                            contentPadding = PaddingValues(horizontal = 12.dp)
                         ) {
                             Icon(Icons.Outlined.Stop, contentDescription = null)
                             Spacer(modifier = Modifier.width(4.dp))

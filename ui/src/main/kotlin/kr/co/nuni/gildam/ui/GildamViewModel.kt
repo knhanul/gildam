@@ -17,6 +17,7 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kr.co.nuni.gildam.auth.KeystoreTokenStore
 import kr.co.nuni.gildam.auth.NuniAuthManager
+import kr.co.nuni.gildam.sync.ServerAccountRepository
 import kr.co.nuni.gildam.auth.NuniSessionState
 import kr.co.nuni.gildam.data.gpx.GpxExportOptions
 import kr.co.nuni.gildam.data.gpx.GpxExporter
@@ -42,8 +43,20 @@ class GildamViewModel @Inject constructor(
     private val tokenStore: KeystoreTokenStore,
     private val authManager: NuniAuthManager,
     private val localPhotoManager: LocalPhotoManager,
-    private val gpxExporter: GpxExporter
+    private val gpxExporter: GpxExporter,
+    private val serverAccount: ServerAccountRepository
 ) : ViewModel() {
+
+    /** 로그인 후 GET /v1/me 의 track_count (모르면 null) */
+    private val _serverTrackCount = MutableStateFlow<Int?>(null)
+    val serverTrackCount: StateFlow<Int?> = _serverTrackCount.asStateFlow()
+
+    fun refreshServerAccount() {
+        if (!tokenStore.sessionFlow.value.isLoggedIn) { _serverTrackCount.value = null; return }
+        viewModelScope.launch {
+            _serverTrackCount.value = serverAccount.fetchTrackCount()
+        }
+    }
 
     val liveRecordingState: StateFlow<LiveRecordingState> = recordingController.liveState
 
@@ -165,8 +178,8 @@ class GildamViewModel @Inject constructor(
         }
     }
 
-    fun launchNuniLogin(activityContext: Context) {
-        authManager.launchNuniIdCustomTabLogin(activityContext)
+    fun launchKakaoLogin(activityContext: Context, switchAccount: Boolean = false) {
+        authManager.launchLogin(activityContext, switchAccount)
     }
 
     fun triggerDemoLoginAndSync() {
@@ -178,8 +191,8 @@ class GildamViewModel @Inject constructor(
         GildamSyncWorker.enqueueImmediateSync(appContext)
     }
 
-    fun logout() {
-        authManager.logout()
+    fun logout(activityContext: Context) {
+        viewModelScope.launch { authManager.logout(activityContext) }
     }
 
     fun clearThumbnailCache() {
