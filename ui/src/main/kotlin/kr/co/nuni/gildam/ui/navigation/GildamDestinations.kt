@@ -26,3 +26,9 @@ object SettingsRoute
 /** 순수 GPX 파일끼리 길의 험함 비교 (저장·동기화 없음) */
 @Serializable
 object GpxCompareRoute
+
+@Serializable
+object CoursesRoute
+
+@Serializable
+data class CourseDetailRoute(val courseId: String)

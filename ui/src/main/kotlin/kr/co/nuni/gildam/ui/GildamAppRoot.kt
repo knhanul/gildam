@@ -24,6 +24,11 @@ import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.compose.currentBackStackEntryAsState
 import kr.co.nuni.gildam.ui.navigation.GildamBottomBar
 import kr.co.nuni.gildam.ui.navigation.GildamTab
+import kr.co.nuni.gildam.ui.navigation.CoursesRoute
+import kr.co.nuni.gildam.ui.navigation.CourseDetailRoute
+import kr.co.nuni.gildam.ui.screens.CourseListScreen
+import kr.co.nuni.gildam.ui.screens.CourseDetailScreen
+import androidx.compose.runtime.remember
 import androidx.lifecycle.viewmodel.compose.viewModel
 import kr.co.nuni.gildam.ui.navigation.GpxCompareRoute
 import kr.co.nuni.gildam.ui.screens.GpxCompareScreen
@@ -41,7 +46,8 @@ import kr.co.nuni.gildam.ui.theme.GildamTheme
 
 @Composable
 fun GildamAppRoot(
-    viewModel: GildamViewModel = hiltViewModel()
+    viewModel: GildamViewModel = hiltViewModel(),
+    courseViewModel: CourseViewModel = hiltViewModel()
 ) {
     val navController = rememberNavController()
     val context = LocalContext.current
@@ -71,11 +77,13 @@ fun GildamAppRoot(
         destination == null -> GildamTab.RECORD
         destination.hasRoute<LiveRecordingRoute>() -> GildamTab.RECORD
         destination.hasRoute<ActivityListRoute>() -> GildamTab.LIST
-        destination.hasRoute<GpxCompareRoute>() -> GildamTab.COMPARE
+        destination.hasRoute<CoursesRoute>() -> GildamTab.COURSES
+        destination.hasRoute<GpxCompareRoute>() -> GildamTab.COURSES
         destination.hasRoute<SettingsRoute>() -> GildamTab.SETTINGS
         else -> null
     }
     // 기록 중(일시정지 포함)·상세·내보내기·온보딩 등 탭 이외 화면에서는 숨김
+    val followUi by courseViewModel.follow.collectAsState()
     val showBottomBar = currentTab != null && !liveState.isRecording
 
     val selectTab: (GildamTab) -> Unit = { tab ->
@@ -119,7 +127,9 @@ fun GildamAppRoot(
                     onAddWaypoint = viewModel::addWaypointMemo,
                     onNavigateToList = { selectTab(GildamTab.LIST) },
                     onNavigateToSettings = { selectTab(GildamTab.SETTINGS) },
-                    showTopNavIcons = false
+                    showTopNavIcons = false,
+                    follow = followUi,
+                    onStopFollow = courseViewModel::stopFollow
                 )
             }
 
@@ -138,8 +148,33 @@ fun GildamAppRoot(
                     onPickFiles = { pickGpx.launch(arrayOf("application/gpx+xml", "application/xml", "text/xml", "application/octet-stream", "*/*")) },
                     onRemove = compareViewModel::remove,
                     onClear = compareViewModel::clear,
+                    onNavigateBack = { navController.popBackStack() }
+                )
+            }
+
+            composable<CoursesRoute> {
+                val courseList by courseViewModel.courseList.collectAsState()
+                val importing by courseViewModel.importing.collectAsState()
+                val pickCourses = rememberLauncherForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { uris ->
+                    courseViewModel.import(uris)
+                }
+                CourseListScreen(
+                    courses = courseList,
+                    isImporting = importing,
+                    onImport = { pickCourses.launch(arrayOf("application/gpx+xml", "application/xml", "text/xml", "application/octet-stream", "*/*")) },
+                    onOpenCourse = { id -> navController.navigate(CourseDetailRoute(id)) },
+                    onOpenCompare = { navController.navigate(GpxCompareRoute) }
+                )
+            }
+
+            composable<CourseDetailRoute> { entry ->
+                val route: CourseDetailRoute = entry.toRoute()
+                val detail by remember(route.courseId) { courseViewModel.observeDetail(route.courseId) }.collectAsState(initial = null)
+                CourseDetailScreen(
+                    detail = detail,
                     onNavigateBack = { navController.popBackStack() },
-                    isTopLevelTab = true
+                    onFollow = { id -> courseViewModel.startFollow(id); selectTab(GildamTab.RECORD) },
+                    onDelete = { id -> courseViewModel.delete(id); navController.popBackStack() }
                 )
             }
 
@@ -153,7 +188,7 @@ fun GildamAppRoot(
                     onSelectActivity = { id -> navController.navigate(ActivityDetailRoute(id)) },
                     onNavigateBackToRecorder = { selectTab(GildamTab.RECORD) },
                     onNavigateToSettings = { selectTab(GildamTab.SETTINGS) },
-                    onNavigateToGpxCompare = { selectTab(GildamTab.COMPARE) },
+                    
                     isTopLevelTab = true
                 )
             }
@@ -172,7 +207,8 @@ fun GildamAppRoot(
                     onRelinkMissingPhoto = viewModel::relinkMissingPhoto,
                     onRemoveMissingPhotoKeepMemo = viewModel::removeMissingPhotoKeepMemo,
                     onNavigateToSafeExport = { id -> navController.navigate(SafeShareExportRoute(id)) },
-                    onNavigateBack = { navController.popBackStack() }
+                    onNavigateBack = { navController.popBackStack() },
+                    sameRouteEta = remember(trackPoints) { courseViewModel.sameRouteEta(trackPoints) }
                 )
             }
 

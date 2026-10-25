@@ -34,4 +34,7 @@ object DataModule {
 
     @Provides
     fun provideGildamDao(db: GildamDatabase): GildamDao = db.gildamDao()
+
+    @Provides
+    fun provideCourseDao(db: GildamDatabase): kr.co.nuni.gildam.data.course.CourseDao = db.courseDao()
 }

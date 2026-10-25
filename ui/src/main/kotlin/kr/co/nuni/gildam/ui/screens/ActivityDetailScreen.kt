@@ -24,6 +24,7 @@ import androidx.compose.material.icons.outlined.BrokenImage
 import androidx.compose.material.icons.outlined.DevicesOther
 import androidx.compose.material.icons.outlined.IosShare
 import androidx.compose.material.icons.outlined.Lock
+import androidx.compose.material.icons.outlined.Schedule
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -71,7 +72,9 @@ fun ActivityDetailScreen(
     onRelinkMissingPhoto: (photoId: String, newUri: Uri) -> Unit,
     onRemoveMissingPhotoKeepMemo: (waypointId: String, photoId: String) -> Unit,
     onNavigateToSafeExport: (String) -> Unit,
-    onNavigateBack: () -> Unit
+    onNavigateBack: () -> Unit,
+    /** 예: "약 1시간 10분" (Tobler 추정, 개인 보정). null 이면 숨김 */
+    sameRouteEta: String? = null
 ) {
     var relinkingPhotoId by remember { mutableStateOf<String?>(null) }
 
@@ -184,6 +187,26 @@ fun ActivityDetailScreen(
                         DetailMetricColumn("총 시간", formatDurationHms(activity.totalDurationMs))
                         DetailMetricColumn("이동 평균", String.format("%.1f km/h", activity.movingAvgSpeedMps * 3.6f))
                         DetailMetricColumn("상승 고도", String.format("+%.0f m", activity.elevationGainMeters))
+                    }
+                }
+
+                sameRouteEta?.let { eta ->
+                    Surface(
+                        shape = RoundedCornerShape(14.dp),
+                        color = MaterialTheme.colorScheme.primaryContainer,
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp)
+                    ) {
+                        Row(Modifier.padding(horizontal = 14.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Icon(androidx.compose.material.icons.Icons.Outlined.Schedule, contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onPrimaryContainer, modifier = Modifier.size(20.dp))
+                            Spacer(Modifier.width(10.dp))
+                            Column {
+                                Text("같은 길이면 약 $eta 걸려요", style = MaterialTheme.typography.titleSmall,
+                                    color = MaterialTheme.colorScheme.onPrimaryContainer)
+                                Text("오르막·내리막을 반영한 걷기 예상 시간", style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.75f))
+                            }
+                        }
                     }
                 }
 

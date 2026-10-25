@@ -259,7 +259,7 @@ private fun VerdictCard(loaded: List<GpxCompareEntry.Loaded>) {
 }
 
 @Composable
-private fun SectionCard(title: String, subtitle: String?, content: @Composable () -> Unit) {
+internal fun SectionCard(title: String, subtitle: String?, content: @Composable () -> Unit) {
     Card(shape = RoundedCornerShape(18.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
         modifier = Modifier.fillMaxWidth()) {
         Column(Modifier.padding(16.dp)) {
@@ -272,7 +272,7 @@ private fun SectionCard(title: String, subtitle: String?, content: @Composable (
 }
 
 @Composable
-private fun ElevationChart(loaded: List<GpxCompareEntry.Loaded>) {
+internal fun ElevationChart(loaded: List<GpxCompareEntry.Loaded>) {
     val measurer = rememberTextMeasurer()
     val labelColor = MaterialTheme.colorScheme.onSurfaceVariant
     val gridColor = MaterialTheme.colorScheme.outlineVariant

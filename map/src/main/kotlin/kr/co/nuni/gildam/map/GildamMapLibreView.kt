@@ -61,12 +61,18 @@ fun GildamMapLibreView(
     currentLocation: LatLonPoint?,
     waypointMarkers: List<MapWaypointMarker> = emptyList(),
     isDarkTheme: Boolean = false,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    /** 따라 걷는 코스 선 (기록 선 아래에 숲색으로 그림) */
+    coursePoints: List<LatLonPoint> = emptyList(),
+    /** true 면 선 전체가 보이게 카메라를 맞춤 (코스 미리보기) */
+    fitToTrack: Boolean = false
 ) {
     val isPreview = LocalInspectionMode.current
     if (isPreview) {
         PreviewFallbackMapCanvas(
             trackPoints = trackPoints,
+            coursePoints = coursePoints,
+            currentLocation = currentLocation,
             isDarkTheme = isDarkTheme,
             modifier = modifier
         )
@@ -121,17 +127,36 @@ fun GildamMapLibreView(
                         ?: trackPoints.lastOrNull()?.longitude
                         ?: GildamMapConfig.SEOUL_DEFAULT_LON
 
-                    map.cameraPosition = CameraPosition.Builder()
-                        .target(LatLng(targetLat, targetLon))
-                        .zoom(15.2)
-                        .build()
+                    val fitPts = if (fitToTrack) trackPoints.ifEmpty { coursePoints } else emptyList()
+                    if (fitPts.size >= 2) {
+                        val b = org.maplibre.android.geometry.LatLngBounds.Builder()
+                        fitPts.forEach { b.include(LatLng(it.latitude, it.longitude)) }
+                        view.post {
+                            runCatching { map.moveCamera(org.maplibre.android.camera.CameraUpdateFactory.newLatLngBounds(b.build(), 64)) }
+                        }
+                    } else {
+                        val c = if (currentLocation == null && trackPoints.isEmpty()) coursePoints.firstOrNull() else null
+                        map.cameraPosition = CameraPosition.Builder()
+                            .target(LatLng(c?.latitude ?: targetLat, c?.longitude ?: targetLon))
+                            .zoom(15.2)
+                            .build()
+                    }
 
                     val geoJson = buildLineStringGeoJson(trackPoints)
+                    val courseGeoJson = buildLineStringGeoJson(coursePoints)
                     val existingStyle = map.style
                     if (existingStyle == null || loadedStyleKey[0] != styleUrl) {
                         loadedStyleKey[0] = styleUrl
                         map.setStyle(buildKoreanStyle(view.context, styleUrl)) { style ->
                             applyKoreanLabelsAtRuntime(style)
+                            style.addSource(GeoJsonSource(COURSE_SOURCE_ID, courseGeoJson))
+                            style.addLayer(LineLayer(COURSE_LAYER_ID, COURSE_SOURCE_ID).withProperties(
+                                PropertyFactory.lineColor(Color.parseColor(if (isDarkTheme) "#8AB89E" else "#2E4F3E")),
+                                PropertyFactory.lineOpacity(0.75f),
+                                PropertyFactory.lineWidth(8f),
+                                PropertyFactory.lineCap(Property.LINE_CAP_ROUND),
+                                PropertyFactory.lineJoin(Property.LINE_JOIN_ROUND)
+                            ))
                             val source = GeoJsonSource(ROUTE_SOURCE_ID, geoJson)
                             style.addSource(source)
                             val lineColor = if (isDarkTheme) "#FF8A65" else "#D95D39"
@@ -145,6 +170,7 @@ fun GildamMapLibreView(
                         }
                     } else {
                         existingStyle.getSourceAs<GeoJsonSource>(ROUTE_SOURCE_ID)?.setGeoJson(geoJson)
+                        existingStyle.getSourceAs<GeoJsonSource>(COURSE_SOURCE_ID)?.setGeoJson(courseGeoJson)
                     }
                 }
             }
@@ -171,34 +197,59 @@ fun GildamMapLibreView(
 @Composable
 private fun PreviewFallbackMapCanvas(
     trackPoints: List<LatLonPoint>,
+    coursePoints: List<LatLonPoint>,
+    currentLocation: LatLonPoint?,
     isDarkTheme: Boolean,
     modifier: Modifier = Modifier
 ) {
     val bgColor = if (isDarkTheme) androidx.compose.ui.graphics.Color(0xFF141816)
     else androidx.compose.ui.graphics.Color(0xFFEAE4D8)
+    val gridColor = if (isDarkTheme) androidx.compose.ui.graphics.Color(0xFF1F2522)
+    else androidx.compose.ui.graphics.Color(0xFFE0D9CB)
     val routeColor = if (isDarkTheme) androidx.compose.ui.graphics.Color(0xFFFF8A65)
     else androidx.compose.ui.graphics.Color(0xFFD95D39)
+    val courseColor = if (isDarkTheme) androidx.compose.ui.graphics.Color(0xFF8AB89E)
+    else androidx.compose.ui.graphics.Color(0xFF2E4F3E)
 
     Box(modifier = modifier.background(bgColor)) {
         Canvas(modifier = Modifier.fillMaxSize()) {
-            val path = Path().apply {
-                moveTo(size.width * 0.18f, size.height * 0.75f)
-                cubicTo(
-                    size.width * 0.35f, size.height * 0.55f,
-                    size.width * 0.55f, size.height * 0.62f,
-                    size.width * 0.82f, size.height * 0.25f
-                )
+            val step = 48f
+            var gx = 0f; while (gx < size.width) { drawLine(gridColor, Offset(gx, 0f), Offset(gx, size.height), 1.5f); gx += step }
+            var gy = 0f; while (gy < size.height) { drawLine(gridColor, Offset(0f, gy), Offset(size.width, gy), 1.5f); gy += step }
+            val all = coursePoints + trackPoints
+            if (all.size < 2) {
+                val path = Path().apply {
+                    moveTo(size.width * 0.18f, size.height * 0.75f)
+                    cubicTo(size.width * 0.35f, size.height * 0.55f, size.width * 0.55f, size.height * 0.62f, size.width * 0.82f, size.height * 0.25f)
+                }
+                drawPath(path, routeColor, style = Stroke(width = 12f, cap = StrokeCap.Round, join = StrokeJoin.Round))
+                return@Canvas
             }
-            drawPath(
-                path = path,
-                color = routeColor,
-                style = Stroke(width = 12f, cap = StrokeCap.Round, join = StrokeJoin.Round)
-            )
-            drawCircle(
-                color = routeColor,
-                radius = 16f,
-                center = Offset(size.width * 0.82f, size.height * 0.25f)
-            )
+            val minLat = all.minOf { it.latitude }; val maxLat = all.maxOf { it.latitude }
+            val minLon = all.minOf { it.longitude }; val maxLon = all.maxOf { it.longitude }
+            val kx = kotlin.math.cos(Math.toRadians((minLat + maxLat) / 2))
+            val spanX = ((maxLon - minLon) * kx).coerceAtLeast(1e-6); val spanY = (maxLat - minLat).coerceAtLeast(1e-6)
+            val pad = 0.12f
+            val sc = minOf(size.width * (1 - 2 * pad) / spanX.toFloat(), size.height * (1 - 2 * pad) / spanY.toFloat())
+            val ox = (size.width - spanX.toFloat() * sc) / 2; val oy = (size.height - spanY.toFloat() * sc) / 2
+            fun pt(p: LatLonPoint) = Offset(ox + ((p.longitude - minLon) * kx).toFloat() * sc, oy + (maxLat - p.latitude).toFloat() * sc)
+            fun line(ps: List<LatLonPoint>) = Path().apply { ps.forEachIndexed { i, p -> val o = pt(p); if (i == 0) moveTo(o.x, o.y) else lineTo(o.x, o.y) } }
+            if (coursePoints.size >= 2) {
+                drawPath(line(coursePoints), courseColor.copy(alpha = 0.75f), style = Stroke(width = 16f, cap = StrokeCap.Round, join = StrokeJoin.Round))
+                drawCircle(courseColor, 14f, pt(coursePoints.first()))
+                drawCircle(androidx.compose.ui.graphics.Color.White, 6f, pt(coursePoints.first()))
+                drawCircle(courseColor, 14f, pt(coursePoints.last()))
+            }
+            if (trackPoints.size >= 2) {
+                drawPath(line(trackPoints), routeColor, style = Stroke(width = 10f, cap = StrokeCap.Round, join = StrokeJoin.Round))
+            }
+            (currentLocation ?: trackPoints.lastOrNull())?.let { c ->
+                if (trackPoints.isNotEmpty() || currentLocation != null) {
+                    drawCircle(routeColor.copy(alpha = 0.25f), 30f, pt(c))
+                    drawCircle(androidx.compose.ui.graphics.Color.White, 15f, pt(c))
+                    drawCircle(routeColor, 11f, pt(c))
+                }
+            }
         }
     }
 }
@@ -213,6 +264,8 @@ private fun buildLineStringGeoJson(points: List<LatLonPoint>): String {
 
 private const val ROUTE_SOURCE_ID = "gildam-route-source"
 private const val ROUTE_LAYER_ID = "gildam-route-layer"
+private const val COURSE_SOURCE_ID = "gildam-course-source"
+private const val COURSE_LAYER_ID = "gildam-course-layer"
 
 
 /**

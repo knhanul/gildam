@@ -31,7 +31,7 @@ enum class GildamTab(
 ) {
     RECORD("기록", Icons.Filled.FiberManualRecord, Icons.Outlined.FiberManualRecord, LiveRecordingRoute),
     LIST("기록 목록", Icons.AutoMirrored.Filled.FormatListBulleted, Icons.AutoMirrored.Outlined.FormatListBulleted, ActivityListRoute),
-    COMPARE("비교", Icons.Filled.Terrain, Icons.Outlined.Terrain, GpxCompareRoute),
+    COURSES("코스", Icons.Filled.Terrain, Icons.Outlined.Terrain, CoursesRoute),
     SETTINGS("설정", Icons.Filled.Settings, Icons.Outlined.Settings, SettingsRoute)
 }
 
