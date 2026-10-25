@@ -77,7 +77,12 @@ fun LiveRecordingScreen(
     onStopRecording: () -> Unit,
     onAddWaypoint: (memoText: String, caption: String?, photoUri: android.net.Uri?) -> Unit,
     onNavigateToList: () -> Unit,
-    onNavigateToSettings: () -> Unit
+    onNavigateToSettings: () -> Unit,
+    /** 하단 탭바가 있을 때는 상단 목록/설정 아이콘을 숨김 */
+    showTopNavIcons: Boolean = true,
+    /** 코스 따라 걷기 중이면 코스 선·남은 거리·도착 예정 표시 */
+    follow: CourseFollowUi? = null,
+    onStopFollow: () -> Unit = {}
 ) {
     val haptics = LocalHapticFeedback.current
     var showAddMemoSheet by remember { mutableStateOf(false) }
@@ -87,7 +92,8 @@ fun LiveRecordingScreen(
         GildamMapLibreView(
             trackPoints = liveState.liveTrackPoints,
             currentLocation = liveState.currentLocation,
-            modifier = Modifier.fillMaxSize()
+            modifier = Modifier.fillMaxSize(),
+            coursePoints = follow?.route ?: emptyList()
         )
 
         // 2. 상단 상태 바 & 네비게이션 칩 (Edge-to-Edge statusBars 인셋 준수)
@@ -126,7 +132,7 @@ fun LiveRecordingScreen(
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
-                    Row {
+                    if (showTopNavIcons) Row {
                         IconButton(onClick = onNavigateToList) {
                             Icon(Icons.Outlined.FormatListBulleted, contentDescription = "기록 목록")
                         }
@@ -136,6 +142,8 @@ fun LiveRecordingScreen(
                     }
                 }
             }
+
+            follow?.let { FollowCourseCard(it, onStopFollow, Modifier.padding(top = 8.dp)) }
 
             // GPS 신호 미약 경고 배너 (터널/실내)
             AnimatedVisibility(visible = liveState.isGpsSignalWeak) {

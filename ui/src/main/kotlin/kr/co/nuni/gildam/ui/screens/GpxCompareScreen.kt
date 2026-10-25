@@ -94,7 +94,9 @@ fun GpxCompareScreen(
     onPickFiles: () -> Unit,
     onRemove: (String) -> Unit,
     onClear: () -> Unit,
-    onNavigateBack: () -> Unit
+    onNavigateBack: () -> Unit,
+    /** 하단 탭으로 열 때는 뒤로 아이콘을 숨김 */
+    isTopLevelTab: Boolean = false
 ) {
     val loaded = entries.filterIsInstance<GpxCompareEntry.Loaded>()
     Scaffold(
@@ -102,7 +104,7 @@ fun GpxCompareScreen(
             TopAppBar(
                 title = { Text("GPX 길 비교") },
                 navigationIcon = {
-                    IconButton(onClick = onNavigateBack) { Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = "뒤로") }
+                    if (!isTopLevelTab) IconButton(onClick = onNavigateBack) { Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = "뒤로") }
                 },
                 actions = { if (entries.isNotEmpty()) TextButton(onClick = onClear) { Text("모두 지우기") } }
             )
@@ -257,7 +259,7 @@ private fun VerdictCard(loaded: List<GpxCompareEntry.Loaded>) {
 }
 
 @Composable
-private fun SectionCard(title: String, subtitle: String?, content: @Composable () -> Unit) {
+internal fun SectionCard(title: String, subtitle: String?, content: @Composable () -> Unit) {
     Card(shape = RoundedCornerShape(18.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
         modifier = Modifier.fillMaxWidth()) {
         Column(Modifier.padding(16.dp)) {
@@ -270,7 +272,7 @@ private fun SectionCard(title: String, subtitle: String?, content: @Composable (
 }
 
 @Composable
-private fun ElevationChart(loaded: List<GpxCompareEntry.Loaded>) {
+internal fun ElevationChart(loaded: List<GpxCompareEntry.Loaded>) {
     val measurer = rememberTextMeasurer()
     val labelColor = MaterialTheme.colorScheme.onSurfaceVariant
     val gridColor = MaterialTheme.colorScheme.outlineVariant

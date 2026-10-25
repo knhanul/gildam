@@ -1,6 +1,9 @@
 package kr.co.nuni.gildam.data.local
 
+import androidx.room.AutoMigration
 import androidx.room.Database
+import kr.co.nuni.gildam.data.course.CourseDao
+import kr.co.nuni.gildam.data.course.CourseEntity
 import androidx.room.RoomDatabase
 import androidx.room.TypeConverter
 import androidx.room.TypeConverters
@@ -41,12 +44,15 @@ class GildamTypeConverters {
         ActivityEntity::class,
         TrackPointEntity::class,
         WaypointEntity::class,
-        PhotoEntity::class
+        PhotoEntity::class,
+        CourseEntity::class
     ],
-    version = 1,
+    version = 2,
+    autoMigrations = [AutoMigration(from = 1, to = 2)],
     exportSchema = true
 )
 @TypeConverters(GildamTypeConverters::class)
 abstract class GildamDatabase : RoomDatabase() {
     abstract fun gildamDao(): GildamDao
+    abstract fun courseDao(): CourseDao
 }
