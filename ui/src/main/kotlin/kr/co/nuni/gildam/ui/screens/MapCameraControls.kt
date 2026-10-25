@@ -35,6 +35,8 @@ import androidx.compose.ui.unit.dp
 import kr.co.nuni.gildam.map.MapCameraMode
 import kr.co.nuni.gildam.ui.illustration.brandGradient
 import kr.co.nuni.gildam.ui.illustration.onBrand
+import kr.co.nuni.gildam.ui.illustration.TooltipIconButton
+import kr.co.nuni.gildam.ui.illustration.IconButtonStyle
 
 /** 지도 위 카메라 모드 전환(따라가기/전체) + 직접 움직였을 때 '다시 맞추기' */
 @Composable
@@ -47,21 +49,13 @@ fun MapCameraControls(
 ) {
     Row(modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End, verticalAlignment = Alignment.CenterVertically) {
         AnimatedVisibility(paused, enter = fadeIn() + scaleIn(), exit = fadeOut() + scaleOut()) {
-            Row(
-                Modifier.shadow(6.dp, RoundedCornerShape(50)).clip(RoundedCornerShape(50)).background(brandGradient())
-                    .clickable(onClick = onRecenter).padding(horizontal = 14.dp, vertical = 9.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Icon(Icons.Outlined.CenterFocusStrong, null, tint = onBrand(), modifier = Modifier.size(18.dp))
-                Spacer(Modifier.width(6.dp))
-                Text("다시 맞추기", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.Bold, color = onBrand())
-            }
+            TooltipIconButton(Icons.Outlined.CenterFocusStrong, "다시 맞추기", onRecenter, style = IconButtonStyle.BRAND, visualSize = 40.dp, iconSize = 20.dp)
         }
-        Spacer(Modifier.width(8.dp))
+        Spacer(Modifier.width(6.dp))
         Surface(shape = RoundedCornerShape(50), color = MaterialTheme.colorScheme.surface.copy(alpha = 0.95f), shadowElevation = 6.dp) {
-            Row(Modifier.padding(4.dp)) {
-                Seg(Icons.Outlined.MyLocation, "따라가기", mode == MapCameraMode.FOLLOW && !paused) { onSelect(MapCameraMode.FOLLOW) }
-                Seg(Icons.Outlined.Route, "전체 경로", mode == MapCameraMode.OVERVIEW && !paused) { onSelect(MapCameraMode.OVERVIEW) }
+            Row(Modifier.padding(horizontal = 2.dp)) {
+                Seg(Icons.Outlined.MyLocation, "내 위치 따라가기", mode == MapCameraMode.FOLLOW && !paused) { onSelect(MapCameraMode.FOLLOW) }
+                Seg(Icons.Outlined.Route, "전체 경로 보기", mode == MapCameraMode.OVERVIEW && !paused) { onSelect(MapCameraMode.OVERVIEW) }
             }
         }
     }
@@ -69,17 +63,5 @@ fun MapCameraControls(
 
 @Composable
 private fun Seg(icon: ImageVector, label: String, selected: Boolean, onClick: () -> Unit) {
-    val cs = MaterialTheme.colorScheme
-    val fg = if (selected) onBrand() else cs.onSurfaceVariant
-    Row(
-        Modifier.clip(RoundedCornerShape(50))
-            .then(if (selected) Modifier.background(brandGradient()) else Modifier)
-            .clickable(role = Role.Tab, onClick = onClick)
-            .padding(horizontal = 12.dp, vertical = 7.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Icon(icon, null, tint = fg, modifier = Modifier.size(17.dp))
-        Spacer(Modifier.width(5.dp))
-        Text(label, style = MaterialTheme.typography.labelLarge, fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium, color = fg)
-    }
+    TooltipIconButton(icon, label, onClick, style = if (selected) IconButtonStyle.BRAND else IconButtonStyle.PLAIN, visualSize = 38.dp, iconSize = 20.dp)
 }

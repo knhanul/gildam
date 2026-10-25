@@ -25,6 +25,10 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.automirrored.outlined.DirectionsWalk
 import androidx.compose.material.icons.outlined.ChevronRight
+import androidx.compose.material.icons.outlined.Close
+import androidx.compose.material.icons.automirrored.outlined.NoteAdd
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.material.icons.outlined.CompareArrows
 import androidx.compose.material.icons.outlined.DeleteOutline
 import androidx.compose.material.icons.outlined.FileOpen
@@ -98,9 +102,11 @@ fun CourseListScreen(
         topBar = {
             TopAppBar(
                 title = { Text("코스") },
-                actions = { if (courses.isNotEmpty()) TextButton(onClick = onImport) {
-                    Icon(Icons.Outlined.FileOpen, null, Modifier.size(18.dp)); Spacer(Modifier.width(6.dp)); Text("GPX 불러오기")
-                } }
+                actions = { if (courses.isNotEmpty()) kr.co.nuni.gildam.ui.illustration.TooltipIconButton(
+                    Icons.AutoMirrored.Outlined.NoteAdd, "GPX 코스 불러오기", onImport,
+                    style = kr.co.nuni.gildam.ui.illustration.IconButtonStyle.BRAND, visualSize = 38.dp, iconSize = 20.dp,
+                    modifier = Modifier.padding(end = 8.dp)
+                ) }
             )
         }
     ) { inner ->
@@ -234,7 +240,9 @@ fun CourseDetailScreen(
             TopAppBar(
                 title = { Text(detail?.name ?: "코스", maxLines = 1, overflow = TextOverflow.Ellipsis) },
                 navigationIcon = { IconButton(onClick = onNavigateBack) { Icon(Icons.AutoMirrored.Outlined.ArrowBack, "뒤로") } },
-                actions = { if (detail != null) IconButton(onClick = { onDelete(detail.id) }) { Icon(Icons.Outlined.DeleteOutline, "코스 삭제") } }
+                actions = { if (detail != null) kr.co.nuni.gildam.ui.illustration.TooltipIconButton(
+                    Icons.Outlined.DeleteOutline, "코스 삭제", { onDelete(detail.id) },
+                    style = kr.co.nuni.gildam.ui.illustration.IconButtonStyle.PLAIN, modifier = Modifier.padding(end = 4.dp)) }
             )
         },
         bottomBar = {
@@ -322,7 +330,11 @@ fun FollowCourseCard(f: CourseFollowUi, onStop: () -> Unit, modifier: Modifier =
                 Spacer(Modifier.width(6.dp))
                 Text(if (off) "코스에서 %.0f m 벗어났어요".format(f.offsetM ?: 0.0) else "따라 걷는 중 · ${f.name}",
                     style = MaterialTheme.typography.labelLarge, color = fg, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
-                TextButton(onClick = onStop, contentPadding = PaddingValues(horizontal = 10.dp)) { Text("그만", color = fg) }
+                kr.co.nuni.gildam.ui.illustration.GildamTooltip("따라 걷기 그만두기") {
+                    IconButton(onClick = onStop, modifier = Modifier.semantics { contentDescription = "따라 걷기 그만두기" }) {
+                        Icon(Icons.Outlined.Close, contentDescription = null, tint = fg)
+                    }
+                }
             }
             Row(horizontalArrangement = Arrangement.spacedBy(22.dp)) {
                 FollowStat("남은 거리", kmText(f.remainingM), fg)
