@@ -5,6 +5,8 @@ import kotlinx.serialization.Serializable
 @Serializable
 enum class TransportType(val labelKo: String, val maxRealisticSpeedMps: Float) {
     WALK(labelKo = "도보", maxRealisticSpeedMps = 7.0f),
+    HIKE(labelKo = "등산", maxRealisticSpeedMps = 6.0f),
+    RUN(labelKo = "달리기", maxRealisticSpeedMps = 9.0f),
     BIKE(labelKo = "자전거", maxRealisticSpeedMps = 22.0f),
     CAR(labelKo = "자동차", maxRealisticSpeedMps = 55.0f)
 }

@@ -60,6 +60,13 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import kr.co.nuni.gildam.data.model.TransportType
 import kr.co.nuni.gildam.map.GildamMapLibreView
+import kr.co.nuni.gildam.map.MapCameraMode
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.runtime.saveable.rememberSaveable
+import kr.co.nuni.gildam.ui.illustration.TransportChip
+import kr.co.nuni.gildam.ui.illustration.VividActionButton
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import kr.co.nuni.gildam.recording.LiveRecordingState
 import kr.co.nuni.gildam.ui.theme.TabularStatHeroStyle
 import kr.co.nuni.gildam.ui.theme.TabularStatMediumStyle
@@ -82,8 +89,15 @@ fun LiveRecordingScreen(
     showTopNavIcons: Boolean = true,
     /** 코스 따라 걷기 중이면 코스 선·남은 거리·도착 예정 표시 */
     follow: CourseFollowUi? = null,
-    onStopFollow: () -> Unit = {}
+    onStopFollow: () -> Unit = {},
+    /** 설정의 '기록 중 지도 보기' 기본값 */
+    defaultCameraMode: MapCameraMode = MapCameraMode.DEFAULT
 ) {
+    var cameraMode by rememberSaveable(defaultCameraMode) { mutableStateOf(defaultCameraMode) }
+    var cameraPaused by remember { mutableStateOf(false) }
+    var recenterKey by remember { mutableStateOf(0) }
+    var topPx by remember { mutableStateOf(0) }
+    var bottomPx by remember { mutableStateOf(0) }
     val haptics = LocalHapticFeedback.current
     var showAddMemoSheet by remember { mutableStateOf(false) }
 
@@ -93,7 +107,15 @@ fun LiveRecordingScreen(
             trackPoints = liveState.liveTrackPoints,
             currentLocation = liveState.currentLocation,
             modifier = Modifier.fillMaxSize(),
-            coursePoints = follow?.route ?: emptyList()
+            coursePoints = follow?.route ?: emptyList(),
+            cameraMode = cameraMode,
+            autoCameraPaused = cameraPaused,
+            overlayTopPx = topPx,
+            overlayBottomPx = bottomPx,
+            speedMps = liveState.currentSpeedMps,
+            distanceM = liveState.distanceMeters,
+            onUserGesture = { cameraPaused = true },
+            recenterKey = recenterKey
         )
 
         // 2. 상단 상태 바 & 네비게이션 칩 (Edge-to-Edge statusBars 인셋 준수)
@@ -102,6 +124,7 @@ fun LiveRecordingScreen(
                 .fillMaxWidth()
                 .windowInsetsPadding(WindowInsets.statusBars)
                 .padding(horizontal = 16.dp, vertical = 8.dp)
+                .onSizeChanged { topPx = it.height }
         ) {
             Surface(
                 shape = RoundedCornerShape(24.dp),
@@ -162,6 +185,13 @@ fun LiveRecordingScreen(
                     )
                 }
             }
+            MapCameraControls(
+                mode = cameraMode,
+                paused = cameraPaused,
+                onSelect = { cameraMode = it; cameraPaused = false; recenterKey++ },
+                onRecenter = { cameraPaused = false; recenterKey++ },
+                modifier = Modifier.padding(top = 10.dp)
+            )
         }
 
         // 3. 하단 플로팅 에디토리얼 대시보드 (Tabular Figures 고정폭 숫자 적용)
@@ -174,6 +204,7 @@ fun LiveRecordingScreen(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
                 .fillMaxWidth()
+                .onSizeChanged { bottomPx = it.height }
         ) {
             Column(
                 modifier = Modifier
@@ -184,15 +215,11 @@ fun LiveRecordingScreen(
                 // 이동 수단 태그 선택 (도보 / 자전거 / 자동차)
                 Row(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState())
                 ) {
                     TransportType.entries.forEach { type ->
                         val selected = (if (liveState.isRecording) liveState.transportType else selectedTransport) == type
-                        FilterChip(
-                            selected = selected,
-                            onClick = { if (!liveState.isRecording) onSelectTransport(type) },
-                            label = { Text(type.labelKo) }
-                        )
+                        TransportChip(type, selected, enabled = !liveState.isRecording) { onSelectTransport(type) }
                     }
                 }
 
@@ -252,24 +279,15 @@ fun LiveRecordingScreen(
 
                 // 컨트롤 액션 버튼 영역
                 if (!liveState.isRecording) {
-                    Button(
+                    VividActionButton(
+                        title = "길 기록 시작하기",
+                        subtitle = if (follow != null) "코스를 따라 출발해요" else "${selectedTransport.labelKo} · 탭 한 번으로 출발!",
+                        type = selectedTransport,
                         onClick = {
                             haptics.performHapticFeedback(HapticFeedbackType.LongPress)
                             onStartRecording()
-                        },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(56.dp),
-                        shape = RoundedCornerShape(16.dp)
-                    ) {
-                        Icon(Icons.Outlined.PlayArrow, contentDescription = null)
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            text = "길 기록 시작하기",
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.SemiBold
-                        )
-                    }
+                        }
+                    )
                 } else {
                     Row(
                         modifier = Modifier.fillMaxWidth(),

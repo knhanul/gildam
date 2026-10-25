@@ -47,8 +47,28 @@ import kr.co.nuni.gildam.ui.theme.GildamTheme
 @Composable
 fun GildamAppRoot(
     viewModel: GildamViewModel = hiltViewModel(),
-    courseViewModel: CourseViewModel = hiltViewModel()
+    courseViewModel: CourseViewModel = hiltViewModel(),
+    appearanceViewModel: AppearanceViewModel = hiltViewModel()
 ) {
+    val palette by appearanceViewModel.palette.collectAsState()
+    val darkMode by appearanceViewModel.darkMode.collectAsState()
+    val recordMapMode by appearanceViewModel.recordMapMode.collectAsState()
+    val systemDark = androidx.compose.foundation.isSystemInDarkTheme()
+    val isDark = when (darkMode) {
+        kr.co.nuni.gildam.ui.theme.DarkModePref.SYSTEM -> systemDark
+        kr.co.nuni.gildam.ui.theme.DarkModePref.LIGHT -> false
+        kr.co.nuni.gildam.ui.theme.DarkModePref.DARK -> true
+    }
+    // 앱에서 밝기를 직접 고른 경우 상태바·내비게이션바 아이콘 색도 맞춤
+    val hostView = androidx.compose.ui.platform.LocalView.current
+    if (!hostView.isInEditMode) androidx.compose.runtime.SideEffect {
+        (hostView.context as? android.app.Activity)?.window?.let { w ->
+            androidx.core.view.WindowCompat.getInsetsController(w, hostView).apply {
+                isAppearanceLightStatusBars = !isDark
+                isAppearanceLightNavigationBars = !isDark
+            }
+        }
+    }
     val navController = rememberNavController()
     val context = LocalContext.current
 
@@ -94,7 +114,7 @@ fun GildamAppRoot(
         }
     }
 
-    GildamTheme {
+    GildamTheme(darkTheme = isDark, palette = palette) {
       Scaffold(
         contentWindowInsets = WindowInsets(0),
         bottomBar = {
@@ -129,7 +149,8 @@ fun GildamAppRoot(
                     onNavigateToSettings = { selectTab(GildamTab.SETTINGS) },
                     showTopNavIcons = false,
                     follow = followUi,
-                    onStopFollow = courseViewModel::stopFollow
+                    onStopFollow = courseViewModel::stopFollow,
+                    defaultCameraMode = recordMapMode
                 )
             }
 
@@ -242,7 +263,13 @@ fun GildamAppRoot(
                     onLogout = { viewModel.logout(context) },
                     onClearThumbnailCache = viewModel::clearThumbnailCache,
                     onNavigateBack = { navController.popBackStack() },
-                    isTopLevelTab = true
+                    isTopLevelTab = true,
+                    palette = palette,
+                    darkMode = darkMode,
+                    onSelectPalette = appearanceViewModel::setPalette,
+                    onSelectDarkMode = appearanceViewModel::setDarkMode,
+                    recordMapMode = recordMapMode,
+                    onSelectRecordMapMode = appearanceViewModel::setRecordMapMode
                 )
             }
         }
