@@ -31,7 +31,12 @@ import kr.co.nuni.gildam.recording.LatLonPoint
 import org.maplibre.android.MapLibre
 import org.maplibre.android.camera.CameraPosition
 import org.maplibre.android.geometry.LatLng
+import org.maplibre.android.maps.MapLibreMapOptions
 import org.maplibre.android.maps.MapView
+import org.maplibre.android.maps.Style
+import org.maplibre.android.style.expressions.Expression
+import org.maplibre.android.style.layers.SymbolLayer
+import android.content.Context
 import org.maplibre.android.style.layers.LineLayer
 import org.maplibre.android.style.layers.Property
 import org.maplibre.android.style.layers.PropertyFactory
@@ -76,10 +81,13 @@ fun GildamMapLibreView(
     }
 
     val mapView = remember {
-        MapView(context).apply {
+        // 한글 등 CJK 글자는 기기 글꼴로 그려 글리프 다운로드를 줄이고 깨짐을 막음
+        val options = MapLibreMapOptions.createFromAttributes(context).localIdeographFontFamily("sans-serif")
+        MapView(context, options).apply {
             onCreate(null)
         }
     }
+    val loadedStyleKey = remember { arrayOfNulls<String>(1) }
 
     DisposableEffect(lifecycleOwner, mapView) {
         val observer = LifecycleEventObserver { _, event ->
@@ -104,11 +112,7 @@ fun GildamMapLibreView(
             factory = { mapView },
             update = { view ->
                 view.getMapAsync { map ->
-                    val styleUrl = if (isDarkTheme) {
-                        GildamMapConfig.DEFAULT_DARK_STYLE_URL
-                    } else {
-                        GildamMapConfig.DEFAULT_LIGHT_STYLE_URL
-                    }
+                    val styleUrl = if (isDarkTheme) GildamMapConfig.DARK_STYLE_URL else GildamMapConfig.LIGHT_STYLE_URL
 
                     val targetLat = currentLocation?.latitude
                         ?: trackPoints.lastOrNull()?.latitude
@@ -124,8 +128,10 @@ fun GildamMapLibreView(
 
                     val geoJson = buildLineStringGeoJson(trackPoints)
                     val existingStyle = map.style
-                    if (existingStyle == null || existingStyle.uri != styleUrl) {
-                        map.setStyle(styleUrl) { style ->
+                    if (existingStyle == null || loadedStyleKey[0] != styleUrl) {
+                        loadedStyleKey[0] = styleUrl
+                        map.setStyle(buildKoreanStyle(view.context, styleUrl)) { style ->
+                            applyKoreanLabelsAtRuntime(style)
                             val source = GeoJsonSource(ROUTE_SOURCE_ID, geoJson)
                             style.addSource(source)
                             val lineColor = if (isDarkTheme) "#FF8A65" else "#D95D39"
@@ -153,7 +159,7 @@ fun GildamMapLibreView(
             color = MaterialTheme.colorScheme.surface.copy(alpha = 0.78f)
         ) {
             Text(
-                text = "© OpenStreetMap · MapLibre",
+                text = GildamMapConfig.ATTRIBUTION_TEXT,
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
@@ -207,3 +213,32 @@ private fun buildLineStringGeoJson(points: List<LatLonPoint>): String {
 
 private const val ROUTE_SOURCE_ID = "gildam-route-source"
 private const val ROUTE_LAYER_ID = "gildam-route-layer"
+
+
+/**
+ * 스타일 빌더: asset:// 이면 앱 내장 JSON 을 읽어 라벨을 한글로 바꾼 뒤 사용,
+ * https:// 이면 그대로 불러오고 로드 후 [applyKoreanLabelsAtRuntime] 로 바꿈.
+ */
+private fun buildKoreanStyle(context: Context, styleUrl: String): Style.Builder {
+    if (styleUrl.startsWith(GildamMapConfig.ASSET_PREFIX)) {
+        val path = styleUrl.removePrefix(GildamMapConfig.ASSET_PREFIX)
+        val raw = runCatching { context.assets.open(path).bufferedReader().use { it.readText() } }.getOrNull()
+        if (raw != null) {
+            val localized = runCatching { KoreanLabelLocalizer.localizeStyleJson(raw) }.getOrDefault(raw)
+            return Style.Builder().fromJson(localized)
+        }
+    }
+    return Style.Builder().fromUri(styleUrl)
+}
+
+/** 원격 스타일 등 이미 로드된 스타일의 이름 라벨을 name:ko → name 순서로 바꿈 (내장 스타일엔 영향 없음). */
+private fun applyKoreanLabelsAtRuntime(style: Style) {
+    style.layers.filterIsInstance<SymbolLayer>().forEach { layer ->
+        val expr = layer.textField.expression ?: return@forEach
+        if (KoreanLabelLocalizer.usesNameField(expr.toString())) {
+            layer.setProperties(
+                PropertyFactory.textField(Expression.coalesce(Expression.get("name:ko"), Expression.get("name")))
+            )
+        }
+    }
+}
