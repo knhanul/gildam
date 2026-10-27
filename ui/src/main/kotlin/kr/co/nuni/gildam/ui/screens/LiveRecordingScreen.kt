@@ -8,6 +8,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -56,8 +57,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import kr.co.nuni.gildam.ui.R
 import kr.co.nuni.gildam.data.model.TransportType
 import kr.co.nuni.gildam.map.GildamMapLibreView
 import kr.co.nuni.gildam.ui.illustration.TooltipIconButton
@@ -142,21 +145,32 @@ fun LiveRecordingScreen(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
-                    Column {
-                        Text(
-                            text = if (liveState.isRecording) {
-                                if (liveState.isPaused) "⏸ 일시정지됨" else "🟢 기록 중 · 백그라운드 보호 활성"
-                            } else {
-                                "길담 · 길이야기"
-                            },
-                            style = MaterialTheme.typography.titleMedium,
-                            color = MaterialTheme.colorScheme.primary
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Image(
+                            painter = painterResource(R.drawable.gildam_logo),
+                            contentDescription = "길담 로고",
+                            modifier = Modifier.size(28.dp)
                         )
-                        Text(
-                            text = "화면이 꺼져도 1초 주기로 궤적을 기록합니다",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Column {
+                            Text(
+                                text = if (liveState.isRecording) {
+                                    if (liveState.isPaused) "⏸ 일시정지됨" else "🟢 기록 중 · 백그라운드 보호 활성"
+                                } else {
+                                    "길담 · 길이야기"
+                                },
+                                style = MaterialTheme.typography.titleMedium,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                            Text(
+                                text = "화면이 꺼져도 1초 주기로 궤적을 기록합니다",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
                     }
                     if (showTopNavIcons) Row {
                         IconButton(onClick = onNavigateToList) {
@@ -215,7 +229,7 @@ fun LiveRecordingScreen(
                     .windowInsetsPadding(WindowInsets.navigationBars)
                     .padding(horizontal = 20.dp, vertical = 18.dp)
             ) {
-                // 이동 수단 태그 선택 (도보 / 자전거 / 자동차)
+                // 이동 수단 태그 선택 (걷기 / 달리기 / 등산 / 자전거 / 자동차)
                 Row(
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                     modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState())

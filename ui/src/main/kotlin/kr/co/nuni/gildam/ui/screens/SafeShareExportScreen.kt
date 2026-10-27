@@ -1,5 +1,8 @@
 package kr.co.nuni.gildam.ui.screens
 
+import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -35,9 +38,11 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
 import kr.co.nuni.gildam.data.gpx.GpxExportOptions
+import kr.co.nuni.gildam.data.gpx.GpxExportResult
 import kr.co.nuni.gildam.data.gpx.MaskedPreviewResult
 import kr.co.nuni.gildam.data.local.entity.TrackPointEntity
 
@@ -51,15 +56,37 @@ import kr.co.nuni.gildam.data.local.entity.TrackPointEntity
 fun SafeShareExportScreen(
     trackPoints: List<TrackPointEntity>,
     computePreview: (List<TrackPointEntity>, Double) -> MaskedPreviewResult,
-    onExportGpx: suspend (GpxExportOptions) -> String?,
+    onExportGpx: suspend (GpxExportOptions) -> GpxExportResult?,
     onNavigateBack: () -> Unit
 ) {
     val scope = rememberCoroutineScope()
+    val context = LocalContext.current
     var maskRadiusMeters by remember { mutableFloatStateOf(200f) }
     var includeWaypointsAndMemos by remember { mutableStateOf(false) }
     var includeCaptions by remember { mutableStateOf(false) }
     var includeTimestamps by remember { mutableStateOf(false) }
-    var exportedXmlPreview by remember { mutableStateOf<String?>(null) }
+    var exporting by remember { mutableStateOf(false) }
+    var pendingExport by remember { mutableStateOf<GpxExportResult?>(null) }
+
+    // SAF: 사용자가 저장 위치/파일명을 고르면 GPX XML을 해당 Uri에 기록
+    val saveLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.CreateDocument("application/gpx+xml")
+    ) { uri ->
+        val payload = pendingExport
+        pendingExport = null
+        if (uri != null && payload != null) {
+            val saved = runCatching {
+                context.contentResolver.openOutputStream(uri)?.use { out ->
+                    out.write(payload.xml.toByteArray(Charsets.UTF_8))
+                } ?: error("output stream is null")
+            }.isSuccess
+            Toast.makeText(
+                context,
+                if (saved) "GPX 파일을 저장했어요" else "GPX 저장에 실패했어요",
+                Toast.LENGTH_SHORT
+            ).show()
+        }
+    }
 
     val preview = remember(trackPoints, maskRadiusMeters) {
         computePreview(trackPoints, maskRadiusMeters.toDouble())
@@ -181,7 +208,8 @@ fun SafeShareExportScreen(
             Button(
                 onClick = {
                     scope.launch {
-                        exportedXmlPreview = onExportGpx(
+                        exporting = true
+                        val payload = onExportGpx(
                             GpxExportOptions(
                                 includeWaypointsAndMemos = includeWaypointsAndMemos,
                                 includeCaptions = includeCaptions,
@@ -189,32 +217,22 @@ fun SafeShareExportScreen(
                                 privacyMaskRadiusMeters = maskRadiusMeters.toDouble()
                             )
                         )
+                        exporting = false
+                        if (payload != null) {
+                            pendingExport = payload
+                            saveLauncher.launch(payload.suggestedFileName)
+                        } else {
+                            Toast.makeText(context, "내보낼 기록을 찾지 못했어요", Toast.LENGTH_SHORT).show()
+                        }
                     }
                 },
+                enabled = !exporting,
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(54.dp),
                 shape = RoundedCornerShape(16.dp)
             ) {
-                Text("화이트리스트 GPX 생성 및 미리보기")
-            }
-
-            exportedXmlPreview?.let { xml ->
-                Spacer(modifier = Modifier.height(16.dp))
-                Surface(
-                    shape = RoundedCornerShape(14.dp),
-                    color = MaterialTheme.colorScheme.surfaceVariant,
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Column(modifier = Modifier.padding(14.dp)) {
-                        Text("생성된 GPX 1.1 미리보기", style = MaterialTheme.typography.titleMedium)
-                        Spacer(modifier = Modifier.height(6.dp))
-                        Text(
-                            text = xml.take(900) + if (xml.length > 900) "\n... (생략)" else "",
-                            style = MaterialTheme.typography.labelSmall
-                        )
-                    }
-                }
+                Text(if (exporting) "GPX 만드는 중…" else "GPX 파일로 저장")
             }
         }
     }
