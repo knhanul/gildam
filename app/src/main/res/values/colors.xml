@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- 런처 아이콘 배경: 길담 로고 강(river) 색과 통일 -->
+    <color name="ic_launcher_background">#145F4A</color>
+</resources>

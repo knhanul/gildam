@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 말풍선 로고가 런처 아이콘 안전 영역 안에 들어오도록 살짝 축소 -->
+<inset xmlns:android="http://schemas.android.com/apk/res/android"
+    android:drawable="@drawable/ic_launcher_foreground"
+    android:insetLeft="10%"
+    android:insetTop="10%"
+    android:insetRight="10%"
+    android:insetBottom="10%" />
