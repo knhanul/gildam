@@ -13,6 +13,8 @@ data class TrackDto(
     @SerialName("updated_at") val updatedAt: Long,
     val title: String? = null,
     val memo: String? = null,
+    /** 활동 구분 WALK/HIKE/RUN/BIKE/CAR. 현재 서버(validateTrack)는 이 값을 저장하지 않고 버림 → 서버 수정 필요 */
+    @SerialName("activity_type") val activityType: String? = null,
     @SerialName("started_at") val startedAt: Long? = null,
     @SerialName("ended_at") val endedAt: Long? = null,
     @SerialName("distance_m") val distanceM: Double? = null,

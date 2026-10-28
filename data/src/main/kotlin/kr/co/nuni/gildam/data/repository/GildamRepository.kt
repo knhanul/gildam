@@ -191,11 +191,37 @@ class GildamRepository @Inject constructor(
             existing.copy(
                 title = newTitle,
                 visibility = newVisibility,
-                syncState = SyncState.PENDING_UPLOAD,
+                syncState = if (existing.syncState == SyncState.LOCAL_ONLY) SyncState.LOCAL_ONLY else SyncState.PENDING_UPLOAD,
                 version = existing.version + 1,
                 updatedAtEpochMs = System.currentTimeMillis()
             )
         )
+    }
+
+    /** 제목·활동 구분 수정. 바뀐 게 있으면 true */
+    suspend fun updateTitleAndTransport(activityId: String, title: String, type: TransportType): Boolean {
+        val existing = dao.getActivityById(activityId) ?: return false
+        val edited = RecordEditPolicy.applyEdit(existing, title, type, System.currentTimeMillis()) ?: return false
+        if (edited == existing) return false
+        dao.upsertActivity(edited)
+        return true
+    }
+
+    /** 기록 삭제. 서버 삭제가 필요하면 true (워커를 깨워야 함) */
+    suspend fun deleteActivity(activityId: String): Boolean {
+        val existing = dao.getActivityById(activityId) ?: return false
+        return when (RecordEditPolicy.deleteAction(existing)) {
+            RecordEditPolicy.DeleteAction.HARD_DELETE_NOW -> { dao.hardDeleteActivity(activityId); false }
+            RecordEditPolicy.DeleteAction.QUEUE_SERVER_DELETE -> { dao.upsertActivity(RecordEditPolicy.markDeleted(existing, System.currentTimeMillis())); true }
+        }
+    }
+
+    /** '클라우드에 올리기' 요청. 대기열에 넣었으면 true */
+    suspend fun requestCloudUpload(activityId: String): Boolean {
+        val existing = dao.getActivityById(activityId) ?: return false
+        val queued = RecordEditPolicy.requestUpload(existing) ?: return false
+        dao.setActivitySyncStateOnly(activityId, queued.syncState)
+        return true
     }
 
     suspend fun ensureDemoSampleIfEmpty() {

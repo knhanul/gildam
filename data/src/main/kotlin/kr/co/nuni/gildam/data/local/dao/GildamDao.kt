@@ -102,10 +102,11 @@ interface GildamDao {
 
     // ---- gildam-api 동기화 (updated_at 을 건드리지 않는 전용 쿼리) ----
 
-    @Query("SELECT * FROM activities WHERE status = 'COMPLETED' AND deleted_at IS NULL AND sync_state IN ('LOCAL_ONLY', 'PENDING_UPLOAD', 'SYNC_ERROR')")
+    /** LOCAL_ONLY 는 사용자가 '클라우드에 올리기'를 눌러야만 PENDING_UPLOAD 가 됨. SYNCING 은 중단된 업로드 재시도 */
+    @Query("SELECT * FROM activities WHERE status = 'COMPLETED' AND deleted_at IS NULL AND sync_state IN ('PENDING_UPLOAD', 'SYNCING', 'SYNC_ERROR')")
     suspend fun getActivitiesToUpload(): List<ActivityEntity>
 
-    @Query("SELECT * FROM activities WHERE sync_state = 'PENDING_DELETE' OR (deleted_at IS NOT NULL AND sync_state != 'SYNCED')")
+    @Query("SELECT * FROM activities WHERE sync_state = 'PENDING_DELETE' OR (deleted_at IS NOT NULL AND sync_state NOT IN ('SYNCED', 'LOCAL_ONLY'))")
     suspend fun getActivitiesToDelete(): List<ActivityEntity>
 
     /** 업로드한 시점 이후 로컬에서 바뀌지 않았을 때만 SYNCED 로 표시 */

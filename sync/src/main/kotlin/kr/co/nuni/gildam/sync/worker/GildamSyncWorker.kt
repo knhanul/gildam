@@ -100,11 +100,16 @@ class GildamSyncWorker @AssistedInject constructor(
         for (a in dao.getActivitiesToUpload()) {
             if (!TrackSyncMapper.isValidId(a.id)) { dao.setActivitySyncStateOnly(a.id, SyncState.SYNC_ERROR); continue }
             val body = TrackSyncMapper.toDto(a, dao.getTrackPoints(a.id), dao.getWaypointsForActivity(a.id))
-            val res = api.putTrack(a.id, body)
+            dao.setActivitySyncStateOnly(a.id, SyncState.SYNCING)
+            val res = try { api.putTrack(a.id, body) } catch (e: IOException) {
+                dao.setActivitySyncStateOnly(a.id, SyncState.PENDING_UPLOAD); throw e
+            }
+            if (res.code() == 401) dao.setActivitySyncStateOnly(a.id, SyncState.PENDING_UPLOAD)
             check401(res.code())
             when {
                 res.isSuccessful -> {
-                    dao.markActivitySyncedIfUnchanged(a.id, a.updatedAtEpochMs)
+                    // 올리는 동안 로컬이 또 바뀌었으면 SYNCED 로 못 바꿈 → 다음 동기화에 다시 올림
+                    if (dao.markActivitySyncedIfUnchanged(a.id, a.updatedAtEpochMs) == 0) dao.setActivitySyncStateOnly(a.id, SyncState.PENDING_UPLOAD)
                     dao.markWaypointsSyncedForActivity(a.id)
                 }
                 res.code() == 409 -> {
@@ -116,8 +121,8 @@ class GildamSyncWorker @AssistedInject constructor(
                         dao.replaceActivityFromServer(t.activity, t.points, t.waypoints)
                     }
                 }
-                res.code() in 400..499 -> dao.setActivitySyncStateOnly(a.id, SyncState.SYNC_ERROR) // 400/413 등: 재시도해도 안 됨
-                else -> throw IOException("put ${res.code()}")
+                res.code() in 400..499 -> dao.setActivitySyncStateOnly(a.id, SyncState.SYNC_ERROR) // 400/404/405/413 등: 재시도해도 안 됨 → '실패' 표시
+                else -> { dao.setActivitySyncStateOnly(a.id, SyncState.PENDING_UPLOAD); throw IOException("put ${res.code()}") }
             }
         }
         for (a in dao.getActivitiesToDelete()) {
@@ -125,6 +130,7 @@ class GildamSyncWorker @AssistedInject constructor(
             check401(res.code())
             if (res.isSuccessful || res.code() == 404) dao.hardDeleteActivity(a.id)
             else if (res.code() >= 500) throw IOException("delete ${res.code()}")
+            // 그 밖의 4xx(405 등): 기록은 숨긴 채 PENDING_DELETE 로 남겨 다음 동기화에 다시 시도
         }
     }
 

@@ -91,7 +91,11 @@ fun ActivityListScreen(
     onNavigateToSettings: () -> Unit,
     onNavigateToGpxCompare: () -> Unit = {},
     /** 하단 탭바가 있을 때는 뒤로/설정 아이콘을 숨김 */
-    isTopLevelTab: Boolean = false
+    isTopLevelTab: Boolean = false,
+    isLoggedIn: Boolean = false,
+    onEditActivity: (id: String, title: String, type: TransportType) -> Unit = { _, _, _ -> },
+    onDeleteActivity: (String) -> Unit = {},
+    onUploadActivity: (String) -> Unit = {}
 ) {
     // 찾기: 기본은 가려져 있고 앱바 돋보기 아이콘으로 펼침/접음
     var searchExpanded by rememberSaveable { mutableStateOf(false) }
@@ -101,6 +105,15 @@ fun ActivityListScreen(
         if (searchExpanded) searchFocusRequester.requestFocus()
     }
 
+    // 수정 시트 / 삭제 확인 대화상자
+    var editingId by remember { mutableStateOf<String?>(null) }
+    var deletingId by remember { mutableStateOf<String?>(null) }
+    RecordEditHost(
+        editing = activities.firstOrNull { it.id == editingId },
+        deleting = activities.firstOrNull { it.id == deletingId },
+        onEdit = onEditActivity, onDelete = onDeleteActivity,
+        onDismissEdit = { editingId = null }, onDismissDelete = { deletingId = null }
+    )
     Scaffold(
         contentWindowInsets = WindowInsets(0),
         floatingActionButton = {
@@ -272,7 +285,11 @@ fun ActivityListScreen(
                     items(activities, key = { it.id }) { item ->
                         ActivitySummaryCard(
                             activity = item,
-                            onClick = { onSelectActivity(item.id) }
+                            onClick = { onSelectActivity(item.id) },
+                            isLoggedIn = isLoggedIn,
+                            onEdit = { editingId = item.id },
+                            onDelete = { deletingId = item.id },
+                            onUpload = { onUploadActivity(item.id) }
                         )
                     }
                 }
@@ -282,9 +299,13 @@ fun ActivityListScreen(
 }
 
 @Composable
-private fun ActivitySummaryCard(
+internal fun ActivitySummaryCard(
     activity: ActivityEntity,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    isLoggedIn: Boolean = false,
+    onEdit: () -> Unit = {},
+    onDelete: () -> Unit = {},
+    onUpload: () -> Unit = {}
 ) {
     val dateStr = DateTimeFormatter.ofPattern("yy.MM.dd (E) HH:mm")
         .withZone(ZoneId.systemDefault())
@@ -338,20 +359,27 @@ private fun ActivitySummaryCard(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(
-                    text = dateStr,
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                Text(
-                    text = String.format(
-                        "%.2f km · %s",
-                        activity.distanceMeters / 1000.0,
-                        formatDurationHms(activity.totalDurationMs)
-                    ),
-                    style = MaterialTheme.typography.labelMedium,
-                    fontWeight = FontWeight.SemiBold,
-                    color = MaterialTheme.colorScheme.onSurface
+                // 승희님 최신 카드: 날짜·거리·시간(왼쪽) + 수정/삭제/올리기 아이콘 버튼(오른쪽)
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = dateStr,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Text(
+                        text = String.format(
+                            "%.2f km · %s",
+                            activity.distanceMeters / 1000.0,
+                            formatDurationHms(activity.totalDurationMs)
+                        ),
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                }
+                RecordActionButtons(
+                    activity, isLoggedIn,
+                    onEdit = onEdit, onDelete = onDelete, onUpload = onUpload
                 )
             }
         }

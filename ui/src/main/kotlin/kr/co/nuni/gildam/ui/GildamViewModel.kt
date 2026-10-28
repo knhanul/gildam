@@ -183,6 +183,28 @@ class GildamViewModel @Inject constructor(
         }
     }
 
+    /** 기록 제목·활동 구분 수정 (로컬 즉시, 이미 올린 기록이면 서버에도) */
+    fun editActivity(activityId: String, title: String, type: TransportType) {
+        viewModelScope.launch {
+            if (repository.updateTitleAndTransport(activityId, title, type)) GildamSyncWorker.enqueueImmediateSync(appContext)
+        }
+    }
+
+    /** 기록 삭제 (로컬 즉시 숨김, 올린 기록이면 서버 삭제 대기열) */
+    fun deleteActivity(activityId: String) {
+        viewModelScope.launch {
+            if (repository.deleteActivity(activityId)) GildamSyncWorker.enqueueImmediateSync(appContext)
+        }
+    }
+
+    /** 로그인한 사용자로 이 기록을 클라우드에 올리기 */
+    fun uploadActivityToCloud(activityId: String) {
+        if (!tokenStore.sessionFlow.value.isLoggedIn) return
+        viewModelScope.launch {
+            if (repository.requestCloudUpload(activityId)) GildamSyncWorker.enqueueImmediateSync(appContext)
+        }
+    }
+
     fun launchKakaoLogin(activityContext: Context, switchAccount: Boolean = false) {
         authManager.launchLogin(activityContext, switchAccount)
     }
