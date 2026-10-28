@@ -52,6 +52,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.LaunchedEffect
+import kotlinx.coroutines.delay
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -61,6 +63,8 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import kr.co.nuni.gildam.ui.R
+import kr.co.nuni.gildam.data.model.GaugeFormat
+import kr.co.nuni.gildam.data.model.GaugeMetric
 import kr.co.nuni.gildam.data.model.TransportType
 import kr.co.nuni.gildam.map.GildamMapLibreView
 import kr.co.nuni.gildam.ui.illustration.TooltipIconButton
@@ -97,8 +101,14 @@ fun LiveRecordingScreen(
     follow: CourseFollowUi? = null,
     onStopFollow: () -> Unit = {},
     /** 설정의 '기록 중 지도 보기' 기본값 */
-    defaultCameraMode: MapCameraMode = MapCameraMode.DEFAULT
+    defaultCameraMode: MapCameraMode = MapCameraMode.DEFAULT,
+    /** 설정에서 활동 구분별로 고른 '지도 위 계기판' 값 */
+    overlayMetric: GaugeMetric = GaugeMetric.defaultFor(selectedTransport),
+    /** 테스트·미리보기에서 현재 시각을 고정할 때 사용. null 이면 1초마다 실제 시각으로 갱신 */
+    fixedClockMs: Long? = null
 ) {
+    // 현재 시간 계기판만 1초마다 다시 그리도록, 시각 상태는 읽는 곳에서만 구독합니다.
+    val clockTick = rememberClockTick(fixedClockMs)
     var cameraMode by rememberSaveable(defaultCameraMode) { mutableStateOf(defaultCameraMode) }
     var cameraPaused by remember { mutableStateOf(false) }
     var recenterKey by remember { mutableStateOf(0) }
@@ -211,133 +221,138 @@ fun LiveRecordingScreen(
             )
         }
 
-        // 3. 하단 플로팅 에디토리얼 대시보드 (Tabular Figures 고정폭 숫자 적용)
-        Card(
-            shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
-            colors = CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.surface
-            ),
-            elevation = CardDefaults.cardElevation(defaultElevation = 12.dp),
+        // 3. 지도 하단 묶음: 지도 위에 겹치는 계기판 1개 + 하단 대시보드
+        //    칩을 카드 바로 위에 붙여 같은 묶음으로 읽히게 하고, 지도 위 버튼과는 겹치지 않게 합니다.
+        Column(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
                 .fillMaxWidth()
-                .onSizeChanged { bottomPx = it.height }
+                .onSizeChanged { bottomPx = it.height },
+            horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .windowInsetsPadding(WindowInsets.navigationBars)
-                    .padding(horizontal = 20.dp, vertical = 18.dp)
+            GaugeOverlayChip(
+                metric = overlayMetric,
+                live = liveState,
+                clockTick = clockTick,
+                modifier = Modifier.padding(bottom = 10.dp)
+            )
+
+            Card(
+                shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surface
+                ),
+                elevation = CardDefaults.cardElevation(defaultElevation = 12.dp),
+                modifier = Modifier.fillMaxWidth()
             ) {
-                // 이동 수단 태그 선택 (걷기 / 달리기 / 등산 / 자전거 / 자동차)
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState())
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .windowInsetsPadding(WindowInsets.navigationBars)
+                        .padding(horizontal = 20.dp, vertical = 18.dp)
                 ) {
-                    TransportType.entries.forEach { type ->
-                        val selected = (if (liveState.isRecording) liveState.transportType else selectedTransport) == type
-                        TransportChip(type, selected, enabled = !liveState.isRecording) { onSelectTransport(type) }
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(12.dp))
-
-                // 메인 히어로 통계: 누적 거리(km) & 총 시간 (Tabular Figures)
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Column {
-                        Text(
-                            text = "누적 거리 (km)",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        Text(
-                            text = String.format("%.2f", liveState.distanceMeters / 1000.0),
-                            style = TabularStatHeroStyle,
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
-                    }
-                    Column(horizontalAlignment = Alignment.End) {
-                        Text(
-                            text = "총 시간",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        Text(
-                            text = formatDurationHms(liveState.elapsedTotalMs),
-                            style = TabularStatHeroStyle,
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(12.dp))
-
-                // 보조 속도 카드: 현재 속도 & 이동 평균 속도
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    StatSubCard(
-                        label = "현재 속도",
-                        value = String.format("%.1f km/h", liveState.currentSpeedMps * 3.6f),
-                        modifier = Modifier.weight(1f)
-                    )
-                    StatSubCard(
-                        label = "이동 평균 속도",
-                        value = String.format("%.1f km/h", liveState.movingAvgSpeedMps * 3.6f),
-                        modifier = Modifier.weight(1f)
-                    )
-                }
-
-                Spacer(modifier = Modifier.height(16.dp))
-
-                // 컨트롤 액션 버튼 영역
-                if (!liveState.isRecording) {
-                    VividActionButton(
-                        title = "길 기록 시작하기",
-                        subtitle = if (follow != null) "코스를 따라 출발해요" else "${selectedTransport.labelKo} · 탭 한 번으로 출발!",
-                        type = selectedTransport,
-                        onClick = {
-                            haptics.performHapticFeedback(HapticFeedbackType.LongPress)
-                            onStartRecording()
+                    // 이동 수단 태그 선택 (걷기 / 달리기 / 등산 / 자전거 / 자동차)
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState())
+                    ) {
+                        TransportType.entries.forEach { type ->
+                            val selected = (if (liveState.isRecording) liveState.transportType else selectedTransport) == type
+                            TransportChip(type, selected, enabled = !liveState.isRecording) { onSelectTransport(type) }
                         }
-                    )
-                } else {
-                    // 작은 아이콘 버튼 (길게 누르면 이름 말풍선) — 좁은 화면에서도 잘리지 않음
+                    }
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    // 지도 아래 계기판 4개: 지도 위 1개를 뺀 나머지 (큰 값 2개 + 작은 값 2개)
+                    val heroMetrics = GaugeMetric.heroesFor(overlayMetric)
+                    val subMetrics = GaugeMetric.subsFor(overlayMetric)
+
                     Row(
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(18.dp, Alignment.CenterHorizontally),
-                        verticalAlignment = Alignment.CenterVertically
+                        horizontalArrangement = Arrangement.SpaceBetween
                     ) {
-                        TooltipIconButton(
-                            icon = if (liveState.isPaused) Icons.Outlined.PlayArrow else Icons.Outlined.Pause,
-                            label = if (liveState.isPaused) "기록 재개" else "일시정지",
+                        heroMetrics.forEachIndexed { i, metric ->
+                            Column(horizontalAlignment = if (i == 0) Alignment.Start else Alignment.End) {
+                                Text(
+                                    text = metric.labelWithUnit,
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                                GaugeValueText(
+                                    metric = metric,
+                                    live = liveState,
+                                    clockTick = clockTick,
+                                    style = TabularStatHeroStyle.copy(fontSize = 38.sp, lineHeight = 44.sp),
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        subMetrics.forEach { metric ->
+                            StatSubCard(
+                                metric = metric,
+                                live = liveState,
+                                clockTick = clockTick,
+                                modifier = Modifier.weight(1f)
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    // 컨트롤 액션 버튼 영역
+                    if (!liveState.isRecording) {
+                        VividActionButton(
+                            title = "길 기록 시작하기",
+                            subtitle = if (follow != null) "코스를 따라 출발해요" else "${selectedTransport.labelKo} · 탭 한 번으로 출발!",
+                            type = selectedTransport,
                             onClick = {
                                 haptics.performHapticFeedback(HapticFeedbackType.LongPress)
-                                if (liveState.isPaused) onResumeRecording() else onPauseRecording()
-                            },
-                            style = IconButtonStyle.OUTLINED
+                                onStartRecording()
+                            }
                         )
-                        TooltipIconButton(
-                            icon = Icons.Outlined.AddLocationAlt,
-                            label = "여기에 메모·사진 남기기",
-                            onClick = { showAddMemoSheet = true },
-                            style = IconButtonStyle.BRAND,
-                            visualSize = 52.dp,
-                            iconSize = 26.dp
-                        )
-                        TooltipIconButton(
-                            icon = Icons.Outlined.Stop,
-                            label = "기록 종료",
-                            onClick = {
-                                haptics.performHapticFeedback(HapticFeedbackType.LongPress)
-                                onStopRecording()
-                            },
-                            style = IconButtonStyle.TONAL
-                        )
+                    } else {
+                        // 작은 아이콘 버튼 (길게 누르면 이름 말풍선) — 좁은 화면에서도 잘리지 않음
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(18.dp, Alignment.CenterHorizontally),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            TooltipIconButton(
+                                icon = if (liveState.isPaused) Icons.Outlined.PlayArrow else Icons.Outlined.Pause,
+                                label = if (liveState.isPaused) "기록 재개" else "일시정지",
+                                onClick = {
+                                    haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                                    if (liveState.isPaused) onResumeRecording() else onPauseRecording()
+                                },
+                                style = IconButtonStyle.OUTLINED
+                            )
+                            TooltipIconButton(
+                                icon = Icons.Outlined.AddLocationAlt,
+                                label = "여기에 메모·사진 남기기",
+                                onClick = { showAddMemoSheet = true },
+                                style = IconButtonStyle.BRAND,
+                                visualSize = 52.dp,
+                                iconSize = 26.dp
+                            )
+                            TooltipIconButton(
+                                icon = Icons.Outlined.Stop,
+                                label = "기록 종료",
+                                onClick = {
+                                    haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                                    onStopRecording()
+                                },
+                                style = IconButtonStyle.TONAL
+                            )
+                        }
                     }
                 }
             }
@@ -357,8 +372,9 @@ fun LiveRecordingScreen(
 
 @Composable
 private fun StatSubCard(
-    label: String,
-    value: String,
+    metric: GaugeMetric,
+    live: LiveRecordingState,
+    clockTick: androidx.compose.runtime.State<Long>,
     modifier: Modifier = Modifier
 ) {
     Surface(
@@ -368,14 +384,16 @@ private fun StatSubCard(
     ) {
         Column(modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp)) {
             Text(
-                text = label,
+                text = metric.labelWithUnit,
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
             Spacer(modifier = Modifier.height(2.dp))
-            Text(
-                text = value,
-                style = TabularStatMediumStyle,
+            GaugeValueText(
+                metric = metric,
+                live = live,
+                clockTick = clockTick,
+                style = TabularStatMediumStyle.copy(fontSize = 24.sp, lineHeight = 29.sp),
                 color = MaterialTheme.colorScheme.onSurface
             )
         }
@@ -477,10 +495,44 @@ private fun AddWaypointBottomSheet(
     }
 }
 
-internal fun formatDurationHms(durationMs: Long): String {
-    val totalSec = (durationMs / 1000L).coerceAtLeast(0L)
-    val h = totalSec / 3600
-    val m = (totalSec % 3600) / 60
-    val s = totalSec % 60
-    return String.format("%02d:%02d:%02d", h, m, s)
+/**
+ * 계기판 값 문자열 (단위는 라벨에 따로 표시).
+ * [clockNowMs] 는 현재 시간 계기판에만 쓰이고, 나머지 값은 [live] 에서 계산합니다.
+ */
+internal fun gaugeValue(metric: GaugeMetric, live: LiveRecordingState, clockNowMs: Long): String = when (metric) {
+    GaugeMetric.DISTANCE -> GaugeFormat.distanceKm(live.distanceMeters)
+    GaugeMetric.TOTAL_TIME -> GaugeFormat.durationHms(live.elapsedTotalMs)
+    GaugeMetric.CURRENT_SPEED -> GaugeFormat.speedKmh(live.currentSpeedMps)
+    GaugeMetric.MOVING_AVG_SPEED -> GaugeFormat.speedKmh(live.movingAvgSpeedMps)
+    GaugeMetric.CLOCK -> GaugeFormat.clockHms(clockNowMs)
 }
+
+/** 1초마다 현재 시각을 담는 상태. [fixed] 가 있으면 그 값으로 고정합니다(테스트·미리보기). */
+@Composable
+internal fun rememberClockTick(fixed: Long?): androidx.compose.runtime.State<Long> {
+    if (fixed != null) return remember(fixed) { mutableStateOf(fixed) }
+    val state = remember { mutableStateOf(System.currentTimeMillis()) }
+    LaunchedEffect(Unit) {
+        while (true) {
+            state.value = System.currentTimeMillis()
+            delay(1_000L)
+        }
+    }
+    return state
+}
+
+/** 계기판 값 텍스트. 현재 시간일 때만 시각 상태를 구독해서 화면 전체가 1초마다 다시 그려지지 않게 합니다. */
+@Composable
+internal fun GaugeValueText(
+    metric: GaugeMetric,
+    live: LiveRecordingState,
+    clockTick: androidx.compose.runtime.State<Long>,
+    style: androidx.compose.ui.text.TextStyle,
+    color: androidx.compose.ui.graphics.Color
+) {
+    val text = gaugeValue(metric, live, clockTick.value)
+    Text(text = text, style = style, color = color)
+}
+
+/** 다른 화면(기록 목록·상세)에서도 같은 표기를 쓰도록 한 곳으로 모음 */
+internal fun formatDurationHms(durationMs: Long): String = GaugeFormat.durationHms(durationMs)
