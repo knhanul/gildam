@@ -281,7 +281,8 @@ fun GildamAppRoot(
                     recordMapMode = recordMapMode,
                     onSelectRecordMapMode = appearanceViewModel::setRecordMapMode,
                     gaugeSelections = gaugeSelections,
-                    onSelectGauge = appearanceViewModel::setGaugeSelection
+                    onSelectGauge = appearanceViewModel::setGaugeSelection,
+                    onResetGauge = appearanceViewModel::resetGaugeSelections
                 )
             }
         }

@@ -219,136 +219,140 @@ fun LiveRecordingScreen(
                 onRecenter = { cameraPaused = false; recenterKey++ },
                 modifier = Modifier.padding(top = 10.dp)
             )
+        }
 
-            // 지도 위에 겹쳐 보이는 계기판 1개 (활동 구분별 기본값, 설정에서 변경)
-            // 출발 전·일시정지 중에도 자리를 지켜서 '지도 위 1 + 지도 아래 4'가 항상 같게 보이도록 함
+        // 3. 지도 하단 묶음: 지도 위에 겹치는 계기판 1개 + 하단 대시보드
+        //    칩을 카드 바로 위에 붙여 같은 묶음으로 읽히게 하고, 지도 위 버튼과는 겹치지 않게 합니다.
+        Column(
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .fillMaxWidth()
+                .onSizeChanged { bottomPx = it.height },
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
             GaugeOverlayChip(
                 metric = overlayMetric,
                 live = liveState,
                 clockTick = clockTick,
-                modifier = Modifier.padding(top = 8.dp)
+                modifier = Modifier.padding(bottom = 10.dp)
             )
-        }
 
-        // 3. 하단 플로팅 에디토리얼 대시보드 (Tabular Figures 고정폭 숫자 적용)
-        Card(
-            shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
-            colors = CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.surface
-            ),
-            elevation = CardDefaults.cardElevation(defaultElevation = 12.dp),
-            modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .fillMaxWidth()
-                .onSizeChanged { bottomPx = it.height }
-        ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .windowInsetsPadding(WindowInsets.navigationBars)
-                    .padding(horizontal = 20.dp, vertical = 18.dp)
+            Card(
+                shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surface
+                ),
+                elevation = CardDefaults.cardElevation(defaultElevation = 12.dp),
+                modifier = Modifier.fillMaxWidth()
             ) {
-                // 이동 수단 태그 선택 (걷기 / 달리기 / 등산 / 자전거 / 자동차)
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState())
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .windowInsetsPadding(WindowInsets.navigationBars)
+                        .padding(horizontal = 20.dp, vertical = 18.dp)
                 ) {
-                    TransportType.entries.forEach { type ->
-                        val selected = (if (liveState.isRecording) liveState.transportType else selectedTransport) == type
-                        TransportChip(type, selected, enabled = !liveState.isRecording) { onSelectTransport(type) }
+                    // 이동 수단 태그 선택 (걷기 / 달리기 / 등산 / 자전거 / 자동차)
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState())
+                    ) {
+                        TransportType.entries.forEach { type ->
+                            val selected = (if (liveState.isRecording) liveState.transportType else selectedTransport) == type
+                            TransportChip(type, selected, enabled = !liveState.isRecording) { onSelectTransport(type) }
+                        }
                     }
-                }
 
-                Spacer(modifier = Modifier.height(12.dp))
+                    Spacer(modifier = Modifier.height(12.dp))
 
-                // 지도 아래 계기판 4개: 지도 위 1개를 뺀 나머지 (큰 값 2개 + 작은 값 2개)
-                val heroMetrics = GaugeMetric.heroesFor(overlayMetric)
-                val subMetrics = GaugeMetric.subsFor(overlayMetric)
+                    // 지도 아래 계기판 4개: 지도 위 1개를 뺀 나머지 (큰 값 2개 + 작은 값 2개)
+                    val heroMetrics = GaugeMetric.heroesFor(overlayMetric)
+                    val subMetrics = GaugeMetric.subsFor(overlayMetric)
 
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    heroMetrics.forEachIndexed { i, metric ->
-                        Column(horizontalAlignment = if (i == 0) Alignment.Start else Alignment.End) {
-                            Text(
-                                text = metric.labelWithUnit,
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                            GaugeValueText(
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        heroMetrics.forEachIndexed { i, metric ->
+                            Column(horizontalAlignment = if (i == 0) Alignment.Start else Alignment.End) {
+                                Text(
+                                    text = metric.labelWithUnit,
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                                GaugeValueText(
+                                    metric = metric,
+                                    live = liveState,
+                                    clockTick = clockTick,
+                                    style = TabularStatHeroStyle.copy(fontSize = 38.sp, lineHeight = 44.sp),
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        subMetrics.forEach { metric ->
+                            StatSubCard(
                                 metric = metric,
                                 live = liveState,
                                 clockTick = clockTick,
-                                style = TabularStatHeroStyle,
-                                color = MaterialTheme.colorScheme.onSurface
+                                modifier = Modifier.weight(1f)
                             )
                         }
                     }
-                }
 
-                Spacer(modifier = Modifier.height(12.dp))
+                    Spacer(modifier = Modifier.height(16.dp))
 
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    subMetrics.forEach { metric ->
-                        StatSubCard(
-                            metric = metric,
-                            live = liveState,
-                            clockTick = clockTick,
-                            modifier = Modifier.weight(1f)
+                    // 컨트롤 액션 버튼 영역
+                    if (!liveState.isRecording) {
+                        VividActionButton(
+                            title = "길 기록 시작하기",
+                            subtitle = if (follow != null) "코스를 따라 출발해요" else "${selectedTransport.labelKo} · 탭 한 번으로 출발!",
+                            type = selectedTransport,
+                            onClick = {
+                                haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                                onStartRecording()
+                            }
                         )
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(16.dp))
-
-                // 컨트롤 액션 버튼 영역
-                if (!liveState.isRecording) {
-                    VividActionButton(
-                        title = "길 기록 시작하기",
-                        subtitle = if (follow != null) "코스를 따라 출발해요" else "${selectedTransport.labelKo} · 탭 한 번으로 출발!",
-                        type = selectedTransport,
-                        onClick = {
-                            haptics.performHapticFeedback(HapticFeedbackType.LongPress)
-                            onStartRecording()
+                    } else {
+                        // 작은 아이콘 버튼 (길게 누르면 이름 말풍선) — 좁은 화면에서도 잘리지 않음
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(18.dp, Alignment.CenterHorizontally),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            TooltipIconButton(
+                                icon = if (liveState.isPaused) Icons.Outlined.PlayArrow else Icons.Outlined.Pause,
+                                label = if (liveState.isPaused) "기록 재개" else "일시정지",
+                                onClick = {
+                                    haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                                    if (liveState.isPaused) onResumeRecording() else onPauseRecording()
+                                },
+                                style = IconButtonStyle.OUTLINED
+                            )
+                            TooltipIconButton(
+                                icon = Icons.Outlined.AddLocationAlt,
+                                label = "여기에 메모·사진 남기기",
+                                onClick = { showAddMemoSheet = true },
+                                style = IconButtonStyle.BRAND,
+                                visualSize = 52.dp,
+                                iconSize = 26.dp
+                            )
+                            TooltipIconButton(
+                                icon = Icons.Outlined.Stop,
+                                label = "기록 종료",
+                                onClick = {
+                                    haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                                    onStopRecording()
+                                },
+                                style = IconButtonStyle.TONAL
+                            )
                         }
-                    )
-                } else {
-                    // 작은 아이콘 버튼 (길게 누르면 이름 말풍선) — 좁은 화면에서도 잘리지 않음
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(18.dp, Alignment.CenterHorizontally),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        TooltipIconButton(
-                            icon = if (liveState.isPaused) Icons.Outlined.PlayArrow else Icons.Outlined.Pause,
-                            label = if (liveState.isPaused) "기록 재개" else "일시정지",
-                            onClick = {
-                                haptics.performHapticFeedback(HapticFeedbackType.LongPress)
-                                if (liveState.isPaused) onResumeRecording() else onPauseRecording()
-                            },
-                            style = IconButtonStyle.OUTLINED
-                        )
-                        TooltipIconButton(
-                            icon = Icons.Outlined.AddLocationAlt,
-                            label = "여기에 메모·사진 남기기",
-                            onClick = { showAddMemoSheet = true },
-                            style = IconButtonStyle.BRAND,
-                            visualSize = 52.dp,
-                            iconSize = 26.dp
-                        )
-                        TooltipIconButton(
-                            icon = Icons.Outlined.Stop,
-                            label = "기록 종료",
-                            onClick = {
-                                haptics.performHapticFeedback(HapticFeedbackType.LongPress)
-                                onStopRecording()
-                            },
-                            style = IconButtonStyle.TONAL
-                        )
                     }
                 }
             }
@@ -389,7 +393,7 @@ private fun StatSubCard(
                 metric = metric,
                 live = live,
                 clockTick = clockTick,
-                style = TabularStatMediumStyle,
+                style = TabularStatMediumStyle.copy(fontSize = 24.sp, lineHeight = 29.sp),
                 color = MaterialTheme.colorScheme.onSurface
             )
         }

@@ -43,6 +43,9 @@ class AppearanceViewModel @Inject constructor(
         viewModelScope.launch { gaugePrefs.setSelection(type, metric) }
     }
 
+    /** 활동별 선택을 모두 지워 기본값으로 되돌림 */
+    fun resetGaugeSelections() { viewModelScope.launch { gaugePrefs.resetAll() } }
+
     fun setPalette(p: GildamPalette) { viewModelScope.launch { prefs.setPalette(p.name) } }
     fun setDarkMode(m: DarkModePref) { viewModelScope.launch { prefs.setDarkMode(m.name) } }
 }
