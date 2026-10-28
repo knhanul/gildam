@@ -22,6 +22,7 @@ object TrackSyncMapper {
         updatedAt = a.updatedAtEpochMs,
         title = a.title.take(200),
         memo = null,
+        activityType = a.transportType.name,
         startedAt = a.startedAtEpochMs,
         endedAt = a.endedAtEpochMs,
         distanceM = a.distanceMeters.coerceAtLeast(0.0),
@@ -57,7 +58,7 @@ object TrackSyncMapper {
             id = id,
             userId = userId ?: existing?.userId,
             title = dto.title ?: existing?.title ?: "길 기록",
-            transportType = existing?.transportType ?: TransportType.WALK,
+            transportType = parseActivityType(dto.activityType) ?: existing?.transportType ?: TransportType.WALK,
             status = ActivityStatus.COMPLETED,
             startedAtEpochMs = dto.startedAt ?: dto.points.firstOrNull()?.t ?: dto.updatedAt,
             endedAtEpochMs = dto.endedAt ?: dto.points.lastOrNull()?.t,
@@ -104,6 +105,9 @@ object TrackSyncMapper {
         }
         return LocalTrack(activity, points, waypoints)
     }
+
+    fun parseActivityType(raw: String?): TransportType? =
+        raw?.trim()?.uppercase()?.let { v -> TransportType.entries.firstOrNull { it.name == v } }
 
     enum class RemoteAction { APPLY, SKIP_LOCAL_NEWER, DELETE_LOCAL, IGNORE }
 

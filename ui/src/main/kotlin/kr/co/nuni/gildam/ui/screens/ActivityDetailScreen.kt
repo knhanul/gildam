@@ -38,6 +38,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import kr.co.nuni.gildam.data.model.TransportType
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -74,8 +75,21 @@ fun ActivityDetailScreen(
     onNavigateToSafeExport: (String) -> Unit,
     onNavigateBack: () -> Unit,
     /** 예: "약 1시간 10분" (Tobler 추정, 개인 보정). null 이면 숨김 */
-    sameRouteEta: String? = null
+    sameRouteEta: String? = null,
+    isLoggedIn: Boolean = false,
+    onEditActivity: (id: String, title: String, type: TransportType) -> Unit = { _, _, _ -> },
+    onDeleteActivity: (String) -> Unit = {},
+    onUploadActivity: (String) -> Unit = {}
 ) {
+    var showEdit by remember { mutableStateOf(false) }
+    var showDelete by remember { mutableStateOf(false) }
+    RecordEditHost(
+        editing = bundle?.activity?.takeIf { showEdit },
+        deleting = bundle?.activity?.takeIf { showDelete },
+        onEdit = onEditActivity,
+        onDelete = { id -> onDeleteActivity(id); onNavigateBack() },
+        onDismissEdit = { showEdit = false }, onDismissDelete = { showDelete = false }
+    )
     var relinkingPhotoId by remember { mutableStateOf<String?>(null) }
 
     val relinkPicker = rememberLauncherForActivityResult(
@@ -105,6 +119,8 @@ fun ActivityDetailScreen(
                 },
                 actions = {
                     if (bundle != null) {
+                        RecordActionButtons(bundle.activity, isLoggedIn, onEdit = { showEdit = true }, onDelete = { showDelete = true },
+                            onUpload = { onUploadActivity(bundle.activity.id) })
                         IconButton(onClick = { onNavigateToSafeExport(bundle.activity.id) }) {
                             Icon(Icons.Outlined.IosShare, contentDescription = "안전 공유 및 GPX 내보내기")
                         }

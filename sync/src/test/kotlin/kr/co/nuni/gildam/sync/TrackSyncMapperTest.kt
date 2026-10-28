@@ -78,7 +78,7 @@ class TrackSyncMapperTest {
         assertEquals("ph_x", t.waypoints[0].photoId); assertTrue(t.waypoints[0].hasPhoto)
         val fresh = TrackSyncMapper.fromDto(id, dto, null, emptyList(), "sub-1")
         assertFalse(fresh.waypoints[0].hasPhoto); assertNull(fresh.waypoints[0].photoId)
-        assertEquals(TransportType.WALK, fresh.activity.transportType)
+        assertEquals(TransportType.BIKE, fresh.activity.transportType)
     }
 
     @Test fun decideRules() {
@@ -92,5 +92,20 @@ class TrackSyncMapperTest {
         assertEquals(RemoteAction.DELETE_LOCAL, TrackSyncMapper.decide(synced, 80_000, true))
         assertEquals(RemoteAction.SKIP_LOCAL_NEWER, TrackSyncMapper.decide(act, 60_000, true))
         assertEquals(RemoteAction.SKIP_LOCAL_NEWER, TrackSyncMapper.decide(act.copy(status = ActivityStatus.RECORDING, syncState = SyncState.SYNCED), 99_000, false))
+    }
+
+    @Test fun activityTypeIsSentAndReadBack() {
+        val d = TrackSyncMapper.toDto(act.copy(transportType = TransportType.HIKE), pts, emptyList())
+        assertEquals("HIKE", d.activityType)
+        assertTrue(json.encodeToString(TrackDto.serializer(), d).contains("\"activity_type\":\"HIKE\""))
+        val back = TrackSyncMapper.fromDto(id, d.copy(activityType = "RUN"), act, emptyList(), "sub")
+        assertEquals(TransportType.RUN, back.activity.transportType)
+    }
+    @Test fun missingOrUnknownActivityTypeKeepsLocal() {
+        val d = TrackSyncMapper.toDto(act, pts, emptyList())
+        assertEquals(TransportType.BIKE, TrackSyncMapper.fromDto(id, d.copy(activityType = null), act, emptyList(), "s").activity.transportType)
+        assertEquals(TransportType.BIKE, TrackSyncMapper.fromDto(id, d.copy(activityType = "SKI"), act, emptyList(), "s").activity.transportType)
+        assertEquals(TransportType.WALK, TrackSyncMapper.fromDto(id, d.copy(activityType = null), null, emptyList(), "s").activity.transportType)
+        assertEquals(TransportType.HIKE, TrackSyncMapper.parseActivityType(" hike "))
     }
 }

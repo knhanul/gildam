@@ -209,8 +209,11 @@ fun GildamAppRoot(
                     onSelectActivity = { id -> navController.navigate(ActivityDetailRoute(id)) },
                     onNavigateBackToRecorder = { selectTab(GildamTab.RECORD) },
                     onNavigateToSettings = { selectTab(GildamTab.SETTINGS) },
-                    
-                    isTopLevelTab = true
+                    isTopLevelTab = true,
+                    isLoggedIn = sessionState.isLoggedIn,
+                    onEditActivity = viewModel::editActivity,
+                    onDeleteActivity = viewModel::deleteActivity,
+                    onUploadActivity = viewModel::uploadActivityToCloud
                 )
             }
 
@@ -229,7 +232,11 @@ fun GildamAppRoot(
                     onRemoveMissingPhotoKeepMemo = viewModel::removeMissingPhotoKeepMemo,
                     onNavigateToSafeExport = { id -> navController.navigate(SafeShareExportRoute(id)) },
                     onNavigateBack = { navController.popBackStack() },
-                    sameRouteEta = remember(trackPoints) { courseViewModel.sameRouteEta(trackPoints) }
+                    sameRouteEta = remember(trackPoints) { courseViewModel.sameRouteEta(trackPoints) },
+                    isLoggedIn = sessionState.isLoggedIn,
+                    onEditActivity = viewModel::editActivity,
+                    onDeleteActivity = viewModel::deleteActivity,
+                    onUploadActivity = viewModel::uploadActivityToCloud
                 )
             }
 

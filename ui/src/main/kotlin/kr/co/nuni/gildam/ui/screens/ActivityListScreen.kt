@@ -36,6 +36,10 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
@@ -59,8 +63,20 @@ fun ActivityListScreen(
     onNavigateToSettings: () -> Unit,
     onNavigateToGpxCompare: () -> Unit = {},
     /** 하단 탭바가 있을 때는 뒤로/설정 아이콘을 숨김 */
-    isTopLevelTab: Boolean = false
+    isTopLevelTab: Boolean = false,
+    isLoggedIn: Boolean = false,
+    onEditActivity: (id: String, title: String, type: TransportType) -> Unit = { _, _, _ -> },
+    onDeleteActivity: (String) -> Unit = {},
+    onUploadActivity: (String) -> Unit = {}
 ) {
+    var editingId by remember { mutableStateOf<String?>(null) }
+    var deletingId by remember { mutableStateOf<String?>(null) }
+    RecordEditHost(
+        editing = activities.firstOrNull { it.id == editingId },
+        deleting = activities.firstOrNull { it.id == deletingId },
+        onEdit = onEditActivity, onDelete = onDeleteActivity,
+        onDismissEdit = { editingId = null }, onDismissDelete = { deletingId = null }
+    )
     Scaffold(
         topBar = {
             TopAppBar(
@@ -138,7 +154,11 @@ fun ActivityListScreen(
                     items(activities, key = { it.id }) { item ->
                         ActivitySummaryCard(
                             activity = item,
-                            onClick = { onSelectActivity(item.id) }
+                            onClick = { onSelectActivity(item.id) },
+                            isLoggedIn = isLoggedIn,
+                            onEdit = { editingId = item.id },
+                            onDelete = { deletingId = item.id },
+                            onUpload = { onUploadActivity(item.id) }
                         )
                     }
                 }
@@ -148,9 +168,13 @@ fun ActivityListScreen(
 }
 
 @Composable
-private fun ActivitySummaryCard(
+internal fun ActivitySummaryCard(
     activity: ActivityEntity,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    isLoggedIn: Boolean = false,
+    onEdit: () -> Unit = {},
+    onDelete: () -> Unit = {},
+    onUpload: () -> Unit = {}
 ) {
     val dateStr = DateTimeFormatter.ofPattern("yyyy. MM. dd (E) a hh:mm")
         .withZone(ZoneId.systemDefault())
@@ -182,30 +206,21 @@ private fun ActivitySummaryCard(
                         modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
                     )
                 }
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(
-                        imageVector = if (activity.syncState == SyncState.SYNCED) {
-                            Icons.Outlined.CloudDone
-                        } else {
-                            Icons.Outlined.CloudQueue
-                        },
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Text(
-                        text = " ${activity.syncState.labelKo}",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
+                CloudStatusChip(CloudStatus.of(activity.syncState))
             }
 
             Spacer(modifier = Modifier.height(8.dp))
 
-            Text(
-                text = activity.title,
-                style = MaterialTheme.typography.titleLarge
-            )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = activity.title,
+                    style = MaterialTheme.typography.titleLarge,
+                    maxLines = 2,
+                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f)
+                )
+                RecordActionButtons(activity, isLoggedIn, onEdit = onEdit, onDelete = onDelete, onUpload = onUpload)
+            }
             Text(
                 text = dateStr,
                 style = MaterialTheme.typography.bodyMedium,
