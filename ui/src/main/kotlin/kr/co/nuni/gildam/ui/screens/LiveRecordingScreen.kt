@@ -262,9 +262,8 @@ fun LiveRecordingScreen(
                 Spacer(modifier = Modifier.height(12.dp))
 
                 // 지도 아래 계기판 4개: 지도 위 1개를 뺀 나머지 (큰 값 2개 + 작은 값 2개)
-                val bottomMetrics = GaugeMetric.bottomFor(overlayMetric)
-                val heroMetrics = bottomMetrics.take(2)
-                val subMetrics = bottomMetrics.drop(2)
+                val heroMetrics = GaugeMetric.heroesFor(overlayMetric)
+                val subMetrics = GaugeMetric.subsFor(overlayMetric)
 
                 Row(
                     modifier = Modifier.fillMaxWidth(),
