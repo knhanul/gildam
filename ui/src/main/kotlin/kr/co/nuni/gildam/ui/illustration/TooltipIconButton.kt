@@ -3,6 +3,7 @@ package kr.co.nuni.gildam.ui.illustration
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
@@ -39,10 +40,10 @@ val LocalTooltipPreviewLabel = compositionLocalOf<String?> { null }
 
 enum class IconButtonStyle { BRAND, TONAL, OUTLINED, PLAIN }
 
-/** 테마 색 말풍선 */
+/** 테마 색 말풍선. [detail] 을 주면 이름 아래에 작은 설명을 함께 보여 줍니다. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun GildamTooltip(label: String, content: @Composable () -> Unit) {
+fun GildamTooltip(label: String, detail: String? = null, content: @Composable () -> Unit) {
     val cs = MaterialTheme.colorScheme
     TooltipBox(
         positionProvider = TooltipDefaults.rememberPlainTooltipPositionProvider(spacingBetweenTooltipAndAnchor = 6.dp),
@@ -53,7 +54,18 @@ fun GildamTooltip(label: String, content: @Composable () -> Unit) {
                 containerColor = cs.inverseSurface,
                 contentColor = cs.inverseOnSurface,
                 shadowElevation = 4.dp
-            ) { Text(label, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(horizontal = 2.dp, vertical = 2.dp)) }
+            ) {
+                Column(modifier = Modifier.padding(horizontal = 2.dp, vertical = 2.dp)) {
+                    Text(label, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold)
+                    if (detail != null) {
+                        Text(
+                            detail,
+                            style = MaterialTheme.typography.labelSmall,
+                            color = cs.inverseOnSurface.copy(alpha = 0.8f)
+                        )
+                    }
+                }
+            }
         },
         state = rememberTooltipState(initialIsVisible = LocalTooltipPreviewLabel.current == label, isPersistent = LocalTooltipPreviewLabel.current == label)
     ) { content() }

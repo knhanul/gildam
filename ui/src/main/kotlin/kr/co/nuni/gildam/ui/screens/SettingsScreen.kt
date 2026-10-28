@@ -77,7 +77,10 @@ fun SettingsScreen(
     onSelectPalette: (GildamPalette) -> Unit = {},
     onSelectDarkMode: (DarkModePref) -> Unit = {},
     recordMapMode: kr.co.nuni.gildam.map.MapCameraMode = kr.co.nuni.gildam.map.MapCameraMode.DEFAULT,
-    onSelectRecordMapMode: (kr.co.nuni.gildam.map.MapCameraMode) -> Unit = {}
+    onSelectRecordMapMode: (kr.co.nuni.gildam.map.MapCameraMode) -> Unit = {},
+    gaugeSelections: Map<kr.co.nuni.gildam.data.model.TransportType, kr.co.nuni.gildam.data.model.GaugeMetric> =
+        kr.co.nuni.gildam.data.model.TransportType.entries.associateWith { kr.co.nuni.gildam.data.model.GaugeMetric.defaultFor(it) },
+    onSelectGauge: (kr.co.nuni.gildam.data.model.TransportType, kr.co.nuni.gildam.data.model.GaugeMetric) -> Unit = { _, _ -> }
 ) {
     val context = LocalContext.current
 
@@ -106,6 +109,8 @@ fun SettingsScreen(
             ThemeSection(palette, darkMode, onSelectPalette, onSelectDarkMode)
 
             RecordMapModeSection(recordMapMode, onSelectRecordMapMode)
+
+            GaugeSection(gaugeSelections, onSelectGauge)
 
             // 1. 계정 카드: 사용자에게는 카카오 로그인, 내부적으로는 NUNI ID(id.nuni.co.kr)
             Card(

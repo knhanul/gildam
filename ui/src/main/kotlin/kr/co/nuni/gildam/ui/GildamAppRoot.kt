@@ -53,6 +53,7 @@ fun GildamAppRoot(
     val palette by appearanceViewModel.palette.collectAsState()
     val darkMode by appearanceViewModel.darkMode.collectAsState()
     val recordMapMode by appearanceViewModel.recordMapMode.collectAsState()
+    val gaugeSelections by appearanceViewModel.gaugeSelections.collectAsState()
     val systemDark = androidx.compose.foundation.isSystemInDarkTheme()
     val isDark = when (darkMode) {
         kr.co.nuni.gildam.ui.theme.DarkModePref.SYSTEM -> systemDark
@@ -150,7 +151,9 @@ fun GildamAppRoot(
                     showTopNavIcons = false,
                     follow = followUi,
                     onStopFollow = courseViewModel::stopFollow,
-                    defaultCameraMode = recordMapMode
+                    defaultCameraMode = recordMapMode,
+                    overlayMetric = gaugeSelections[if (liveState.isRecording) liveState.transportType else selectedTransportForNew]
+                        ?: kr.co.nuni.gildam.data.model.GaugeMetric.defaultFor(selectedTransportForNew)
                 )
             }
 
@@ -276,7 +279,9 @@ fun GildamAppRoot(
                     onSelectPalette = appearanceViewModel::setPalette,
                     onSelectDarkMode = appearanceViewModel::setDarkMode,
                     recordMapMode = recordMapMode,
-                    onSelectRecordMapMode = appearanceViewModel::setRecordMapMode
+                    onSelectRecordMapMode = appearanceViewModel::setRecordMapMode,
+                    gaugeSelections = gaugeSelections,
+                    onSelectGauge = appearanceViewModel::setGaugeSelection
                 )
             }
         }

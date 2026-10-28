@@ -52,6 +52,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.LaunchedEffect
+import kotlinx.coroutines.delay
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -61,6 +63,8 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import kr.co.nuni.gildam.ui.R
+import kr.co.nuni.gildam.data.model.GaugeFormat
+import kr.co.nuni.gildam.data.model.GaugeMetric
 import kr.co.nuni.gildam.data.model.TransportType
 import kr.co.nuni.gildam.map.GildamMapLibreView
 import kr.co.nuni.gildam.ui.illustration.TooltipIconButton
@@ -97,8 +101,14 @@ fun LiveRecordingScreen(
     follow: CourseFollowUi? = null,
     onStopFollow: () -> Unit = {},
     /** 설정의 '기록 중 지도 보기' 기본값 */
-    defaultCameraMode: MapCameraMode = MapCameraMode.DEFAULT
+    defaultCameraMode: MapCameraMode = MapCameraMode.DEFAULT,
+    /** 설정에서 활동 구분별로 고른 '지도 위 계기판' 값 */
+    overlayMetric: GaugeMetric = GaugeMetric.defaultFor(selectedTransport),
+    /** 테스트·미리보기에서 현재 시각을 고정할 때 사용. null 이면 1초마다 실제 시각으로 갱신 */
+    fixedClockMs: Long? = null
 ) {
+    // 현재 시간 계기판만 1초마다 다시 그리도록, 시각 상태는 읽는 곳에서만 구독합니다.
+    val clockTick = rememberClockTick(fixedClockMs)
     var cameraMode by rememberSaveable(defaultCameraMode) { mutableStateOf(defaultCameraMode) }
     var cameraPaused by remember { mutableStateOf(false) }
     var recenterKey by remember { mutableStateOf(0) }
@@ -209,6 +219,15 @@ fun LiveRecordingScreen(
                 onRecenter = { cameraPaused = false; recenterKey++ },
                 modifier = Modifier.padding(top = 10.dp)
             )
+
+            // 지도 위에 겹쳐 보이는 계기판 1개 (활동 구분별 기본값, 설정에서 변경)
+            // 출발 전·일시정지 중에도 자리를 지켜서 '지도 위 1 + 지도 아래 4'가 항상 같게 보이도록 함
+            GaugeOverlayChip(
+                metric = overlayMetric,
+                live = liveState,
+                clockTick = clockTick,
+                modifier = Modifier.padding(top = 8.dp)
+            )
         }
 
         // 3. 하단 플로팅 에디토리얼 대시보드 (Tabular Figures 고정폭 숫자 적용)
@@ -242,54 +261,47 @@ fun LiveRecordingScreen(
 
                 Spacer(modifier = Modifier.height(12.dp))
 
-                // 메인 히어로 통계: 누적 거리(km) & 총 시간 (Tabular Figures)
+                // 지도 아래 계기판 4개: 지도 위 1개를 뺀 나머지 (큰 값 2개 + 작은 값 2개)
+                val bottomMetrics = GaugeMetric.bottomFor(overlayMetric)
+                val heroMetrics = bottomMetrics.take(2)
+                val subMetrics = bottomMetrics.drop(2)
+
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
-                    Column {
-                        Text(
-                            text = "누적 거리 (km)",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        Text(
-                            text = String.format("%.2f", liveState.distanceMeters / 1000.0),
-                            style = TabularStatHeroStyle,
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
-                    }
-                    Column(horizontalAlignment = Alignment.End) {
-                        Text(
-                            text = "총 시간",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        Text(
-                            text = formatDurationHms(liveState.elapsedTotalMs),
-                            style = TabularStatHeroStyle,
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
+                    heroMetrics.forEachIndexed { i, metric ->
+                        Column(horizontalAlignment = if (i == 0) Alignment.Start else Alignment.End) {
+                            Text(
+                                text = metric.labelWithUnit,
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            GaugeValueText(
+                                metric = metric,
+                                live = liveState,
+                                clockTick = clockTick,
+                                style = TabularStatHeroStyle,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                        }
                     }
                 }
 
                 Spacer(modifier = Modifier.height(12.dp))
 
-                // 보조 속도 카드: 현재 속도 & 이동 평균 속도
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    StatSubCard(
-                        label = "현재 속도",
-                        value = String.format("%.1f km/h", liveState.currentSpeedMps * 3.6f),
-                        modifier = Modifier.weight(1f)
-                    )
-                    StatSubCard(
-                        label = "이동 평균 속도",
-                        value = String.format("%.1f km/h", liveState.movingAvgSpeedMps * 3.6f),
-                        modifier = Modifier.weight(1f)
-                    )
+                    subMetrics.forEach { metric ->
+                        StatSubCard(
+                            metric = metric,
+                            live = liveState,
+                            clockTick = clockTick,
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
                 }
 
                 Spacer(modifier = Modifier.height(16.dp))
@@ -357,8 +369,9 @@ fun LiveRecordingScreen(
 
 @Composable
 private fun StatSubCard(
-    label: String,
-    value: String,
+    metric: GaugeMetric,
+    live: LiveRecordingState,
+    clockTick: androidx.compose.runtime.State<Long>,
     modifier: Modifier = Modifier
 ) {
     Surface(
@@ -368,13 +381,15 @@ private fun StatSubCard(
     ) {
         Column(modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp)) {
             Text(
-                text = label,
+                text = metric.labelWithUnit,
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
             Spacer(modifier = Modifier.height(2.dp))
-            Text(
-                text = value,
+            GaugeValueText(
+                metric = metric,
+                live = live,
+                clockTick = clockTick,
                 style = TabularStatMediumStyle,
                 color = MaterialTheme.colorScheme.onSurface
             )
@@ -477,10 +492,44 @@ private fun AddWaypointBottomSheet(
     }
 }
 
-internal fun formatDurationHms(durationMs: Long): String {
-    val totalSec = (durationMs / 1000L).coerceAtLeast(0L)
-    val h = totalSec / 3600
-    val m = (totalSec % 3600) / 60
-    val s = totalSec % 60
-    return String.format("%02d:%02d:%02d", h, m, s)
+/**
+ * 계기판 값 문자열 (단위는 라벨에 따로 표시).
+ * [clockNowMs] 는 현재 시간 계기판에만 쓰이고, 나머지 값은 [live] 에서 계산합니다.
+ */
+internal fun gaugeValue(metric: GaugeMetric, live: LiveRecordingState, clockNowMs: Long): String = when (metric) {
+    GaugeMetric.DISTANCE -> GaugeFormat.distanceKm(live.distanceMeters)
+    GaugeMetric.TOTAL_TIME -> GaugeFormat.durationHms(live.elapsedTotalMs)
+    GaugeMetric.CURRENT_SPEED -> GaugeFormat.speedKmh(live.currentSpeedMps)
+    GaugeMetric.MOVING_AVG_SPEED -> GaugeFormat.speedKmh(live.movingAvgSpeedMps)
+    GaugeMetric.CLOCK -> GaugeFormat.clockHms(clockNowMs)
 }
+
+/** 1초마다 현재 시각을 담는 상태. [fixed] 가 있으면 그 값으로 고정합니다(테스트·미리보기). */
+@Composable
+internal fun rememberClockTick(fixed: Long?): androidx.compose.runtime.State<Long> {
+    if (fixed != null) return remember(fixed) { mutableStateOf(fixed) }
+    val state = remember { mutableStateOf(System.currentTimeMillis()) }
+    LaunchedEffect(Unit) {
+        while (true) {
+            state.value = System.currentTimeMillis()
+            delay(1_000L)
+        }
+    }
+    return state
+}
+
+/** 계기판 값 텍스트. 현재 시간일 때만 시각 상태를 구독해서 화면 전체가 1초마다 다시 그려지지 않게 합니다. */
+@Composable
+internal fun GaugeValueText(
+    metric: GaugeMetric,
+    live: LiveRecordingState,
+    clockTick: androidx.compose.runtime.State<Long>,
+    style: androidx.compose.ui.text.TextStyle,
+    color: androidx.compose.ui.graphics.Color
+) {
+    val text = gaugeValue(metric, live, clockTick.value)
+    Text(text = text, style = style, color = color)
+}
+
+/** 다른 화면(기록 목록·상세)에서도 같은 표기를 쓰도록 한 곳으로 모음 */
+internal fun formatDurationHms(durationMs: Long): String = GaugeFormat.durationHms(durationMs)
