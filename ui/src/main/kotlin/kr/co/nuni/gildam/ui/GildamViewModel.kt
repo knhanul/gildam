@@ -13,6 +13,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kr.co.nuni.gildam.auth.KeystoreTokenStore
@@ -20,12 +21,14 @@ import kr.co.nuni.gildam.auth.NuniAuthManager
 import kr.co.nuni.gildam.sync.ServerAccountRepository
 import kr.co.nuni.gildam.auth.NuniSessionState
 import kr.co.nuni.gildam.data.gpx.GpxExportOptions
+import kr.co.nuni.gildam.data.gpx.GpxExportResult
 import kr.co.nuni.gildam.data.gpx.GpxExporter
 import kr.co.nuni.gildam.data.local.entity.ActivityDetailBundle
 import kr.co.nuni.gildam.data.local.entity.ActivityEntity
 import kr.co.nuni.gildam.data.local.entity.TrackPointEntity
 import kr.co.nuni.gildam.data.media.LocalPhotoManager
 import kr.co.nuni.gildam.data.model.TransportType
+import kr.co.nuni.gildam.data.prefs.RecordingPrefs
 import kr.co.nuni.gildam.data.model.Visibility
 import kr.co.nuni.gildam.data.repository.GildamRepository
 import kr.co.nuni.gildam.recording.LiveRecordingState
@@ -44,7 +47,8 @@ class GildamViewModel @Inject constructor(
     private val authManager: NuniAuthManager,
     private val localPhotoManager: LocalPhotoManager,
     private val gpxExporter: GpxExporter,
-    private val serverAccount: ServerAccountRepository
+    private val serverAccount: ServerAccountRepository,
+    private val recordingPrefs: RecordingPrefs
 ) : ViewModel() {
 
     /** 로그인 후 GET /v1/me 의 track_count (모르면 null) */
@@ -68,9 +72,10 @@ class GildamViewModel @Inject constructor(
     private val _searchQuery = MutableStateFlow("")
     val searchQuery: StateFlow<String> = _searchQuery.asStateFlow()
 
-    private val _selectedTransportForNewRecording = MutableStateFlow(TransportType.WALK)
-    val selectedTransportForNewRecording: StateFlow<TransportType> =
-        _selectedTransportForNewRecording.asStateFlow()
+    /** 마지막으로 선택한 이동 수단 (DataStore 영속화 → 앱 재시작 시 복원) */
+    val selectedTransportForNewRecording: StateFlow<TransportType> = recordingPrefs.lastTransport
+        .map { n -> TransportType.entries.firstOrNull { it.name == n } ?: TransportType.WALK }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, TransportType.WALK)
 
     private val _thumbnailCacheSizeBytes = MutableStateFlow(0L)
     val thumbnailCacheSizeBytes: StateFlow<Long> = _thumbnailCacheSizeBytes.asStateFlow()
@@ -93,12 +98,12 @@ class GildamViewModel @Inject constructor(
     }
 
     fun selectTransportForNewRecording(type: TransportType) {
-        _selectedTransportForNewRecording.value = type
+        viewModelScope.launch { recordingPrefs.setLastTransport(type.name) }
     }
 
     fun startRecording() {
         val nowStr = LocalDateTime.now().format(DateTimeFormatter.ofPattern("M월 d일 HH:mm"))
-        val transport = _selectedTransportForNewRecording.value
+        val transport = selectedTransportForNewRecording.value
         val defaultTitle = "$nowStr ${transport.labelKo} 길이야기"
         recordingController.startRecordingService(transport, defaultTitle)
     }
@@ -232,12 +237,19 @@ class GildamViewModel @Inject constructor(
     suspend fun generateSafeGpxExport(
         activityId: String,
         options: GpxExportOptions
-    ): String? {
+    ): GpxExportResult? {
         val detail = repository.observeActivityDetail(activityId)
         val points = repository.getTrackPoints(activityId)
         val waypoints = repository.getWaypoints(activityId)
         val all = filteredActivities.value.find { it.id == activityId } ?: return null
-        return gpxExporter.exportToGpxXml(all, points, waypoints, options)
+        val xml = gpxExporter.exportToGpxXml(all, points, waypoints, options)
+        return GpxExportResult(suggestedFileName = sanitizeGpxFileName(all.title), xml = xml)
+    }
+
+    private fun sanitizeGpxFileName(title: String): String {
+        val base = title.replace(Regex("[\\\\/:*?\"<>|]"), "_").trim()
+            .ifBlank { "gildam_track" }
+        return "$base.gpx"
     }
 
     fun computeMaskedPreview(points: List<TrackPointEntity>, radiusMeters: Double) =

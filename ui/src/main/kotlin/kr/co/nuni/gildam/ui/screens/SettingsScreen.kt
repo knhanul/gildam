@@ -5,6 +5,7 @@ import android.net.Uri
 import android.provider.Settings
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -99,8 +100,8 @@ fun SettingsScreen(
                 .fillMaxSize()
                 .padding(innerPadding)
                 .verticalScroll(rememberScrollState())
-                .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
+                .padding(horizontal = 14.dp, vertical = 6.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             ThemeSection(palette, darkMode, onSelectPalette, onSelectDarkMode)
 
@@ -108,59 +109,80 @@ fun SettingsScreen(
 
             // 1. 계정 카드: 사용자에게는 카카오 로그인, 내부적으로는 NUNI ID(id.nuni.co.kr)
             Card(
-                shape = RoundedCornerShape(18.dp),
+                shape = RoundedCornerShape(14.dp),
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
                 modifier = Modifier.fillMaxWidth()
             ) {
-                Column(modifier = Modifier.padding(16.dp)) {
-                    Text(text = "계정", style = MaterialTheme.typography.titleMedium)
-                    Spacer(modifier = Modifier.height(6.dp))
+                Column(modifier = Modifier.padding(12.dp)) {
+                    Text(text = "계정", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+                    Spacer(modifier = Modifier.height(4.dp))
                     if (sessionState.isLoggedIn) {
                         Text(
                             text = "🟢 카카오 계정으로 로그인됨",
-                            style = MaterialTheme.typography.bodyLarge,
+                            style = MaterialTheme.typography.bodyMedium,
                             fontWeight = FontWeight.SemiBold
                         )
                         Text(
                             text = "회원번호 ${shortSub(sessionState.nuniUserId)}",
-                            style = MaterialTheme.typography.labelMedium,
+                            style = MaterialTheme.typography.labelSmall,
+                            fontSize = 9.5.sp,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                         Text(
                             text = if (serverTrackCount != null) "☁️ 서버에 저장된 기록 ${serverTrackCount}개" else "☁️ 서버 기록 확인 중…",
-                            style = MaterialTheme.typography.bodyMedium,
+                            style = MaterialTheme.typography.labelSmall,
+                            fontSize = 9.5.sp,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                         if (sessionState.requiresReauthBanner) {
-                            Spacer(modifier = Modifier.height(6.dp))
+                            Spacer(modifier = Modifier.height(4.dp))
                             Text(
                                 text = "⚠️ 로그인이 만료됐어요. 다시 로그인하면 동기화가 이어져요.",
-                                style = MaterialTheme.typography.bodyMedium,
+                                style = MaterialTheme.typography.labelSmall,
+                                fontSize = 9.5.sp,
                                 color = MaterialTheme.colorScheme.error
                             )
-                            Spacer(modifier = Modifier.height(8.dp))
+                            Spacer(modifier = Modifier.height(6.dp))
                             KakaoLoginButton(onClick = onKakaoLogin)
                         }
-                        Spacer(modifier = Modifier.height(12.dp))
+                        Spacer(modifier = Modifier.height(8.dp))
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            Button(onClick = onManualSync) { Text("지금 동기화") }
-                            OutlinedButton(onClick = onLogout) { Text("로그아웃") }
+                            Button(
+                                onClick = onManualSync,
+                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
+                                modifier = Modifier.height(34.dp)
+                            ) { Text("지금 동기화", style = MaterialTheme.typography.labelMedium) }
+                            OutlinedButton(
+                                onClick = onLogout,
+                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
+                                modifier = Modifier.height(34.dp)
+                            ) { Text("로그아웃", style = MaterialTheme.typography.labelMedium) }
                         }
-                        TextButton(onClick = onSwitchAccount) { Text("다른 카카오 계정으로 전환") }
+                        TextButton(
+                            onClick = onSwitchAccount,
+                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp),
+                            modifier = Modifier.height(30.dp)
+                        ) { Text("다른 카카오 계정으로 전환", style = MaterialTheme.typography.labelSmall) }
                         NuniFootnote()
                     } else {
                         Text(
                             text = "로그인하면 기기를 바꿔도 이동 궤적과 길 위의 메모를 그대로 이어서 볼 수 있어요. 사진은 동기화되지 않아요.",
-                            style = MaterialTheme.typography.bodyMedium,
+                            style = MaterialTheme.typography.bodySmall,
+                            fontSize = 9.5.sp,
+                            lineHeight = 13.sp,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
-                        Spacer(modifier = Modifier.height(12.dp))
+                        Spacer(modifier = Modifier.height(8.dp))
                         KakaoLoginButton(onClick = onKakaoLogin)
                         NuniFootnote()
                         if (onDemoSimulateLogin != null) {
-                            Spacer(modifier = Modifier.height(6.dp))
-                            OutlinedButton(onClick = onDemoSimulateLogin, modifier = Modifier.fillMaxWidth()) {
-                                Text("[디버그] 데모 세션 활성화")
+                            Spacer(modifier = Modifier.height(4.dp))
+                            OutlinedButton(
+                                onClick = onDemoSimulateLogin,
+                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
+                                modifier = Modifier.fillMaxWidth().height(34.dp)
+                            ) {
+                                Text("[디버그] 데모 세션 활성화", style = MaterialTheme.typography.labelSmall)
                             }
                         }
                     }
@@ -169,68 +191,82 @@ fun SettingsScreen(
 
             // 2. 확정된 사진 보관 정책 고정 안내 카드 (필수 문구 100% 반영)
             Surface(
-                shape = RoundedCornerShape(18.dp),
+                shape = RoundedCornerShape(14.dp),
                 color = MaterialTheme.colorScheme.primaryContainer,
                 modifier = Modifier.fillMaxWidth()
             ) {
-                Column(modifier = Modifier.padding(16.dp)) {
+                Column(modifier = Modifier.padding(12.dp)) {
                     Text(
                         text = "📌 사진 보관 정책 안내",
-                        style = MaterialTheme.typography.titleMedium,
-                        color = MaterialTheme.colorScheme.onPrimaryContainer
-                    )
-                    Spacer(modifier = Modifier.height(6.dp))
-                    Text(
-                        text = "사진은 이 기기에만 저장 — 사진 파일은 NUNI ID와 동기화되지 않습니다. 다른 기기에서는 사진을 볼 수 없습니다.",
-                        style = MaterialTheme.typography.bodyLarge,
+                        style = MaterialTheme.typography.titleSmall,
                         fontWeight = FontWeight.SemiBold,
                         color = MaterialTheme.colorScheme.onPrimaryContainer
                     )
-                    Spacer(modifier = Modifier.height(6.dp))
+                    Spacer(modifier = Modifier.height(3.dp))
                     Text(
-                        text = "• 길담은 사진을 앱 폴더로 복사하지 않고 갤러리(MediaStore URI)로만 연결합니다.\n• 앱을 삭제해도 사진은 갤러리에 남으며, 갤러리에서 사진을 지우면 길담에서도 볼 수 없고 메모만 남습니다.",
-                        style = MaterialTheme.typography.bodyMedium,
+                        text = "사진은 이 기기에만 저장 — 사진 파일은 NUNI ID와 동기화되지 않습니다. 다른 기기에서는 사진을 볼 수 없습니다.",
+                        style = MaterialTheme.typography.bodySmall,
+                        fontSize = 10.sp,
+                        lineHeight = 13.5.sp,
+                        fontWeight = FontWeight.SemiBold,
                         color = MaterialTheme.colorScheme.onPrimaryContainer
                     )
-                    Spacer(modifier = Modifier.height(10.dp))
-                    OutlinedButton(onClick = onClearThumbnailCache) {
+                    Spacer(modifier = Modifier.height(3.dp))
+                    Text(
+                        text = "• 길담은 사진을 앱 폴더로 복사하지 않고 갤러리(MediaStore URI)로만 연결합니다.\n• 앱을 삭제해도 사진은 갤러리에 남으며, 갤러리에서 사진을 지우면 길담에서도 볼 수 없고 메모만 남습니다.",
+                        style = MaterialTheme.typography.bodySmall,
+                        fontSize = 9.5.sp,
+                        lineHeight = 13.sp,
+                        color = MaterialTheme.colorScheme.onPrimaryContainer
+                    )
+                    Spacer(modifier = Modifier.height(6.dp))
+                    OutlinedButton(
+                        onClick = onClearThumbnailCache,
+                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
+                        modifier = Modifier.height(32.dp)
+                    ) {
                         val kb = thumbnailCacheBytes / 1024
-                        Text("로컬 전용 썸네일 캐시 비우기 (현재 ${kb} KB)")
+                        Text("로컬 전용 썸네일 캐시 비우기 (현재 ${kb} KB)", style = MaterialTheme.typography.labelSmall)
                     }
                 }
             }
 
             // 3. 제조사 배터리 최적화(삼성 One UI 등) 해제 안내 UX
             Card(
-                shape = RoundedCornerShape(18.dp),
+                shape = RoundedCornerShape(14.dp),
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
                 modifier = Modifier.fillMaxWidth()
             ) {
-                Column(modifier = Modifier.padding(16.dp)) {
+                Column(modifier = Modifier.padding(12.dp)) {
                     Text(
                         text = "백그라운드 기록 안정성 & 배터리 최적화",
-                        style = MaterialTheme.typography.titleMedium
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.SemiBold
                     )
-                    Spacer(modifier = Modifier.height(4.dp))
+                    Spacer(modifier = Modifier.height(3.dp))
                     Text(
                         text = if (isBatteryOptimizationIgnored) {
                             "✓ 배터리 사용량 '제한 없음' 설정이 완료되어 화면이 꺼져도 기록이 안전하게 유지됩니다."
                         } else {
                             "⚠️ 삼성 One UI 등의 절전 기능이 화면이 꺼진 뒤 GPS 기록을 중단시킬 수 있습니다. 앱 정보 > 배터리에서 '제한 없음'으로 설정해 주세요."
                         },
-                        style = MaterialTheme.typography.bodyMedium,
+                        style = MaterialTheme.typography.bodySmall,
+                        fontSize = 9.5.sp,
+                        lineHeight = 13.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
-                    Spacer(modifier = Modifier.height(10.dp))
+                    Spacer(modifier = Modifier.height(6.dp))
                     OutlinedButton(
                         onClick = {
                             val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
                                 data = Uri.fromParts("package", context.packageName, null)
                             }
                             context.startActivity(intent)
-                        }
+                        },
+                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
+                        modifier = Modifier.height(32.dp)
                     ) {
-                        Text("시스템 앱 권한 및 배터리 설정 열기")
+                        Text("시스템 앱 권한 및 배터리 설정 열기", style = MaterialTheme.typography.labelSmall)
                     }
                 }
             }
@@ -246,13 +282,14 @@ private val KakaoLabel = Color(0xD9000000) // 85% black (카카오 디자인 가
 internal fun KakaoLoginButton(onClick: () -> Unit, modifier: Modifier = Modifier) {
     Button(
         onClick = onClick,
-        modifier = modifier.fillMaxWidth().height(52.dp),
-        shape = RoundedCornerShape(12.dp),
+        modifier = modifier.fillMaxWidth().height(40.dp),
+        shape = RoundedCornerShape(10.dp),
+        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
         colors = ButtonDefaults.buttonColors(containerColor = KakaoYellow, contentColor = KakaoLabel)
     ) {
-        KakaoSymbol(modifier = Modifier.size(18.dp))
-        Spacer(modifier = Modifier.width(8.dp))
-        Text("카카오로 시작하기", fontSize = 16.sp, fontWeight = FontWeight.SemiBold, color = KakaoLabel)
+        KakaoSymbol(modifier = Modifier.size(15.dp))
+        Spacer(modifier = Modifier.width(6.dp))
+        Text("카카오로 시작하기", fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = KakaoLabel)
     }
 }
 
@@ -270,11 +307,12 @@ private fun KakaoSymbol(modifier: Modifier = Modifier) {
 
 @Composable
 private fun NuniFootnote() {
-    Spacer(modifier = Modifier.height(6.dp))
+    Spacer(modifier = Modifier.height(4.dp))
     Text(
         text = "누니 통합계정(NUNI ID)으로 안전하게 연결돼요",
         style = MaterialTheme.typography.labelSmall,
-        fontSize = 11.sp,
+        fontSize = 9.sp,
+        lineHeight = 12.sp,
         color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
         textAlign = TextAlign.Center,
         modifier = Modifier.fillMaxWidth()

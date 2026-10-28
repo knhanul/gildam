@@ -32,6 +32,12 @@ data class MaskedPreviewResult(
     val isOverMaskedWarning: Boolean
 )
 
+/** SAF 저장용: 제안 파일명 + GPX XML 본문 */
+data class GpxExportResult(
+    val suggestedFileName: String,
+    val xml: String
+)
+
 @Singleton
 class GpxExporter @Inject constructor() {
 

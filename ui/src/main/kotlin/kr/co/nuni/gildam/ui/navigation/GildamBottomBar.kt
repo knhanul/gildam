@@ -1,6 +1,10 @@
 package kr.co.nuni.gildam.ui.navigation
 
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.FormatListBulleted
 import androidx.compose.material.icons.automirrored.outlined.FormatListBulleted
@@ -18,6 +22,7 @@ import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -44,6 +49,10 @@ fun GildamBottomBar(
     Column {
         HorizontalDivider(color = colors.onSurfaceVariant.copy(alpha = 0.12f))
         NavigationBar(
+            modifier = Modifier
+                .windowInsetsPadding(WindowInsets.navigationBars)
+                .height(54.dp),
+            windowInsets = WindowInsets(0.dp),
             containerColor = colors.surfaceVariant,
             contentColor = colors.onSurface,
             tonalElevation = 0.dp
@@ -61,13 +70,14 @@ fun GildamBottomBar(
                                 GildamTab.COURSES -> kr.co.nuni.gildam.ui.illustration.TabIllo.COURSES
                                 GildamTab.SETTINGS -> kr.co.nuni.gildam.ui.illustration.TabIllo.SETTINGS
                             },
-                            selected
+                            selected,
+                            size = 17.dp
                         )
                     },
                     label = {
                         Text(
                             tab.label,
-                            style = MaterialTheme.typography.labelMedium,
+                            style = MaterialTheme.typography.labelSmall,
                             fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium
                         )
                     },

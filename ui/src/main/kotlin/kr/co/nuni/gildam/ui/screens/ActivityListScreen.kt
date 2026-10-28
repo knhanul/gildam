@@ -1,23 +1,37 @@
 package kr.co.nuni.gildam.ui.screens
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.outlined.Add
+import androidx.compose.material.icons.outlined.Clear
+import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.CloudDone
 import androidx.compose.material.icons.outlined.CloudQueue
+import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.outlined.Terrain
 import androidx.compose.material3.Card
@@ -36,13 +50,27 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import kr.co.nuni.gildam.ui.R
+import kr.co.nuni.gildam.ui.illustration.GildamTooltip
+import kr.co.nuni.gildam.ui.illustration.TransportSticker
+import kr.co.nuni.gildam.ui.illustration.brandGradient
+import kr.co.nuni.gildam.ui.illustration.onBrand
 import kr.co.nuni.gildam.data.local.entity.ActivityEntity
 import kr.co.nuni.gildam.data.model.SyncState
 import kr.co.nuni.gildam.data.model.TransportType
@@ -69,6 +97,15 @@ fun ActivityListScreen(
     onDeleteActivity: (String) -> Unit = {},
     onUploadActivity: (String) -> Unit = {}
 ) {
+    // 찾기: 기본은 가려져 있고 앱바 돋보기 아이콘으로 펼침/접음
+    var searchExpanded by rememberSaveable { mutableStateOf(false) }
+    val searchFocusRequester = remember { FocusRequester() }
+
+    LaunchedEffect(searchExpanded) {
+        if (searchExpanded) searchFocusRequester.requestFocus()
+    }
+
+    // 수정 시트 / 삭제 확인 대화상자
     var editingId by remember { mutableStateOf<String?>(null) }
     var deletingId by remember { mutableStateOf<String?>(null) }
     RecordEditHost(
@@ -78,30 +115,7 @@ fun ActivityListScreen(
         onDismissEdit = { editingId = null }, onDismissDelete = { deletingId = null }
     )
     Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text("길담 보관함") },
-                navigationIcon = {
-                    if (!isTopLevelTab) {
-                        IconButton(onClick = onNavigateBackToRecorder) {
-                            Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = "기록 화면으로")
-                        }
-                    }
-                },
-                actions = {
-                    if (!isTopLevelTab) {
-                        IconButton(onClick = onNavigateToGpxCompare) {
-                            Icon(Icons.Outlined.Terrain, contentDescription = "GPX 길 비교")
-                        }
-                    }
-                    if (!isTopLevelTab) {
-                        IconButton(onClick = onNavigateToSettings) {
-                            Icon(Icons.Outlined.Settings, contentDescription = "설정")
-                        }
-                    }
-                }
-            )
-        },
+        contentWindowInsets = WindowInsets(0),
         floatingActionButton = {
             ExtendedFloatingActionButton(
                 onClick = onNavigateBackToRecorder,
@@ -114,42 +128,159 @@ fun ActivityListScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding)
+                .windowInsetsPadding(WindowInsets.statusBars)
                 .padding(horizontal = 16.dp)
         ) {
-            OutlinedTextField(
-                value = searchQuery,
-                onValueChange = onSearchQueryChange,
-                placeholder = { Text("제목, 장소 검색...") },
-                singleLine = true,
-                shape = RoundedCornerShape(14.dp),
-                modifier = Modifier.fillMaxWidth()
-            )
-
-            Spacer(modifier = Modifier.height(10.dp))
-
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.horizontalScroll(rememberScrollState())) {
-                FilterChip(
-                    selected = selectedTransportFilter == null,
-                    onClick = { onSelectTransportFilter(null) },
-                    label = { Text("전체") }
-                )
-                TransportType.entries.forEach { type ->
-                    FilterChip(
-                        selected = selectedTransportFilter == type,
-                        onClick = { onSelectTransportFilter(type) },
-                        label = { Text(type.labelKo) }
+            // 컴팩트 상단 헤더 (길담 보관함 타이틀 + 우측 찾기 아이콘)
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 6.dp, bottom = 4.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    if (!isTopLevelTab) {
+                        IconButton(
+                            onClick = onNavigateBackToRecorder,
+                            modifier = Modifier.size(34.dp)
+                        ) {
+                            Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = "기록 화면으로")
+                        }
+                        Spacer(modifier = Modifier.width(4.dp))
+                    }
+                    Image(
+                        painter = painterResource(R.drawable.gildam_logo),
+                        contentDescription = "길담 로고",
+                        modifier = Modifier.size(24.dp)
                     )
+                    Spacer(modifier = Modifier.width(7.dp))
+                    Text(
+                        text = "길담 보관함",
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    IconButton(
+                        onClick = {
+                            searchExpanded = !searchExpanded
+                            if (!searchExpanded) onSearchQueryChange("")
+                        },
+                        modifier = Modifier.size(34.dp)
+                    ) {
+                        Icon(
+                            if (searchExpanded) Icons.Outlined.Close else Icons.Outlined.Search,
+                            contentDescription = if (searchExpanded) "찾기 닫기" else "찾기",
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+                    if (!isTopLevelTab) {
+                        IconButton(onClick = onNavigateToGpxCompare, modifier = Modifier.size(34.dp)) {
+                            Icon(Icons.Outlined.Terrain, contentDescription = "GPX 길 비교", modifier = Modifier.size(20.dp))
+                        }
+                        IconButton(onClick = onNavigateToSettings, modifier = Modifier.size(34.dp)) {
+                            Icon(Icons.Outlined.Settings, contentDescription = "설정", modifier = Modifier.size(20.dp))
+                        }
+                    }
                 }
             }
 
-            Spacer(modifier = Modifier.height(12.dp))
+            AnimatedVisibility(visible = searchExpanded) {
+                Column {
+                    OutlinedTextField(
+                        value = searchQuery,
+                        onValueChange = onSearchQueryChange,
+                        placeholder = { Text("제목, 장소 검색...", style = MaterialTheme.typography.bodyMedium) },
+                        textStyle = MaterialTheme.typography.bodyMedium,
+                        singleLine = true,
+                        shape = RoundedCornerShape(12.dp),
+                        trailingIcon = {
+                            if (searchQuery.isNotEmpty()) {
+                                IconButton(onClick = { onSearchQueryChange("") }) {
+                                    Icon(Icons.Outlined.Clear, contentDescription = "검색어 지우기")
+                                }
+                            }
+                        },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .focusRequester(searchFocusRequester)
+                    )
+                    Spacer(modifier = Modifier.height(6.dp))
+                }
+            }
+
+            // 활동 필터: 전체 + 기록 버튼의 활동 아이콘 5개
+            val cs = MaterialTheme.colorScheme
+            val allSelected = selectedTransportFilter == null
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .horizontalScroll(rememberScrollState())
+                    .padding(vertical = 2.dp)
+            ) {
+                Box(
+                    modifier = Modifier
+                        .height(34.dp)
+                        .clip(RoundedCornerShape(50))
+                        .then(
+                            if (allSelected) {
+                                Modifier
+                                    .background(brandGradient())
+                                    .border(1.5.dp, cs.primary, RoundedCornerShape(50))
+                            } else {
+                                Modifier
+                                    .background(cs.surfaceVariant)
+                                    .border(1.dp, cs.outlineVariant, RoundedCornerShape(50))
+                            }
+                        )
+                        .clickable { onSelectTransportFilter(null) }
+                        .padding(horizontal = 12.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = "전체",
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = if (allSelected) FontWeight.Bold else FontWeight.Medium,
+                        color = if (allSelected) onBrand() else cs.onSurfaceVariant
+                    )
+                }
+
+                TransportType.entries.forEach { type ->
+                    val selected = selectedTransportFilter == type
+                    GildamTooltip(type.labelKo) {
+                        Box(
+                            modifier = Modifier
+                                .size(34.dp)
+                                .clip(CircleShape)
+                                .then(
+                                    if (selected) {
+                                        Modifier.border(2.dp, cs.primary, CircleShape)
+                                    } else {
+                                        Modifier.border(1.dp, cs.outlineVariant, CircleShape)
+                                    }
+                                )
+                                .clickable {
+                                    onSelectTransportFilter(if (selected) null else type)
+                                },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            TransportSticker(type = type, selected = selected, size = 34.dp)
+                        }
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(6.dp))
 
             if (activities.isEmpty()) {
                 BoxEmptyListState(onStartClick = onNavigateBackToRecorder)
             } else {
                 LazyColumn(
-                    verticalArrangement = Arrangement.spacedBy(12.dp),
-                    contentPadding = PaddingValues(bottom = 96.dp)
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                    contentPadding = PaddingValues(bottom = 84.dp)
                 ) {
                     items(activities, key = { it.id }) { item ->
                         ActivitySummaryCard(
@@ -176,12 +307,12 @@ internal fun ActivitySummaryCard(
     onDelete: () -> Unit = {},
     onUpload: () -> Unit = {}
 ) {
-    val dateStr = DateTimeFormatter.ofPattern("yyyy. MM. dd (E) a hh:mm")
+    val dateStr = DateTimeFormatter.ofPattern("yy.MM.dd (E) HH:mm")
         .withZone(ZoneId.systemDefault())
         .format(Instant.ofEpochMilli(activity.startedAtEpochMs))
 
     Card(
-        shape = RoundedCornerShape(18.dp),
+        shape = RoundedCornerShape(12.dp),
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surfaceVariant
         ),
@@ -189,61 +320,66 @@ internal fun ActivitySummaryCard(
             .fillMaxWidth()
             .clickable(onClick = onClick)
     ) {
-        Column(modifier = Modifier.padding(16.dp)) {
+        Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 9.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                TransportSticker(
+                    type = activity.transportType,
+                    selected = true,
+                    size = 22.dp
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = activity.title,
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f)
+                )
+                Spacer(modifier = Modifier.width(6.dp))
+                Icon(
+                    imageVector = if (activity.syncState == SyncState.SYNCED) {
+                        Icons.Outlined.CloudDone
+                    } else {
+                        Icons.Outlined.CloudQueue
+                    },
+                    contentDescription = activity.syncState.labelKo,
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(14.dp)
+                )
+            }
+
+            Spacer(modifier = Modifier.height(4.dp))
+
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Surface(
-                    shape = RoundedCornerShape(8.dp),
-                    color = MaterialTheme.colorScheme.primaryContainer
-                ) {
+                // 승희님 최신 카드: 날짜·거리·시간(왼쪽) + 수정/삭제/올리기 아이콘 버튼(오른쪽)
+                Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        text = activity.transportType.labelKo,
+                        text = dateStr,
                         style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onPrimaryContainer,
-                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Text(
+                        text = String.format(
+                            "%.2f km · %s",
+                            activity.distanceMeters / 1000.0,
+                            formatDurationHms(activity.totalDurationMs)
+                        ),
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.onSurface
                     )
                 }
-                CloudStatusChip(CloudStatus.of(activity.syncState))
-            }
-
-            Spacer(modifier = Modifier.height(8.dp))
-
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    text = activity.title,
-                    style = MaterialTheme.typography.titleLarge,
-                    maxLines = 2,
-                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
-                    modifier = Modifier.weight(1f)
-                )
-                RecordActionButtons(activity, isLoggedIn, onEdit = onEdit, onDelete = onDelete, onUpload = onUpload)
-            }
-            Text(
-                text = dateStr,
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-
-            Spacer(modifier = Modifier.height(12.dp))
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Text(
-                    text = String.format("거리 %.2f km", activity.distanceMeters / 1000.0),
-                    style = MaterialTheme.typography.titleMedium
-                )
-                Text(
-                    text = "시간 ${formatDurationHms(activity.totalDurationMs)}",
-                    style = MaterialTheme.typography.bodyMedium
-                )
-                Text(
-                    text = String.format("이동평균 %.1f km/h", activity.movingAvgSpeedMps * 3.6f),
-                    style = MaterialTheme.typography.bodyMedium
+                RecordActionButtons(
+                    activity, isLoggedIn,
+                    onEdit = onEdit, onDelete = onDelete, onUpload = onUpload
                 )
             }
         }

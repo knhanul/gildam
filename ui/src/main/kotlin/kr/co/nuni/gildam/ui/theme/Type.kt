@@ -13,8 +13,8 @@ import androidx.compose.ui.unit.sp
 val TabularStatHeroStyle = TextStyle(
     fontFamily = FontFamily.SansSerif,
     fontWeight = FontWeight.Bold,
-    fontSize = 42.sp,
-    lineHeight = 48.sp,
+    fontSize = 30.sp,
+    lineHeight = 36.sp,
     letterSpacing = (-0.5).sp,
     fontFeatureSettings = "tnum"
 )
@@ -22,8 +22,8 @@ val TabularStatHeroStyle = TextStyle(
 val TabularStatMediumStyle = TextStyle(
     fontFamily = FontFamily.SansSerif,
     fontWeight = FontWeight.SemiBold,
-    fontSize = 20.sp,
-    lineHeight = 26.sp,
+    fontSize = 15.sp,
+    lineHeight = 20.sp,
     fontFeatureSettings = "tnum"
 )
 
@@ -31,37 +31,67 @@ val GildamTypography = Typography(
     headlineMedium = TextStyle(
         fontFamily = FontFamily.Serif,
         fontWeight = FontWeight.SemiBold,
-        fontSize = 24.sp,
-        lineHeight = 32.sp
+        fontSize = 18.sp,
+        lineHeight = 24.sp
+    ),
+    headlineSmall = TextStyle(
+        fontFamily = FontFamily.SansSerif,
+        fontWeight = FontWeight.SemiBold,
+        fontSize = 16.sp,
+        lineHeight = 22.sp
     ),
     titleLarge = TextStyle(
         fontFamily = FontFamily.SansSerif,
         fontWeight = FontWeight.SemiBold,
-        fontSize = 20.sp,
-        lineHeight = 28.sp
+        fontSize = 15.sp,
+        lineHeight = 21.sp
     ),
     titleMedium = TextStyle(
         fontFamily = FontFamily.SansSerif,
         fontWeight = FontWeight.Medium,
-        fontSize = 16.sp,
-        lineHeight = 24.sp
+        fontSize = 13.sp,
+        lineHeight = 18.sp
+    ),
+    titleSmall = TextStyle(
+        fontFamily = FontFamily.SansSerif,
+        fontWeight = FontWeight.Medium,
+        fontSize = 12.sp,
+        lineHeight = 16.sp
     ),
     bodyLarge = TextStyle(
         fontFamily = FontFamily.SansSerif,
         fontWeight = FontWeight.Normal,
-        fontSize = 16.sp,
-        lineHeight = 26.sp
+        fontSize = 13.sp,
+        lineHeight = 18.sp
     ),
     bodyMedium = TextStyle(
         fontFamily = FontFamily.SansSerif,
         fontWeight = FontWeight.Normal,
-        fontSize = 14.sp,
-        lineHeight = 21.sp
+        fontSize = 11.5.sp,
+        lineHeight = 16.sp
+    ),
+    bodySmall = TextStyle(
+        fontFamily = FontFamily.SansSerif,
+        fontWeight = FontWeight.Normal,
+        fontSize = 10.sp,
+        lineHeight = 14.sp
+    ),
+    labelLarge = TextStyle(
+        fontFamily = FontFamily.SansSerif,
+        fontWeight = FontWeight.Medium,
+        fontSize = 11.sp,
+        lineHeight = 15.sp
+    ),
+    labelMedium = TextStyle(
+        fontFamily = FontFamily.SansSerif,
+        fontWeight = FontWeight.Medium,
+        fontSize = 10.sp,
+        lineHeight = 14.sp
     ),
     labelSmall = TextStyle(
         fontFamily = FontFamily.SansSerif,
         fontWeight = FontWeight.Medium,
-        fontSize = 11.sp,
-        lineHeight = 16.sp
+        fontSize = 9.5.sp,
+        lineHeight = 13.sp
     )
 )
