@@ -209,6 +209,10 @@ class GildamViewModel @Inject constructor(
         authManager.launchLogin(activityContext, switchAccount)
     }
 
+    fun openNuniAccountPage(activityContext: Context) {
+        authManager.openAccountPage(activityContext)
+    }
+
     fun triggerDemoLoginAndSync() {
         authManager.simulateDemoNuniLogin()
         GildamSyncWorker.enqueueImmediateSync(appContext)

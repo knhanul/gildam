@@ -23,6 +23,9 @@ data class SafeShareExportRoute(val activityId: String)
 @Serializable
 object SettingsRoute
 
+@Serializable
+object AccountInfoRoute
+
 /** 순수 GPX 파일끼리 길의 험함 비교 (저장·동기화 없음) */
 @Serializable
 object GpxCompareRoute

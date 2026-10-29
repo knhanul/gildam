@@ -9,6 +9,7 @@ package kr.co.nuni.gildam.auth
  */
 object NuniAuthConfig {
     const val ISSUER = "https://id.nuni.co.kr"
+    const val ACCOUNT_PAGE_URL = "$ISSUER/me"
     const val AUTHORIZE_ENDPOINT = "$ISSUER/oauth/authorize"
     const val TOKEN_ENDPOINT = "$ISSUER/oauth/token"
     const val REVOKE_ENDPOINT = "$ISSUER/oauth/revoke"

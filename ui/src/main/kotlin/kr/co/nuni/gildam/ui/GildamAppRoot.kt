@@ -37,11 +37,13 @@ import kr.co.nuni.gildam.ui.navigation.ActivityListRoute
 import kr.co.nuni.gildam.ui.navigation.LiveRecordingRoute
 import kr.co.nuni.gildam.ui.navigation.SafeShareExportRoute
 import kr.co.nuni.gildam.ui.navigation.SettingsRoute
+import kr.co.nuni.gildam.ui.navigation.AccountInfoRoute
 import kr.co.nuni.gildam.ui.screens.ActivityDetailScreen
 import kr.co.nuni.gildam.ui.screens.ActivityListScreen
 import kr.co.nuni.gildam.ui.screens.LiveRecordingScreen
 import kr.co.nuni.gildam.ui.screens.SafeShareExportScreen
 import kr.co.nuni.gildam.ui.screens.SettingsScreen
+import kr.co.nuni.gildam.ui.screens.AccountInfoScreen
 import kr.co.nuni.gildam.ui.theme.GildamTheme
 
 @Composable
@@ -282,7 +284,19 @@ fun GildamAppRoot(
                     onSelectRecordMapMode = appearanceViewModel::setRecordMapMode,
                     gaugeSelections = gaugeSelections,
                     onSelectGauge = appearanceViewModel::setGaugeSelection,
-                    onResetGauge = appearanceViewModel::resetGaugeSelections
+                    onResetGauge = appearanceViewModel::resetGaugeSelections,
+                    onOpenAccountInfo = { navController.navigate(AccountInfoRoute) }
+                )
+            }
+
+            composable<AccountInfoRoute> {
+                AccountInfoScreen(
+                    isLoggedIn = sessionState.isLoggedIn,
+                    displayName = "누니 회원",
+                    nickname = null,
+                    onOpenAccountPage = { viewModel.openNuniAccountPage(context) },
+                    onLogout = { viewModel.logout(context) },
+                    onNavigateBack = { navController.popBackStack() }
                 )
             }
         }

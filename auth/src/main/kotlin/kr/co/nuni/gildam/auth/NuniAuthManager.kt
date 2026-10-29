@@ -54,6 +54,14 @@ class NuniAuthManager @Inject constructor(
         CustomTabsIntent.Builder().setShowTitle(true).build().launchUrl(activityContext, Uri.parse(url))
     }
 
+    /** 누니 계정의 닉네임 및 계정 관리 화면을 Custom Tabs로 엽니다. */
+    fun openAccountPage(context: Context) {
+        CustomTabsIntent.Builder()
+            .setShowTitle(true)
+            .build()
+            .launchUrl(context, Uri.parse(NuniAuthConfig.ACCOUNT_PAGE_URL))
+    }
+
     fun isAuthRedirect(uri: Uri): Boolean =
         uri.scheme == NuniAuthConfig.REDIRECT_SCHEME && uri.path == "/oauthredirect"
 
