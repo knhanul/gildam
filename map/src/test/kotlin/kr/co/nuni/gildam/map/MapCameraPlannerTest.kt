@@ -1,6 +1,8 @@
 package kr.co.nuni.gildam.map
 
 import kr.co.nuni.gildam.recording.LatLonPoint
+import kr.co.nuni.gildam.recording.LiveRecordingState
+import kr.co.nuni.gildam.recording.RecordingController
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
@@ -61,5 +63,91 @@ class MapCameraPlannerTest {
         assertTrue(MapCameraPlanner.followZoom(6f, 0.0) < MapCameraPlanner.followZoom(1.4f, 0.0))
         assertTrue(MapCameraPlanner.followZoom(1.4f, 8_000.0) < MapCameraPlanner.followZoom(1.4f, 0.0))
         assertEquals(13.5, MapCameraPlanner.followZoom(40f, 50_000.0), 1e-9)
+    }
+
+    @Test fun targetForReturnsNullWhenNothingToShow() {
+        assertNull(MapCameraPlanner.targetFor(emptyList(), null, emptyList()))
+    }
+
+    @Test fun targetForUsesLastTrackPointWithoutSeoulFallback() {
+        val busanTrack = listOf(
+            p(35.15, 129.05),
+            p(35.16, 129.06),
+            p(35.17, 129.07)
+        )
+        val target = MapCameraPlanner.targetFor(busanTrack, null, emptyList())!!
+        assertEquals(35.17, target.latitude, 1e-9)
+        assertEquals(129.07, target.longitude, 1e-9)
+        assertEquals(15.2, target.zoom, 1e-9)
+    }
+
+    @Test fun targetForPrioritizesCurrentLocationOverTrackAndCourse() {
+        val track = listOf(p(35.15, 129.05), p(35.17, 129.07))
+        val current = p(33.4996, 126.5312) // 제주
+        val course = listOf(p(36.35, 127.38))
+        val target = MapCameraPlanner.targetFor(track, current, course)!!
+        assertEquals(33.4996, target.latitude, 1e-9)
+        assertEquals(126.5312, target.longitude, 1e-9)
+    }
+
+    @Test fun targetForFallsBackToFirstCoursePoint() {
+        val course = listOf(p(35.87, 128.60), p(35.88, 128.62))
+        val target = MapCameraPlanner.targetFor(emptyList(), null, course)!!
+        assertEquals(35.87, target.latitude, 1e-9)
+        assertEquals(128.60, target.longitude, 1e-9)
+    }
+
+    @Test fun detailOverviewFitCoversAllTrackPoints() {
+        val pad = OverlayPadding(0, 0, 0, 0)
+        val start = p(35.1587, 129.1604) // 해운대
+        val end = p(35.1531, 129.1186)   // 광안리
+        val fit = MapCameraPlanner.overviewFit(listOf(start, end), null, emptyList(), pad)!!
+        assertTrue(fit.bounds.contains(start))
+        assertTrue(fit.bounds.contains(end))
+    }
+
+    @Test fun finishRecordingPreservesLastTrackAndResetsGauges() {
+        val track = listOf(p(35.15, 129.05), p(35.16, 129.06), p(35.17, 129.07))
+        val lastLoc = p(35.17, 129.07)
+        val activeState = LiveRecordingState(
+            isRecording = true,
+            isPaused = false,
+            activeActivityId = "act-1",
+            elapsedTotalMs = 120_000L,
+            elapsedMovingMs = 110_000L,
+            distanceMeters = 450.0,
+            currentSpeedMps = 3.5f,
+            movingAvgSpeedMps = 3.2f,
+            maxSpeedMps = 4.1f,
+            elevationGainMeters = 12f,
+            currentLocation = lastLoc,
+            liveTrackPoints = track
+        )
+
+        val finished = RecordingController.finishRecordingState(activeState)
+
+        assertFalse(finished.isRecording)
+        assertFalse(finished.isPaused)
+        assertNull(finished.activeActivityId)
+        assertNull(finished.currentLocation)
+        assertTrue(finished.liveTrackPoints.isEmpty())
+        assertEquals(0L, finished.elapsedTotalMs)
+        assertEquals(0L, finished.elapsedMovingMs)
+        assertEquals(0.0, finished.distanceMeters, 1e-9)
+        assertEquals(0f, finished.currentSpeedMps, 1e-6f)
+        assertEquals(0f, finished.movingAvgSpeedMps, 1e-6f)
+        assertEquals(0f, finished.maxSpeedMps, 1e-6f)
+        assertEquals(0f, finished.elevationGainMeters, 1e-6f)
+        assertEquals(track, finished.lastFinishedTrackPoints)
+        assertEquals(lastLoc, finished.lastFinishedLocation)
+
+        // 종료 직후 화면에 넘기는 값으로 카메라 목표를 계산해도 서울이 아닌 마지막 위치가 유지됨
+        val targetAfterStop = MapCameraPlanner.targetFor(
+            finished.lastFinishedTrackPoints,
+            finished.lastFinishedLocation,
+            emptyList()
+        )!!
+        assertEquals(35.17, targetAfterStop.latitude, 1e-9)
+        assertEquals(129.07, targetAfterStop.longitude, 1e-9)
     }
 }

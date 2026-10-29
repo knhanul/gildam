@@ -118,10 +118,12 @@ fun LiveRecordingScreen(
     var showAddMemoSheet by remember { mutableStateOf(false) }
 
     Box(modifier = Modifier.fillMaxSize()) {
-        // 1. 전체화면 MapLibre 벡터 지도 + 실시간 폴리라인
+        // 1. 전체화면 MapLibre 벡터 지도 + 실시간 폴리라인 (종료 직후에는 방금 기록한 경로 스냅샷 유지)
+        val displayTrack = if (liveState.isRecording) liveState.liveTrackPoints else liveState.lastFinishedTrackPoints
+        val displayLocation = if (liveState.isRecording) liveState.currentLocation else liveState.lastFinishedLocation
         GildamMapLibreView(
-            trackPoints = liveState.liveTrackPoints,
-            currentLocation = liveState.currentLocation,
+            trackPoints = displayTrack,
+            currentLocation = displayLocation,
             modifier = Modifier.fillMaxSize(),
             coursePoints = follow?.route ?: emptyList(),
             cameraMode = cameraMode,
@@ -131,7 +133,8 @@ fun LiveRecordingScreen(
             speedMps = liveState.currentSpeedMps,
             distanceM = liveState.distanceMeters,
             onUserGesture = { cameraPaused = true },
-            recenterKey = recenterKey
+            recenterKey = recenterKey,
+            routeOpacity = if (liveState.isRecording) 1.0f else 0.6f
         )
 
         // 2. 상단 상태 바 & 네비게이션 칩 (Edge-to-Edge statusBars 인셋 준수)

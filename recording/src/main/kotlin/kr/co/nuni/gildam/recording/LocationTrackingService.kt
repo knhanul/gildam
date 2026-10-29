@@ -190,7 +190,7 @@ class LocationTrackingService : LifecycleService() {
             flushPointBufferToRoom()
             persistProgress(ActivityStatus.COMPLETED)
             activeActivityId = null
-            recordingController.resetState()
+            recordingController.finishState()
             stopForeground(STOP_FOREGROUND_REMOVE)
             stopSelf()
         }
