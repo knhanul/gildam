@@ -38,8 +38,6 @@ object AutoStopPolicy {
         2 * HOUR_MS,
         4 * HOUR_MS,
         6 * HOUR_MS,
-        8 * HOUR_MS,
-        10 * HOUR_MS,
         null
     )
 
@@ -47,9 +45,6 @@ object AutoStopPolicy {
         10 * MINUTE_MS,
         20 * MINUTE_MS,
         30 * MINUTE_MS,
-        40 * MINUTE_MS,
-        50 * MINUTE_MS,
-        60 * MINUTE_MS,
         null
     )
 

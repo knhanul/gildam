@@ -102,18 +102,13 @@ class RecordingPrefs @Inject constructor(@ApplicationContext private val context
         val ALLOWED_MAX_DURATION_MS: Set<Long> = setOf(
             2 * HOUR_MS,
             4 * HOUR_MS,
-            6 * HOUR_MS,
-            8 * HOUR_MS,
-            10 * HOUR_MS
+            6 * HOUR_MS
         )
 
         val ALLOWED_IDLE_LIMIT_MS: Set<Long> = setOf(
             10 * MINUTE_MS,
             20 * MINUTE_MS,
-            30 * MINUTE_MS,
-            40 * MINUTE_MS,
-            50 * MINUTE_MS,
-            60 * MINUTE_MS
+            30 * MINUTE_MS
         )
 
         val ALLOWED_GRACE_MS: Set<Long> = setOf(
