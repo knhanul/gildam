@@ -15,10 +15,13 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
 import androidx.compose.material.icons.Icons
 import kr.co.nuni.gildam.ui.theme.DarkModePref
 import kr.co.nuni.gildam.ui.theme.GildamPalette
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
+import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -47,9 +50,13 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.sp
 import kr.co.nuni.gildam.auth.NuniSessionState
+import kr.co.nuni.gildam.ui.R
+import kr.co.nuni.gildam.ui.illustration.IconButtonStyle
+import kr.co.nuni.gildam.ui.illustration.TooltipIconButton
 
 /**
  * 설정 및 NUNI ID 로그인 화면 (확정된 사진 정책 필수 고지 문구 포함).
@@ -81,7 +88,8 @@ fun SettingsScreen(
     gaugeSelections: Map<kr.co.nuni.gildam.data.model.TransportType, kr.co.nuni.gildam.data.model.GaugeMetric> =
         kr.co.nuni.gildam.data.model.TransportType.entries.associateWith { kr.co.nuni.gildam.data.model.GaugeMetric.defaultFor(it) },
     onSelectGauge: (kr.co.nuni.gildam.data.model.TransportType, kr.co.nuni.gildam.data.model.GaugeMetric) -> Unit = { _, _ -> },
-    onResetGauge: (() -> Unit)? = null
+    onResetGauge: (() -> Unit)? = null,
+    onOpenAccountInfo: () -> Unit = {}
 ) {
     val context = LocalContext.current
 
@@ -113,26 +121,60 @@ fun SettingsScreen(
 
             GaugeSection(gaugeSelections, onSelectGauge, onResetAll = onResetGauge)
 
-            // 1. 계정 카드: 사용자에게는 카카오 로그인, 내부적으로는 NUNI ID(id.nuni.co.kr)
+            // 계정 관계와 저장 정보를 설명하는 로그인 카드
             Card(
                 shape = RoundedCornerShape(14.dp),
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Column(modifier = Modifier.padding(12.dp)) {
-                    Text(text = "계정", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
-                    Spacer(modifier = Modifier.height(4.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Image(
+                            painter = painterResource(R.drawable.gildam_logo),
+                            contentDescription = "길담 로고",
+                            modifier = Modifier.size(34.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        androidx.compose.foundation.layout.Box(
+                            modifier = Modifier
+                                .width(1.dp)
+                                .height(24.dp)
+                                .background(MaterialTheme.colorScheme.outlineVariant)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        NuniLogo()
+                        Spacer(modifier = Modifier.weight(1f))
+                        TooltipIconButton(
+                            icon = Icons.Outlined.Info,
+                            label = "무엇을 저장하는지 보기",
+                            onClick = onOpenAccountInfo,
+                            style = IconButtonStyle.PLAIN,
+                            visualSize = 36.dp,
+                            iconSize = 20.dp
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = "길담은 누니(nuni)가 만든 앱이에요",
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Spacer(modifier = Modifier.height(2.dp))
+                    Text(
+                        text = "로그인은 누니 계정 하나로 해요. 다른 누니 앱과 같은 계정을 써요.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
                     if (sessionState.isLoggedIn) {
                         Text(
-                            text = "🟢 카카오 계정으로 로그인됨",
+                            text = "🟢 누니 계정으로 로그인됨",
                             style = MaterialTheme.typography.bodyMedium,
                             fontWeight = FontWeight.SemiBold
-                        )
-                        Text(
-                            text = "회원번호 ${shortSub(sessionState.nuniUserId)}",
-                            style = MaterialTheme.typography.labelSmall,
-                            fontSize = 9.5.sp,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                         Text(
                             text = if (serverTrackCount != null) "☁️ 서버에 저장된 기록 ${serverTrackCount}개" else "☁️ 서버 기록 확인 중…",
@@ -169,18 +211,25 @@ fun SettingsScreen(
                             contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp),
                             modifier = Modifier.height(30.dp)
                         ) { Text("다른 카카오 계정으로 전환", style = MaterialTheme.typography.labelSmall) }
-                        NuniFootnote()
                     } else {
-                        Text(
-                            text = "로그인하면 기기를 바꿔도 이동 궤적과 길 위의 메모를 그대로 이어서 볼 수 있어요. 사진은 동기화되지 않아요.",
-                            style = MaterialTheme.typography.bodySmall,
-                            fontSize = 9.5.sp,
-                            lineHeight = 13.sp,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        Spacer(modifier = Modifier.height(8.dp))
                         KakaoLoginButton(onClick = onKakaoLogin)
-                        NuniFootnote()
+                    }
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Text(
+                        text = "카카오 비밀번호는 길담이 볼 수 없어요. 길담이 저장하는 건 닉네임과 길담에서 만든 기록뿐이에요.",
+                        style = MaterialTheme.typography.bodySmall,
+                        fontSize = 10.sp,
+                        lineHeight = 14.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(modifier = Modifier.height(2.dp))
+                    Text(
+                        text = "계정 관리: id.nuni.co.kr",
+                        style = MaterialTheme.typography.labelSmall,
+                        fontSize = 9.5.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    if (!sessionState.isLoggedIn) {
                         if (onDemoSimulateLogin != null) {
                             Spacer(modifier = Modifier.height(4.dp))
                             OutlinedButton(
@@ -312,18 +361,24 @@ private fun KakaoSymbol(modifier: Modifier = Modifier) {
 }
 
 @Composable
-private fun NuniFootnote() {
-    Spacer(modifier = Modifier.height(4.dp))
-    Text(
-        text = "누니 통합계정(NUNI ID)으로 안전하게 연결돼요",
-        style = MaterialTheme.typography.labelSmall,
-        fontSize = 9.sp,
-        lineHeight = 12.sp,
-        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
-        textAlign = TextAlign.Center,
-        modifier = Modifier.fillMaxWidth()
-    )
+@Composable
+private fun NuniLogo() {
+    Surface(
+        shape = RoundedCornerShape(8.dp),
+        color = MaterialTheme.colorScheme.primaryContainer
+    ) {
+        androidx.compose.foundation.layout.Box(
+            modifier = Modifier
+                .size(width = 54.dp, height = 32.dp)
+                .padding(horizontal = 5.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                text = "nuni",
+                style = MaterialTheme.typography.labelLarge,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onPrimaryContainer
+            )
+        }
+    }
 }
-
-internal fun shortSub(sub: String?): String =
-    if (sub.isNullOrBlank()) "-" else if (sub.length <= 12) sub else sub.take(6) + "…" + sub.takeLast(4)
