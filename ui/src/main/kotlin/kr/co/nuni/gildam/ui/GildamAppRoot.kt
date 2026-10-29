@@ -79,6 +79,7 @@ fun GildamAppRoot(
     val selectedTransportFilter by viewModel.selectedTransportFilter.collectAsState()
     val searchQuery by viewModel.searchQuery.collectAsState()
     val selectedTransportForNew by viewModel.selectedTransportForNewRecording.collectAsState()
+    val keepScreenOn by viewModel.keepScreenOn.collectAsState()
     val thumbnailCacheBytes by viewModel.thumbnailCacheSizeBytes.collectAsState()
 
     // 1단계 포그라운드 위치 + 알림 권한 요청 런처 (Android 11+ 단계별 권한 분리 정책 준수)
@@ -153,7 +154,8 @@ fun GildamAppRoot(
                     onStopFollow = courseViewModel::stopFollow,
                     defaultCameraMode = recordMapMode,
                     overlayMetric = gaugeSelections[if (liveState.isRecording) liveState.transportType else selectedTransportForNew]
-                        ?: kr.co.nuni.gildam.data.model.GaugeMetric.defaultFor(selectedTransportForNew)
+                        ?: kr.co.nuni.gildam.data.model.GaugeMetric.defaultFor(selectedTransportForNew),
+                    keepScreenOn = keepScreenOn
                 )
             }
 

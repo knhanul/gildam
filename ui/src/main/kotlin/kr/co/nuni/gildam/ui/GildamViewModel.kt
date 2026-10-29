@@ -77,6 +77,14 @@ class GildamViewModel @Inject constructor(
         .map { n -> TransportType.entries.firstOrNull { it.name == n } ?: TransportType.WALK }
         .stateIn(viewModelScope, SharingStarted.Eagerly, TransportType.WALK)
 
+    /** 기록 중 화면 켜 두기 설정 (기본값 false) */
+    val keepScreenOn: StateFlow<Boolean> = recordingPrefs.keepScreenOn
+        .stateIn(viewModelScope, SharingStarted.Eagerly, RecordingPrefs.DEFAULT_KEEP_SCREEN_ON)
+
+    fun setKeepScreenOn(enabled: Boolean) {
+        viewModelScope.launch { recordingPrefs.setKeepScreenOn(enabled) }
+    }
+
     private val _thumbnailCacheSizeBytes = MutableStateFlow(0L)
     val thumbnailCacheSizeBytes: StateFlow<Long> = _thumbnailCacheSizeBytes.asStateFlow()
 

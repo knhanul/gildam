@@ -49,6 +49,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -59,6 +60,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -104,9 +106,21 @@ fun LiveRecordingScreen(
     defaultCameraMode: MapCameraMode = MapCameraMode.DEFAULT,
     /** 설정에서 활동 구분별로 고른 '지도 위 계기판' 값 */
     overlayMetric: GaugeMetric = GaugeMetric.defaultFor(selectedTransport),
+    /** 설정의 '기록 중 화면 켜 두기' 값 */
+    keepScreenOn: Boolean = false,
     /** 테스트·미리보기에서 현재 시각을 고정할 때 사용. null 이면 1초마다 실제 시각으로 갱신 */
     fixedClockMs: Long? = null
 ) {
+    // 기록 중 화면 켜 두기: 켜져 있고 기록 중(일시정지 포함)일 때만 이 화면에서 화면 꺼짐 방지, 벗어나거나 종료 시 해제
+    val currentView = LocalView.current
+    val shouldKeepScreenOn = keepScreenOn && (liveState.isRecording || liveState.isPaused)
+    DisposableEffect(currentView, shouldKeepScreenOn) {
+        currentView.keepScreenOn = shouldKeepScreenOn
+        onDispose {
+            currentView.keepScreenOn = false
+        }
+    }
+
     // 현재 시간 계기판만 1초마다 다시 그리도록, 시각 상태는 읽는 곳에서만 구독합니다.
     val clockTick = rememberClockTick(fixedClockMs)
     var cameraMode by rememberSaveable(defaultCameraMode) { mutableStateOf(defaultCameraMode) }
@@ -176,7 +190,11 @@ fun LiveRecordingScreen(
                                 color = MaterialTheme.colorScheme.primary
                             )
                             Text(
-                                text = "화면이 꺼져도 1초 주기로 궤적을 기록합니다",
+                                text = if (keepScreenOn) {
+                                    "화면을 켜 둡니다 · 1초 주기로 궤적 기록"
+                                } else {
+                                    "화면이 꺼져도 1초 주기로 궤적을 기록합니다"
+                                },
                                 style = MaterialTheme.typography.labelSmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
