@@ -17,7 +17,7 @@ object GaugeFormat {
     fun distanceKm(meters: Double): String =
         String.format(Locale.KOREA, "%.2f", (meters.coerceAtLeast(0.0)) / 1000.0)
 
-    /** 속도: m/s → "5.0" (단위 km/h는 라벨에 표시) */
+    /** 속도: m/s → "5.0" (단위 km/h는 지도 위 칩의 값 옆에 표시) */
     fun speedKmh(mps: Float): String =
         String.format(Locale.KOREA, "%.1f", (mps.coerceAtLeast(0f)) * 3.6f)
 

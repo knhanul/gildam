@@ -19,6 +19,10 @@ class MapCameraPlannerTest {
     }
 
     @Test fun expandAddsMarginAndMinimumSpan() {
+        // 기본(MARGIN_FRACTION=0.0): 충분히 긴 경로는 인위적인 상하좌우 여백 없이 원래 경계 그대로 사용
+        val exact = MapCameraPlanner.expand(GeoBounds(37.0, 127.0, 37.1, 127.2))
+        assertEquals(0.1, exact.latSpan, 1e-9); assertEquals(0.2, exact.lonSpan, 1e-9)
+        // 명시적 fraction 지정 시 비율만큼 확장
         val e = MapCameraPlanner.expand(GeoBounds(37.0, 127.0, 37.1, 127.2), 0.1)
         assertEquals(0.12, e.latSpan, 1e-9); assertEquals(0.24, e.lonSpan, 1e-9)
         assertEquals(37.05, (e.minLat + e.maxLat) / 2, 1e-9)
@@ -31,12 +35,13 @@ class MapCameraPlannerTest {
         val fit = MapCameraPlanner.overviewFit(listOf(p(37.5, 127.0)), p(37.51, 127.01), listOf(p(37.6, 127.1)), pad)!!
         assertTrue(fit.bounds.contains(p(37.6, 127.1)))
         assertTrue(fit.bounds.contains(p(37.5, 127.0)))
+        assertEquals(GeoBounds(37.5, 127.0, 37.6, 127.1), fit.bounds)
         assertNull(MapCameraPlanner.overviewFit(emptyList(), null, emptyList(), pad))
     }
 
     @Test fun paddingReservesCardsButNeverMostOfScreen() {
         val a = MapCameraPlanner.overlayPadding(1080, 2400, topCardsPx = 300, bottomCardPx = 900)
-        assertEquals(348, a.top); assertEquals(948, a.bottom); assertEquals(48, a.left)
+        assertEquals(300, a.top); assertEquals(900, a.bottom); assertEquals(0, a.left); assertEquals(0, a.right)
         val b = MapCameraPlanner.overlayPadding(1080, 1000, topCardsPx = 500, bottomCardPx = 900)
         assertTrue(b.top + b.bottom <= 800)
         assertTrue(b.bottom > b.top)
@@ -46,10 +51,11 @@ class MapCameraPlannerTest {
         val last = GeoBounds(37.0, 127.0, 37.1, 127.1)
         val same = GeoBounds(37.02, 127.02, 37.08, 127.08)
         assertTrue(MapCameraPlanner.needsRefit(null, same, null, 0, 0))
-        // 안쪽에 있고 시간 안 지남 → 안 함
+        // 안쪽(및 경계선 위)에 있고 시간 안 지남 → 안 함
         assertFalse(MapCameraPlanner.needsRefit(last, same, p(37.05, 127.05), 1_000, 0))
-        // 가장자리 10% 밖 → 바로
-        assertTrue(MapCameraPlanner.needsRefit(last, same, p(37.095, 127.05), 1_000, 0))
+        assertFalse(MapCameraPlanner.needsRefit(last, last, p(37.1, 127.05), 1_000, 0))
+        // 경계 밖으로 나가면 → 바로 재맞춤
+        assertTrue(MapCameraPlanner.needsRefit(last, same, p(37.105, 127.05), 1_000, 0))
         // 경로가 경계를 넘었지만 간격 전 → 대기, 간격 후 → 맞춤
         val grown = GeoBounds(37.0, 127.0, 37.15, 127.1)
         assertFalse(MapCameraPlanner.needsRefit(last, grown, p(37.05, 127.05), 3_000, 0))

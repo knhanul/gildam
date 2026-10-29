@@ -141,78 +141,84 @@ fun LiveRecordingScreen(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .windowInsetsPadding(WindowInsets.statusBars)
-                .padding(horizontal = 16.dp, vertical = 8.dp)
-                .onSizeChanged { topPx = it.height }
+                .padding(horizontal = 16.dp)
         ) {
-            Surface(
-                shape = RoundedCornerShape(24.dp),
-                color = MaterialTheme.colorScheme.surface.copy(alpha = 0.94f),
-                tonalElevation = 4.dp,
-                modifier = Modifier.fillMaxWidth()
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .onSizeChanged { topPx = it.height }
+                    .windowInsetsPadding(WindowInsets.statusBars)
+                    .padding(top = 8.dp)
             ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 10.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
+                Surface(
+                    shape = RoundedCornerShape(24.dp),
+                    color = MaterialTheme.colorScheme.surface.copy(alpha = 0.94f),
+                    tonalElevation = 4.dp,
+                    modifier = Modifier.fillMaxWidth()
                 ) {
                     Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 16.dp, vertical = 10.dp),
                         verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.weight(1f)
+                        horizontalArrangement = Arrangement.SpaceBetween
                     ) {
-                        Image(
-                            painter = painterResource(R.drawable.gildam_logo),
-                            contentDescription = "길담 로고",
-                            modifier = Modifier.size(28.dp)
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Column {
-                            Text(
-                                text = if (liveState.isRecording) {
-                                    if (liveState.isPaused) "⏸ 일시정지됨" else "🟢 기록 중 · 백그라운드 보호 활성"
-                                } else {
-                                    "길담 · 길이야기"
-                                },
-                                style = MaterialTheme.typography.titleMedium,
-                                color = MaterialTheme.colorScheme.primary
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Image(
+                                painter = painterResource(R.drawable.gildam_logo),
+                                contentDescription = "길담 로고",
+                                modifier = Modifier.size(28.dp)
                             )
-                            Text(
-                                text = "화면이 꺼져도 1초 주기로 궤적을 기록합니다",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Column {
+                                Text(
+                                    text = if (liveState.isRecording) {
+                                        if (liveState.isPaused) "⏸ 일시정지됨" else "🟢 기록 중 · 백그라운드 보호 활성"
+                                    } else {
+                                        "길담 · 길이야기"
+                                    },
+                                    style = MaterialTheme.typography.titleMedium,
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+                                Text(
+                                    text = "화면이 꺼져도 1초 주기로 궤적을 기록합니다",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
                         }
-                    }
-                    if (showTopNavIcons) Row {
-                        IconButton(onClick = onNavigateToList) {
-                            Icon(Icons.Outlined.FormatListBulleted, contentDescription = "기록 목록")
-                        }
-                        IconButton(onClick = onNavigateToSettings) {
-                            Icon(Icons.Outlined.Settings, contentDescription = "설정")
+                        if (showTopNavIcons) Row {
+                            IconButton(onClick = onNavigateToList) {
+                                Icon(Icons.Outlined.FormatListBulleted, contentDescription = "기록 목록")
+                            }
+                            IconButton(onClick = onNavigateToSettings) {
+                                Icon(Icons.Outlined.Settings, contentDescription = "설정")
+                            }
                         }
                     }
                 }
-            }
 
-            follow?.let { FollowCourseCard(it, onStopFollow, Modifier.padding(top = 8.dp)) }
+                follow?.let { FollowCourseCard(it, onStopFollow, Modifier.padding(top = 8.dp)) }
 
-            // GPS 신호 미약 경고 배너 (터널/실내)
-            AnimatedVisibility(visible = liveState.isGpsSignalWeak) {
-                Surface(
-                    shape = RoundedCornerShape(12.dp),
-                    color = WarningAmber.copy(alpha = 0.95f),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(top = 8.dp)
-                ) {
-                    Text(
-                        text = "GPS 신호를 찾고 있어요. 마지막 확인 위치부터 이어집니다.",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onPrimary,
-                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp)
-                    )
+                // GPS 신호 미약 경고 배너 (터널/실내)
+                AnimatedVisibility(visible = liveState.isGpsSignalWeak) {
+                    Surface(
+                        shape = RoundedCornerShape(12.dp),
+                        color = WarningAmber.copy(alpha = 0.95f),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 8.dp)
+                    ) {
+                        Text(
+                            text = "GPS 신호를 찾고 있어요. 마지막 확인 위치부터 이어집니다.",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onPrimary,
+                            modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp)
+                        )
+                    }
                 }
             }
             MapCameraControls(
@@ -229,8 +235,7 @@ fun LiveRecordingScreen(
         Column(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
-                .fillMaxWidth()
-                .onSizeChanged { bottomPx = it.height },
+                .fillMaxWidth(),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             GaugeOverlayChip(
@@ -246,7 +251,9 @@ fun LiveRecordingScreen(
                     containerColor = MaterialTheme.colorScheme.surface
                 ),
                 elevation = CardDefaults.cardElevation(defaultElevation = 12.dp),
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .onSizeChanged { bottomPx = it.height }
             ) {
                 Column(
                     modifier = Modifier

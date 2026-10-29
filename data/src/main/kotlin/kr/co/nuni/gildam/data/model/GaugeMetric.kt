@@ -22,9 +22,13 @@ enum class GaugeMetric(val labelKo: String, val descKo: String) {
             TOTAL_TIME, CLOCK -> null
         }
 
+    /** 라벨에 붙이는 단위. 속도는 지도 위 칩에서 값 옆에 단위가 나오므로 라벨엔 달지 않음 */
+    val labelUnit: String?
+        get() = if (this == DISTANCE) "km" else null
+
     /** 계기판 라벨: 단위가 있으면 "누적 거리 (km)" 처럼 붙여서 표시 */
     val labelWithUnit: String
-        get() = unit?.let { "$labelKo ($it)" } ?: labelKo
+        get() = labelUnit?.let { "$labelKo ($it)" } ?: labelKo
 
     companion object {
         /** 지도 아래 카드에 놓는 순서. 앞의 2개가 히어로(큰 값), 뒤의 2개가 보조 카드. */
