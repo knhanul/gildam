@@ -82,7 +82,6 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
 import kr.co.nuni.gildam.recording.LiveRecordingState
 import kr.co.nuni.gildam.ui.theme.TabularStatHeroStyle
-import kr.co.nuni.gildam.ui.theme.TabularStatMediumStyle
 import kr.co.nuni.gildam.ui.theme.WarningAmber
 import java.time.Instant
 import java.time.ZoneId
@@ -300,45 +299,21 @@ fun LiveRecordingScreen(
 
                     Spacer(modifier = Modifier.height(12.dp))
 
-                    // 지도 아래 계기판 4개: 지도 위 1개를 뺀 나머지 (큰 값 2개 + 작은 값 2개)
-                    val heroMetrics = GaugeMetric.heroesFor(overlayMetric)
-                    val subMetrics = GaugeMetric.subsFor(overlayMetric)
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        heroMetrics.forEachIndexed { i, metric ->
-                            Column(horizontalAlignment = if (i == 0) Alignment.Start else Alignment.End) {
-                                Text(
-                                    text = metric.labelWithUnit,
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                                GaugeValueText(
+                    // 지도 아래 계기판 4개를 동일한 크기와 형태의 2x2 카드로 표시
+                    GaugeMetric.bottomFor(overlayMetric).chunked(2).forEachIndexed { rowIndex, rowMetrics ->
+                        if (rowIndex > 0) Spacer(modifier = Modifier.height(8.dp))
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            rowMetrics.forEach { metric ->
+                                GaugeMetricCard(
                                     metric = metric,
                                     live = liveState,
                                     clockTick = clockTick,
-                                    style = TabularStatHeroStyle.copy(fontSize = 38.sp, lineHeight = 44.sp),
-                                    color = MaterialTheme.colorScheme.onSurface
+                                    modifier = Modifier.weight(1f)
                                 )
                             }
-                        }
-                    }
-
-                    Spacer(modifier = Modifier.height(12.dp))
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        subMetrics.forEach { metric ->
-                            StatSubCard(
-                                metric = metric,
-                                live = liveState,
-                                clockTick = clockTick,
-                                modifier = Modifier.weight(1f)
-                            )
                         }
                     }
 
@@ -468,7 +443,7 @@ private fun UnfinishedRecordingCard(
 }
 
 @Composable
-private fun StatSubCard(
+private fun GaugeMetricCard(
     metric: GaugeMetric,
     live: LiveRecordingState,
     clockTick: androidx.compose.runtime.State<Long>,
@@ -479,7 +454,7 @@ private fun StatSubCard(
         color = MaterialTheme.colorScheme.surfaceVariant,
         modifier = modifier
     ) {
-        Column(modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp)) {
+        Column(modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)) {
             Text(
                 text = metric.labelWithUnit,
                 style = MaterialTheme.typography.labelSmall,
@@ -490,7 +465,7 @@ private fun StatSubCard(
                 metric = metric,
                 live = live,
                 clockTick = clockTick,
-                style = TabularStatMediumStyle.copy(fontSize = 24.sp, lineHeight = 29.sp),
+                style = TabularStatHeroStyle.copy(fontSize = 28.sp, lineHeight = 32.sp),
                 color = MaterialTheme.colorScheme.onSurface
             )
         }
