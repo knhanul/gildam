@@ -48,6 +48,9 @@ interface GildamDao {
     @Query("SELECT * FROM track_points WHERE activity_id = :activityId ORDER BY seq ASC")
     suspend fun getTrackPoints(activityId: String): List<TrackPointEntity>
 
+    @Query("SELECT COALESCE(MAX(seq), 0) FROM track_points WHERE activity_id = :activityId")
+    suspend fun getMaxTrackPointSeq(activityId: String): Int
+
     @Query("DELETE FROM track_points WHERE activity_id = :activityId AND recorded_at > :cutoffMs")
     suspend fun deleteTrackPointsAfter(activityId: String, cutoffMs: Long)
 

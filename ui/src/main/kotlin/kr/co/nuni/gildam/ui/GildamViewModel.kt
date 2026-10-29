@@ -88,6 +88,10 @@ class GildamViewModel @Inject constructor(
     private val _thumbnailCacheSizeBytes = MutableStateFlow(0L)
     val thumbnailCacheSizeBytes: StateFlow<Long> = _thumbnailCacheSizeBytes.asStateFlow()
 
+    /** 강제 종료 등으로 완료되지 못한 채 남아 있는 기록 (앱 시작 시 감지) */
+    private val _unfinishedRecording = MutableStateFlow<ActivityEntity?>(null)
+    val unfinishedRecording: StateFlow<ActivityEntity?> = _unfinishedRecording.asStateFlow()
+
     val filteredActivities: StateFlow<List<ActivityEntity>> = combine(
         repository.observeAllActivities(),
         _selectedTransportFilter,
@@ -103,6 +107,31 @@ class GildamViewModel @Inject constructor(
     init {
         refreshThumbnailCacheSize()
         seedSampleDataIfEmpty()
+        checkUnfinishedRecording()
+    }
+
+    private fun checkUnfinishedRecording() {
+        viewModelScope.launch {
+            if (!recordingController.liveState.value.isRecording) {
+                _unfinishedRecording.value = repository.getActiveRecording()
+            }
+        }
+    }
+
+    fun resumeUnfinishedRecording() {
+        val target = _unfinishedRecording.value ?: return
+        _unfinishedRecording.value = null
+        recordingController.resumeExistingRecordingService(target.id)
+    }
+
+    fun finishUnfinishedRecordingNow() {
+        val target = _unfinishedRecording.value ?: return
+        _unfinishedRecording.value = null
+        viewModelScope.launch {
+            if (repository.finishUnfinishedRecording(target.id)) {
+                GildamSyncWorker.enqueueImmediateSync(appContext)
+            }
+        }
     }
 
     fun selectTransportForNewRecording(type: TransportType) {

@@ -143,7 +143,7 @@ fun ActivityDetailScreen(
 
         val activity = bundle.activity
         val latLonList = remember(trackPoints) {
-            trackPoints.map { LatLonPoint(it.latitude, it.longitude, it.altitudeMeters) }
+            trackPoints.map { LatLonPoint(it.latitude, it.longitude, it.altitudeMeters, it.isPauseBoundary) }
         }
 
         LazyColumn(

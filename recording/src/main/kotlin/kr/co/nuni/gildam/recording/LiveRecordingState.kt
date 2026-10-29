@@ -5,7 +5,8 @@ import kr.co.nuni.gildam.data.model.TransportType
 data class LatLonPoint(
     val latitude: Double,
     val longitude: Double,
-    val altitudeMeters: Float? = null
+    val altitudeMeters: Float? = null,
+    val isPauseBoundary: Boolean = false
 )
 
 data class LiveRecordingState(

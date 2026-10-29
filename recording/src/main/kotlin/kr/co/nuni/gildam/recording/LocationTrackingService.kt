@@ -58,6 +58,7 @@ class LocationTrackingService : LifecycleService() {
 
     private var startTimestampMs: Long = 0L
     private var accumulatedPauseMs: Long = 0L
+    private var accumulatedGapMs: Long = 0L
     private var pauseStartedAtMs: Long = 0L
     private var movingDurationMs: Long = 0L
 
@@ -97,6 +98,12 @@ class LocationTrackingService : LifecycleService() {
                 val title = intent.getStringExtra(EXTRA_TITLE) ?: "길 위의 이야기"
                 startTracking(TransportType.valueOf(typeName), title)
             }
+            ACTION_RESUME_EXISTING -> {
+                val activityId = intent.getStringExtra(EXTRA_ACTIVITY_ID)
+                if (!activityId.isNullOrBlank()) {
+                    resumeExistingTracking(activityId)
+                }
+            }
             ACTION_PAUSE -> pauseTracking()
             ACTION_RESUME -> resumeTracking()
             ACTION_CONTINUE_RECORDING -> continueRecordingAfterWarning()
@@ -117,6 +124,7 @@ class LocationTrackingService : LifecycleService() {
         isPaused = false
         startTimestampMs = now
         accumulatedPauseMs = 0L
+        accumulatedGapMs = 0L
         pauseStartedAtMs = 0L
         movingDurationMs = 0L
         lastMovementAtMs = now
@@ -162,6 +170,114 @@ class LocationTrackingService : LifecycleService() {
         }
 
         // 약 1초 주기 고정밀 위치 요청 (현실적 배터리·스케줄링 허용폭 800ms ~ 2500ms 설정)
+        val request = LocationRequest.Builder(Priority.PRIORITY_HIGH_ACCURACY, 1000L)
+            .setMinUpdateIntervalMillis(800L)
+            .setMaxUpdateDelayMillis(2500L)
+            .setWaitForAccurateLocation(false)
+            .build()
+
+        fusedLocationClient.requestLocationUpdates(
+            request,
+            locationCallback,
+            Looper.getMainLooper()
+        )
+    }
+
+    @SuppressLint("MissingPermission")
+    private fun resumeExistingTracking(activityId: String) {
+        if (activeActivityId != null) return
+        cancelAutoStopAlertNotification()
+
+        val initialNotification = buildOngoingNotification(distanceKm = 0.0, elapsedSec = 0L, paused = false)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            ServiceCompat.startForeground(
+                this,
+                NOTIFICATION_ID,
+                initialNotification,
+                ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION
+            )
+        } else {
+            startForeground(NOTIFICATION_ID, initialNotification)
+        }
+
+        lifecycleScope.launch {
+            val activity = repository.getActivityById(activityId) ?: run {
+                stopForeground(STOP_FOREGROUND_REMOVE)
+                stopSelf()
+                return@launch
+            }
+            val savedPoints = repository.getTrackPoints(activityId)
+            val maxSeq = repository.getMaxTrackPointSeq(activityId)
+            val now = System.currentTimeMillis()
+
+            activeActivityId = activity.id
+            transportType = activity.transportType
+            isPaused = false
+            pauseStartedAtMs = 0L
+            startTimestampMs = activity.startedAtEpochMs
+            pointSequence = maxSeq
+            totalDistanceMeters = activity.distanceMeters
+            movingDurationMs = activity.movingDurationMs
+            maxSpeedMps = activity.maxSpeedMps
+            elevationGainMeters = activity.elevationGainMeters
+
+            val lastPt = savedPoints.lastOrNull()
+            lastValidLocation = lastPt?.let { pt ->
+                Location("room_restored").apply {
+                    latitude = pt.latitude
+                    longitude = pt.longitude
+                    time = pt.recordedAtEpochMs
+                    pt.altitudeMeters?.let { altitude = it.toDouble() }
+                }
+            }
+
+            val lastRecordedAt = lastPt?.recordedAtEpochMs ?: activity.updatedAtEpochMs
+            val priorPauseMs = ((lastRecordedAt - activity.startedAtEpochMs) - activity.totalDurationMs).coerceAtLeast(0L)
+            accumulatedPauseMs = priorPauseMs
+            accumulatedGapMs = (now - lastRecordedAt).coerceAtLeast(0L)
+
+            // 재개 후 첫 점에 구간 경계를 표시해 끊긴 구간이 직선으로 이어지지 않게 함
+            markNextPointAsPauseBoundary = true
+
+            lastMovementAtMs = now
+            autoStopCycleStartedAtMs = now
+            autoStopCyclePauseMs = 0L
+            warningShownAtMs = null
+            warnedReason = null
+
+            val restoredTrack = savedPoints.map { pt ->
+                LatLonPoint(
+                    latitude = pt.latitude,
+                    longitude = pt.longitude,
+                    altitudeMeters = pt.altitudeMeters,
+                    isPauseBoundary = pt.isPauseBoundary
+                )
+            }
+            val activeElapsed = (now - startTimestampMs - accumulatedPauseMs - accumulatedGapMs).coerceAtLeast(0L)
+
+            recordingController.updateState {
+                LiveRecordingState(
+                    isRecording = true,
+                    isPaused = false,
+                    activeActivityId = activity.id,
+                    transportType = activity.transportType,
+                    elapsedTotalMs = activeElapsed,
+                    elapsedMovingMs = movingDurationMs,
+                    distanceMeters = totalDistanceMeters,
+                    currentSpeedMps = 0f,
+                    movingAvgSpeedMps = activity.movingAvgSpeedMps,
+                    maxSpeedMps = maxSpeedMps,
+                    elevationGainMeters = elevationGainMeters,
+                    currentLocation = restoredTrack.lastOrNull(),
+                    liveTrackPoints = restoredTrack,
+                    isGpsSignalWeak = false
+                )
+            }
+            persistProgress(ActivityStatus.RECORDING)
+            updateNotification()
+            startTimerLoop()
+        }
+
         val request = LocationRequest.Builder(Priority.PRIORITY_HIGH_ACCURACY, 1000L)
             .setMinUpdateIntervalMillis(800L)
             .setMaxUpdateDelayMillis(2500L)
@@ -237,7 +353,7 @@ class LocationTrackingService : LifecycleService() {
                 val stats = StopTruncation.truncateForIdleStop(
                     points = remainingPoints,
                     startedAtMs = startTimestampMs,
-                    accumulatedPauseMs = accumulatedPauseMs,
+                    accumulatedPauseMs = accumulatedPauseMs + accumulatedGapMs,
                     lastMovementAtMs = lastMovementAtMs
                 )
                 totalDistanceMeters = stats.distanceMeters
@@ -361,7 +477,8 @@ class LocationTrackingService : LifecycleService() {
         val newLatLon = LatLonPoint(
             latitude = location.latitude,
             longitude = location.longitude,
-            altitudeMeters = entity.altitudeMeters
+            altitudeMeters = entity.altitudeMeters,
+            isPauseBoundary = entity.isPauseBoundary
         )
         recordingController.updateState { state ->
             state.copy(
@@ -383,7 +500,7 @@ class LocationTrackingService : LifecycleService() {
             while (isActive && activeActivityId != null) {
                 if (!isPaused) {
                     val now = System.currentTimeMillis()
-                    val activeElapsed = (now - startTimestampMs - accumulatedPauseMs).coerceAtLeast(0L)
+                    val activeElapsed = (now - startTimestampMs - accumulatedPauseMs - accumulatedGapMs).coerceAtLeast(0L)
                     recordingController.updateState {
                         it.copy(
                             elapsedTotalMs = activeElapsed,
@@ -604,6 +721,7 @@ class LocationTrackingService : LifecycleService() {
         const val ALERT_NOTIFICATION_ID = 4101
 
         const val ACTION_START = "kr.co.nuni.gildam.recording.ACTION_START"
+        const val ACTION_RESUME_EXISTING = "kr.co.nuni.gildam.recording.ACTION_RESUME_EXISTING"
         const val ACTION_PAUSE = "kr.co.nuni.gildam.recording.ACTION_PAUSE"
         const val ACTION_RESUME = "kr.co.nuni.gildam.recording.ACTION_RESUME"
         const val ACTION_STOP = "kr.co.nuni.gildam.recording.ACTION_STOP"
@@ -611,6 +729,7 @@ class LocationTrackingService : LifecycleService() {
 
         const val EXTRA_TRANSPORT_TYPE = "extra_transport_type"
         const val EXTRA_TITLE = "extra_title"
+        const val EXTRA_ACTIVITY_ID = "extra_activity_id"
         const val EXTRA_STOP_REASON = "extra_stop_reason"
     }
 }

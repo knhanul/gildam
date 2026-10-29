@@ -65,6 +65,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import kr.co.nuni.gildam.ui.R
+import kr.co.nuni.gildam.data.local.entity.ActivityEntity
 import kr.co.nuni.gildam.data.model.GaugeFormat
 import kr.co.nuni.gildam.data.model.GaugeMetric
 import kr.co.nuni.gildam.data.model.TransportType
@@ -83,6 +84,10 @@ import kr.co.nuni.gildam.recording.LiveRecordingState
 import kr.co.nuni.gildam.ui.theme.TabularStatHeroStyle
 import kr.co.nuni.gildam.ui.theme.TabularStatMediumStyle
 import kr.co.nuni.gildam.ui.theme.WarningAmber
+import java.time.Instant
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
+import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -108,6 +113,10 @@ fun LiveRecordingScreen(
     overlayMetric: GaugeMetric = GaugeMetric.defaultFor(selectedTransport),
     /** 설정의 '기록 중 화면 켜 두기' 값 */
     keepScreenOn: Boolean = false,
+    /** 앱이 강제 종료되어 남아 있던 미완료 기록 (기록 중이 아닐 때만 표시) */
+    unfinishedRecording: ActivityEntity? = null,
+    onResumeUnfinishedRecording: () -> Unit = {},
+    onFinishUnfinishedRecording: () -> Unit = {},
     /** 테스트·미리보기에서 현재 시각을 고정할 때 사용. null 이면 1초마다 실제 시각으로 갱신 */
     fixedClockMs: Long? = null
 ) {
@@ -212,6 +221,15 @@ fun LiveRecordingScreen(
             }
 
             follow?.let { FollowCourseCard(it, onStopFollow, Modifier.padding(top = 8.dp)) }
+
+            if (!liveState.isRecording && unfinishedRecording != null) {
+                UnfinishedRecordingCard(
+                    activity = unfinishedRecording,
+                    onResume = onResumeUnfinishedRecording,
+                    onFinishNow = onFinishUnfinishedRecording,
+                    modifier = Modifier.padding(top = 8.dp)
+                )
+            }
 
             // GPS 신호 미약 경고 배너 (터널/실내)
             AnimatedVisibility(visible = liveState.isGpsSignalWeak) {
@@ -385,6 +403,67 @@ fun LiveRecordingScreen(
                 showAddMemoSheet = false
             }
         )
+    }
+}
+
+private val UNFINISHED_TIME_FMT = DateTimeFormatter.ofPattern("M월 d일 HH:mm", Locale.KOREA)
+
+@Composable
+private fun UnfinishedRecordingCard(
+    activity: ActivityEntity,
+    onResume: () -> Unit,
+    onFinishNow: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val startTimeStr = remember(activity.startedAtEpochMs) {
+        UNFINISHED_TIME_FMT.format(
+            Instant.ofEpochMilli(activity.startedAtEpochMs).atZone(ZoneId.systemDefault())
+        )
+    }
+    val distanceKmStr = remember(activity.distanceMeters) {
+        String.format(Locale.KOREA, "%.2f", activity.distanceMeters / 1000.0)
+    }
+
+    Card(
+        shape = RoundedCornerShape(18.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.secondaryContainer
+        ),
+        elevation = CardDefaults.cardElevation(defaultElevation = 6.dp),
+        modifier = modifier.fillMaxWidth()
+    ) {
+        Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
+            Text(
+                text = "끝나지 않은 기록이 있어요",
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSecondaryContainer
+            )
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                text = "「${activity.title}」 · $startTimeStr · 지금까지 $distanceKmStr km. 이어서 기록할까요?",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSecondaryContainer
+            )
+            Spacer(modifier = Modifier.height(10.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End)
+            ) {
+                OutlinedButton(
+                    onClick = onFinishNow,
+                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
+                ) {
+                    Text("여기서 마치기", style = MaterialTheme.typography.labelMedium)
+                }
+                Button(
+                    onClick = onResume,
+                    contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp)
+                ) {
+                    Text("이어서 기록", style = MaterialTheme.typography.labelMedium)
+                }
+            }
+        }
     }
 }
 
