@@ -5,6 +5,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -174,16 +175,43 @@ fun ActivityDetailScreen(
                     )
                 }
 
-                // 상단 전체 궤적 MapLibre 뷰
-                GildamMapLibreView(
-                    trackPoints = latLonList,
-                    currentLocation = latLonList.lastOrNull(),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(260.dp)
-                        .padding(horizontal = 16.dp, vertical = 8.dp)
-                        .clip(RoundedCornerShape(20.dp))
-                )
+                // 상단 전체 궤적 MapLibre 뷰 (경로 점이 준비된 뒤 한 번에 전체 맞춤으로 표시)
+                if (latLonList.size >= 2) {
+                    GildamMapLibreView(
+                        trackPoints = latLonList,
+                        currentLocation = latLonList.lastOrNull(),
+                        fitToTrack = true,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(260.dp)
+                            .padding(horizontal = 16.dp, vertical = 8.dp)
+                            .clip(RoundedCornerShape(20.dp))
+                    )
+                } else {
+                    Surface(
+                        shape = RoundedCornerShape(20.dp),
+                        color = MaterialTheme.colorScheme.surfaceVariant,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(260.dp)
+                            .padding(horizontal = 16.dp, vertical = 8.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier.fillMaxSize(),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = if (activity.distanceMeters > 0.0 && latLonList.isEmpty()) {
+                                    "경로를 불러오는 중…"
+                                } else {
+                                    "표시할 이동 경로가 없습니다"
+                                },
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                }
 
                 // 핵심 통계 요약 바
                 Surface(
