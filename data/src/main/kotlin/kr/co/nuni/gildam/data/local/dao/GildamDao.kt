@@ -48,6 +48,9 @@ interface GildamDao {
     @Query("SELECT * FROM track_points WHERE activity_id = :activityId ORDER BY seq ASC")
     suspend fun getTrackPoints(activityId: String): List<TrackPointEntity>
 
+    @Query("DELETE FROM track_points WHERE activity_id = :activityId AND recorded_at > :cutoffMs")
+    suspend fun deleteTrackPointsAfter(activityId: String, cutoffMs: Long)
+
     @Transaction
     @Query("SELECT * FROM waypoints WHERE activity_id = :activityId AND deleted_at IS NULL ORDER BY recorded_at ASC")
     fun observeWaypointsWithPhoto(activityId: String): Flow<List<WaypointWithPhoto>>

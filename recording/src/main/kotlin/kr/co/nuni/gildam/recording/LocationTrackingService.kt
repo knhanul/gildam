@@ -23,6 +23,7 @@ import com.google.android.gms.location.Priority
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kr.co.nuni.gildam.auth.KeystoreTokenStore
@@ -30,6 +31,7 @@ import kr.co.nuni.gildam.data.gpx.GpxExporter
 import kr.co.nuni.gildam.data.local.entity.TrackPointEntity
 import kr.co.nuni.gildam.data.model.ActivityStatus
 import kr.co.nuni.gildam.data.model.TransportType
+import kr.co.nuni.gildam.data.prefs.RecordingPrefs
 import kr.co.nuni.gildam.data.repository.GildamRepository
 import javax.inject.Inject
 
@@ -44,6 +46,7 @@ class LocationTrackingService : LifecycleService() {
     @Inject lateinit var repository: GildamRepository
     @Inject lateinit var recordingController: RecordingController
     @Inject lateinit var tokenStore: KeystoreTokenStore
+    @Inject lateinit var recordingPrefs: RecordingPrefs
 
     private lateinit var fusedLocationClient: FusedLocationProviderClient
     private var timerJob: Job? = null
@@ -57,6 +60,12 @@ class LocationTrackingService : LifecycleService() {
     private var accumulatedPauseMs: Long = 0L
     private var pauseStartedAtMs: Long = 0L
     private var movingDurationMs: Long = 0L
+
+    private var lastMovementAtMs: Long = 0L
+    private var autoStopCycleStartedAtMs: Long = 0L
+    private var autoStopCyclePauseMs: Long = 0L
+    private var warningShownAtMs: Long? = null
+    private var warnedReason: StopReason? = null
 
     private var totalDistanceMeters: Double = 0.0
     private var maxSpeedMps: Float = 0f
@@ -90,7 +99,12 @@ class LocationTrackingService : LifecycleService() {
             }
             ACTION_PAUSE -> pauseTracking()
             ACTION_RESUME -> resumeTracking()
-            ACTION_STOP -> stopTracking()
+            ACTION_CONTINUE_RECORDING -> continueRecordingAfterWarning()
+            ACTION_STOP -> {
+                val reasonName = intent.getStringExtra(EXTRA_STOP_REASON)
+                val reason = StopReason.entries.firstOrNull { it.name == reasonName } ?: StopReason.MANUAL
+                stopTracking(reason)
+            }
         }
         return START_STICKY
     }
@@ -98,16 +112,24 @@ class LocationTrackingService : LifecycleService() {
     @SuppressLint("MissingPermission")
     private fun startTracking(type: TransportType, title: String) {
         if (activeActivityId != null) return
+        val now = System.currentTimeMillis()
         transportType = type
         isPaused = false
-        startTimestampMs = System.currentTimeMillis()
+        startTimestampMs = now
         accumulatedPauseMs = 0L
+        pauseStartedAtMs = 0L
         movingDurationMs = 0L
+        lastMovementAtMs = now
+        autoStopCycleStartedAtMs = now
+        autoStopCyclePauseMs = 0L
+        warningShownAtMs = null
+        warnedReason = null
         totalDistanceMeters = 0.0
         maxSpeedMps = 0f
         elevationGainMeters = 0f
         pointSequence = 0
         lastValidLocation = null
+        cancelAutoStopAlertNotification()
 
         val notification = buildOngoingNotification(distanceKm = 0.0, elapsedSec = 0L, paused = false)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
@@ -169,26 +191,75 @@ class LocationTrackingService : LifecycleService() {
 
     private fun resumeTracking() {
         if (!isPaused || activeActivityId == null) return
+        val now = System.currentTimeMillis()
         isPaused = false
         if (pauseStartedAtMs > 0L) {
-            accumulatedPauseMs += (System.currentTimeMillis() - pauseStartedAtMs)
+            val pausedDelta = (now - pauseStartedAtMs).coerceAtLeast(0L)
+            accumulatedPauseMs += pausedDelta
+            autoStopCyclePauseMs += pausedDelta
             pauseStartedAtMs = 0L
         }
+        // 재개 직후 오래 멈춤 경고가 즉시 뜨지 않도록 현재 시각으로 갱신
+        lastMovementAtMs = now
         recordingController.updateState { it.copy(isPaused = false) }
         updateNotification()
     }
 
-    private fun stopTracking() {
+    private fun continueRecordingAfterWarning() {
+        if (activeActivityId == null) return
+        val now = System.currentTimeMillis()
+        warningShownAtMs = null
+        warnedReason = null
+        lastMovementAtMs = now
+        autoStopCycleStartedAtMs = now
+        autoStopCyclePauseMs = 0L
+        cancelAutoStopAlertNotification()
+    }
+
+    private fun stopTracking(reason: StopReason = StopReason.MANUAL) {
         val finishingId = activeActivityId ?: run {
             stopSelf()
             return
         }
         fusedLocationClient.removeLocationUpdates(locationCallback)
         timerJob?.cancel()
+        cancelAutoStopAlertNotification()
 
         lifecycleScope.launch {
-            flushPointBufferToRoom()
-            persistProgress(ActivityStatus.COMPLETED)
+            if (reason == StopReason.IDLE) {
+                val cutoffMs = lastMovementAtMs + AutoStopPolicy.LAST_MOVEMENT_TAIL_MS
+                synchronized(pendingRoomBuffer) {
+                    pendingRoomBuffer.removeAll { it.recordedAtEpochMs > cutoffMs }
+                }
+                flushPointBufferToRoom()
+                repository.deleteTrackPointsAfter(finishingId, cutoffMs)
+                val remainingPoints = repository.getTrackPoints(finishingId)
+                val stats = StopTruncation.truncateForIdleStop(
+                    points = remainingPoints,
+                    startedAtMs = startTimestampMs,
+                    accumulatedPauseMs = accumulatedPauseMs,
+                    lastMovementAtMs = lastMovementAtMs
+                )
+                totalDistanceMeters = stats.distanceMeters
+                movingDurationMs = stats.movingDurationMs
+                maxSpeedMps = stats.maxSpeedMps
+                elevationGainMeters = stats.elevationGainMeters
+                repository.updateRecordingProgress(
+                    activityId = finishingId,
+                    status = ActivityStatus.COMPLETED,
+                    totalDurationMs = stats.totalDurationMs,
+                    movingDurationMs = stats.movingDurationMs,
+                    distanceMeters = stats.distanceMeters,
+                    avgSpeedMps = stats.avgSpeedMps,
+                    movingAvgSpeedMps = stats.movingAvgSpeedMps,
+                    maxSpeedMps = stats.maxSpeedMps,
+                    elevationGainMeters = stats.elevationGainMeters,
+                    endedAtEpochMs = stats.endedAtEpochMs
+                )
+            } else {
+                flushPointBufferToRoom()
+                persistProgress(ActivityStatus.COMPLETED)
+            }
             activeActivityId = null
             recordingController.resetState()
             stopForeground(STOP_FOREGROUND_REMOVE)
@@ -227,10 +298,19 @@ class LocationTrackingService : LifecycleService() {
             }
 
             // 정지 드리프트 방지: 0.8m 이상 실제 이동했을 때만 거리 누적
-            if (deltaMeters >= 0.8) {
+            if (deltaMeters >= AutoStopPolicy.MIN_MOVEMENT_METERS) {
                 totalDistanceMeters += deltaMeters
                 movingDurationMs += (location.time - prev.time).coerceIn(0L, 5000L)
+                lastMovementAtMs = location.time
+                if (warnedReason == StopReason.IDLE) {
+                    warningShownAtMs = null
+                    warnedReason = null
+                    cancelAutoStopAlertNotification()
+                }
             } else {
+                if (computedSpeedMps >= AutoStopPolicy.IDLE_SPEED_MPS) {
+                    lastMovementAtMs = location.time
+                }
                 computedSpeedMps = 0f
             }
 
@@ -312,6 +392,42 @@ class LocationTrackingService : LifecycleService() {
                     }
                     if ((activeElapsed / 1000L) % 5L == 0L) {
                         updateNotification()
+                    }
+
+                    val maxDurationMs = recordingPrefs.maxDurationMs.first()
+                    val idleLimitMs = recordingPrefs.idleLimitMs.first()
+                    val graceMs = recordingPrefs.graceMs.first()
+                    val decision = AutoStopPolicy.decide(
+                        AutoStopInput(
+                            nowMs = now,
+                            startedAtMs = autoStopCycleStartedAtMs,
+                            accumulatedPauseMs = autoStopCyclePauseMs,
+                            lastMovementAtMs = lastMovementAtMs,
+                            isPaused = isPaused,
+                            maxDurationMs = maxDurationMs,
+                            idleLimitMs = idleLimitMs,
+                            graceMs = graceMs,
+                            warningShownAtMs = warningShownAtMs
+                        )
+                    )
+                    when (decision) {
+                        is AutoStopDecision.None -> Unit
+                        is AutoStopDecision.Warn -> {
+                            if (warningShownAtMs == null) {
+                                warningShownAtMs = now
+                                warnedReason = decision.reason
+                                showAutoStopAlertNotification(
+                                    reason = decision.reason,
+                                    maxDurationMs = maxDurationMs,
+                                    idleLimitMs = idleLimitMs,
+                                    graceMs = graceMs
+                                )
+                            }
+                        }
+                        is AutoStopDecision.Stop -> {
+                            stopTracking(decision.reason)
+                            break
+                        }
                     }
                 }
                 delay(1000L)
@@ -398,8 +514,69 @@ class LocationTrackingService : LifecycleService() {
             .build()
     }
 
+    private fun showAutoStopAlertNotification(
+        reason: StopReason,
+        maxDurationMs: Long?,
+        idleLimitMs: Long?,
+        graceMs: Long
+    ) {
+        val graceMinutes = (graceMs / AutoStopPolicy.MINUTE_MS).coerceAtLeast(1L)
+        val contentText = when (reason) {
+            StopReason.IDLE -> {
+                val idleMinutes = ((idleLimitMs ?: AutoStopPolicy.DEFAULT_IDLE_LIMIT_MS) / AutoStopPolicy.MINUTE_MS).coerceAtLeast(1L)
+                "${idleMinutes}분째 움직임이 없어요. ${graceMinutes}분 뒤 자동으로 기록을 마칩니다."
+            }
+            StopReason.MAX_DURATION -> {
+                val maxHours = ((maxDurationMs ?: AutoStopPolicy.DEFAULT_MAX_DURATION_MS) / AutoStopPolicy.HOUR_MS).coerceAtLeast(1L)
+                "기록한 지 ${maxHours}시간이 지났어요. ${graceMinutes}분 뒤 자동으로 기록을 마칩니다."
+            }
+            StopReason.MANUAL -> return
+        }
+
+        val continueIntent = Intent(this, LocationTrackingService::class.java).apply {
+            action = ACTION_CONTINUE_RECORDING
+        }
+        val continuePendingIntent = PendingIntent.getService(
+            this,
+            102,
+            continueIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+
+        val stopIntent = Intent(this, LocationTrackingService::class.java).apply {
+            action = ACTION_STOP
+            putExtra(EXTRA_STOP_REASON, reason.name)
+        }
+        val stopPendingIntent = PendingIntent.getService(
+            this,
+            103,
+            stopIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+
+        val alertNotification = NotificationCompat.Builder(this, ALERT_CHANNEL_ID)
+            .setSmallIcon(android.R.drawable.ic_dialog_info)
+            .setContentTitle("기록을 계속할까요?")
+            .setContentText(contentText)
+            .setStyle(NotificationCompat.BigTextStyle().bigText(contentText))
+            .setPriority(NotificationCompat.PRIORITY_DEFAULT)
+            .setAutoCancel(true)
+            .addAction(android.R.drawable.ic_media_play, "계속 기록", continuePendingIntent)
+            .addAction(android.R.drawable.ic_delete, "지금 종료", stopPendingIntent)
+            .build()
+
+        val manager = getSystemService(NotificationManager::class.java)
+        manager.notify(ALERT_NOTIFICATION_ID, alertNotification)
+    }
+
+    private fun cancelAutoStopAlertNotification() {
+        val manager = getSystemService(NotificationManager::class.java)
+        manager.cancel(ALERT_NOTIFICATION_ID)
+    }
+
     private fun createNotificationChannel() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val manager = getSystemService(NotificationManager::class.java)
             val channel = NotificationChannel(
                 CHANNEL_ID,
                 "길담 실시간 여정 기록",
@@ -407,21 +584,33 @@ class LocationTrackingService : LifecycleService() {
             ).apply {
                 description = "화면이 꺼져 있을 때도 GPS 궤적을 끊김 없이 기록하기 위한 상시 알림입니다."
             }
-            val manager = getSystemService(NotificationManager::class.java)
             manager.createNotificationChannel(channel)
+
+            val alertChannel = NotificationChannel(
+                ALERT_CHANNEL_ID,
+                "길담 자동 종료 확인 알림",
+                NotificationManager.IMPORTANCE_DEFAULT
+            ).apply {
+                description = "최대 기록 시간이나 오래 멈춤 기준에 도달했을 때 계속 기록할지 묻는 알림입니다."
+            }
+            manager.createNotificationChannel(alertChannel)
         }
     }
 
     companion object {
         const val CHANNEL_ID = "gildam_location_recording_channel"
+        const val ALERT_CHANNEL_ID = "gildam_recording_alert_channel"
         const val NOTIFICATION_ID = 4100
+        const val ALERT_NOTIFICATION_ID = 4101
 
         const val ACTION_START = "kr.co.nuni.gildam.recording.ACTION_START"
         const val ACTION_PAUSE = "kr.co.nuni.gildam.recording.ACTION_PAUSE"
         const val ACTION_RESUME = "kr.co.nuni.gildam.recording.ACTION_RESUME"
         const val ACTION_STOP = "kr.co.nuni.gildam.recording.ACTION_STOP"
+        const val ACTION_CONTINUE_RECORDING = "kr.co.nuni.gildam.recording.ACTION_CONTINUE_RECORDING"
 
         const val EXTRA_TRANSPORT_TYPE = "extra_transport_type"
         const val EXTRA_TITLE = "extra_title"
+        const val EXTRA_STOP_REASON = "extra_stop_reason"
     }
 }

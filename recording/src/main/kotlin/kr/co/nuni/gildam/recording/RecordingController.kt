@@ -45,9 +45,10 @@ class RecordingController @Inject constructor(
         context.startService(intent)
     }
 
-    fun stopRecordingService() {
+    fun stopRecordingService(reason: StopReason = StopReason.MANUAL) {
         val intent = Intent(context, LocationTrackingService::class.java).apply {
             action = LocationTrackingService.ACTION_STOP
+            putExtra(LocationTrackingService.EXTRA_STOP_REASON, reason.name)
         }
         context.startService(intent)
     }

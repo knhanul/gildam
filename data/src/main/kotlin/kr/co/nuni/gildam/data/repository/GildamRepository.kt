@@ -36,6 +36,10 @@ class GildamRepository @Inject constructor(
     suspend fun getTrackPoints(activityId: String): List<TrackPointEntity> =
         dao.getTrackPoints(activityId)
 
+    suspend fun deleteTrackPointsAfter(activityId: String, cutoffMs: Long) {
+        dao.deleteTrackPointsAfter(activityId, cutoffMs)
+    }
+
     suspend fun getWaypoints(activityId: String): List<WaypointEntity> =
         dao.getWaypointsForActivity(activityId)
 
@@ -71,14 +75,15 @@ class GildamRepository @Inject constructor(
         avgSpeedMps: Float,
         movingAvgSpeedMps: Float,
         maxSpeedMps: Float,
-        elevationGainMeters: Float
+        elevationGainMeters: Float,
+        endedAtEpochMs: Long? = null
     ) {
         val existing = dao.getActivityById(activityId) ?: return
         val now = System.currentTimeMillis()
         dao.upsertActivity(
             existing.copy(
                 status = status,
-                endedAtEpochMs = if (status == ActivityStatus.COMPLETED) now else existing.endedAtEpochMs,
+                endedAtEpochMs = if (status == ActivityStatus.COMPLETED) (endedAtEpochMs ?: now) else existing.endedAtEpochMs,
                 totalDurationMs = totalDurationMs,
                 movingDurationMs = movingDurationMs,
                 distanceMeters = distanceMeters,
