@@ -80,7 +80,9 @@ fun GildamMapLibreView(
     /** 사용자가 손으로 지도를 움직였을 때 */
     onUserGesture: () -> Unit = {},
     /** 바뀌면 자동 카메라를 즉시 다시 맞춤 ('다시 맞추기') */
-    recenterKey: Int = 0
+    recenterKey: Int = 0,
+    /** 경로선 투명도 (기록 중 1.0f, 종료된 직전 경로 스냅샷 등 0.6f) */
+    routeOpacity: Float = 1.0f
 ) {
     val isPreview = LocalInspectionMode.current
     val themeRoute = MaterialTheme.colorScheme.primary
@@ -116,8 +118,18 @@ fun GildamMapLibreView(
         }
     }
     val loadedStyleKey = remember { arrayOfNulls<String>(1) }
-    // 카메라 상태: [마지막 맞춤 경계, 마지막 맞춤 시각, 제스처 리스너 등록 여부]
-    val camState = remember { object { var lastFit: GeoBounds? = null; var lastFitMs = 0L; var lastFollowMs = 0L; var listener = false; var lastMode: MapCameraMode? = null; var lastKey = 0 } }
+    // 카메라 상태: [초기 카메라 설정 여부, 마지막 맞춤 경계, 마지막 맞춤 시각, 제스처 리스너 등록 여부]
+    val camState = remember {
+        object {
+            var initialized = false
+            var lastFit: GeoBounds? = null
+            var lastFitMs = 0L
+            var lastFollowMs = 0L
+            var listener = false
+            var lastMode: MapCameraMode? = null
+            var lastKey = 0
+        }
+    }
     val gestureCallback = androidx.compose.runtime.rememberUpdatedState(onUserGesture)
 
     DisposableEffect(lifecycleOwner, mapView) {
@@ -145,61 +157,74 @@ fun GildamMapLibreView(
                 view.getMapAsync { map ->
                     val styleUrl = if (isDarkTheme) GildamMapConfig.DARK_STYLE_URL else GildamMapConfig.LIGHT_STYLE_URL
 
-                    val targetLat = currentLocation?.latitude
-                        ?: trackPoints.lastOrNull()?.latitude
-                        ?: GildamMapConfig.SEOUL_DEFAULT_LAT
-                    val targetLon = currentLocation?.longitude
-                        ?: trackPoints.lastOrNull()?.longitude
-                        ?: GildamMapConfig.SEOUL_DEFAULT_LON
-
                     if (!camState.listener) {
                         camState.listener = true
                         map.addOnCameraMoveStartedListener { reason ->
                             if (reason == org.maplibre.android.maps.MapLibreMap.OnCameraMoveStartedListener.REASON_API_GESTURE) gestureCallback.value()
                         }
                     }
-                    if (camState.lastMode != cameraMode || camState.lastKey != recenterKey) { camState.lastMode = cameraMode; camState.lastKey = recenterKey; camState.lastFit = null; camState.lastFollowMs = 0L }
-                    val now = android.os.SystemClock.elapsedRealtime()
-                    when {
-                        cameraMode == null -> {
-                            val fitPts = if (fitToTrack) trackPoints.ifEmpty { coursePoints } else emptyList()
-                            if (fitPts.size >= 2) {
-                                val b = org.maplibre.android.geometry.LatLngBounds.Builder()
-                                fitPts.forEach { b.include(LatLng(it.latitude, it.longitude)) }
-                                view.post {
-                                    runCatching { map.moveCamera(org.maplibre.android.camera.CameraUpdateFactory.newLatLngBounds(b.build(), 64)) }
-                                }
-                            } else {
-                                val c = if (currentLocation == null && trackPoints.isEmpty()) coursePoints.firstOrNull() else null
-                                map.cameraPosition = CameraPosition.Builder()
-                                    .target(LatLng(c?.latitude ?: targetLat, c?.longitude ?: targetLon))
-                                    .zoom(15.2)
-                                    .build()
-                            }
+                    if (camState.lastMode != cameraMode || camState.lastKey != recenterKey) {
+                        camState.lastMode = cameraMode
+                        camState.lastKey = recenterKey
+                        camState.lastFit = null
+                        camState.lastFollowMs = 0L
+                    }
+
+                    val target = MapCameraPlanner.targetFor(trackPoints, currentLocation, coursePoints)
+                    if (target == null) {
+                        if (!camState.initialized) {
+                            camState.initialized = true
+                            map.cameraPosition = CameraPosition.Builder()
+                                .target(LatLng(GildamMapConfig.KOREA_DEFAULT_LAT, GildamMapConfig.KOREA_DEFAULT_LON))
+                                .zoom(GildamMapConfig.KOREA_DEFAULT_ZOOM)
+                                .build()
                         }
-                        autoCameraPaused -> Unit
-                        cameraMode == MapCameraMode.OVERVIEW -> {
-                            val pad = MapCameraPlanner.overlayPadding(view.width, view.height, overlayTopPx, overlayBottomPx)
-                            val fit = MapCameraPlanner.overviewFit(trackPoints, currentLocation, coursePoints, pad)
-                            if (fit == null) {
-                                map.cameraPosition = CameraPosition.Builder().target(LatLng(targetLat, targetLon)).zoom(15.2).build()
-                            } else if (MapCameraPlanner.needsRefit(camState.lastFit, fit.bounds, currentLocation, now, camState.lastFitMs)) {
-                                camState.lastFit = fit.bounds; camState.lastFitMs = now
-                                val bb = org.maplibre.android.geometry.LatLngBounds.from(fit.bounds.maxLat, fit.bounds.maxLon, fit.bounds.minLat, fit.bounds.minLon)
-                                view.post {
-                                    runCatching {
-                                        map.animateCamera(org.maplibre.android.camera.CameraUpdateFactory.newLatLngBounds(bb, pad.left, pad.top, pad.right, pad.bottom), 900)
+                    } else {
+                        camState.initialized = true
+                        val now = android.os.SystemClock.elapsedRealtime()
+                        when {
+                            cameraMode == null -> {
+                                val fitPts = if (fitToTrack) trackPoints.ifEmpty { coursePoints } else emptyList()
+                                val fitBounds = MapCameraPlanner.boundsOf(fitPts)?.let { MapCameraPlanner.expand(it) }
+                                if (fitPts.size >= 2 && fitBounds != null) {
+                                    val bb = org.maplibre.android.geometry.LatLngBounds.from(
+                                        fitBounds.maxLat, fitBounds.maxLon, fitBounds.minLat, fitBounds.minLon
+                                    )
+                                    view.post {
+                                        runCatching { map.moveCamera(org.maplibre.android.camera.CameraUpdateFactory.newLatLngBounds(bb, 64)) }
+                                    }
+                                } else {
+                                    map.cameraPosition = CameraPosition.Builder()
+                                        .target(LatLng(target.latitude, target.longitude))
+                                        .zoom(target.zoom)
+                                        .build()
+                                }
+                            }
+                            autoCameraPaused -> Unit
+                            cameraMode == MapCameraMode.OVERVIEW -> {
+                                val pad = MapCameraPlanner.overlayPadding(view.width, view.height, overlayTopPx, overlayBottomPx)
+                                val fit = MapCameraPlanner.overviewFit(trackPoints, currentLocation, coursePoints, pad)
+                                if (fit != null && MapCameraPlanner.needsRefit(camState.lastFit, fit.bounds, currentLocation, now, camState.lastFitMs)) {
+                                    camState.lastFit = fit.bounds; camState.lastFitMs = now
+                                    val bb = org.maplibre.android.geometry.LatLngBounds.from(fit.bounds.maxLat, fit.bounds.maxLon, fit.bounds.minLat, fit.bounds.minLon)
+                                    view.post {
+                                        runCatching {
+                                            map.animateCamera(org.maplibre.android.camera.CameraUpdateFactory.newLatLngBounds(bb, pad.left, pad.top, pad.right, pad.bottom), 900)
+                                        }
                                     }
                                 }
                             }
-                        }
-                        else -> { // FOLLOW
-                            if (now - camState.lastFollowMs >= 900) {
-                                camState.lastFollowMs = now
-                                val pad = MapCameraPlanner.overlayPadding(view.width, view.height, overlayTopPx, overlayBottomPx)
-                                map.setPadding(0, pad.top, 0, pad.bottom)
-                                val pos = CameraPosition.Builder().target(LatLng(targetLat, targetLon)).zoom(MapCameraPlanner.followZoom(speedMps, distanceM)).build()
-                                runCatching { map.animateCamera(org.maplibre.android.camera.CameraUpdateFactory.newCameraPosition(pos), 700) }
+                            else -> { // FOLLOW
+                                if (now - camState.lastFollowMs >= 900) {
+                                    camState.lastFollowMs = now
+                                    val pad = MapCameraPlanner.overlayPadding(view.width, view.height, overlayTopPx, overlayBottomPx)
+                                    map.setPadding(0, pad.top, 0, pad.bottom)
+                                    val pos = CameraPosition.Builder()
+                                        .target(LatLng(target.latitude, target.longitude))
+                                        .zoom(MapCameraPlanner.followZoom(speedMps, distanceM))
+                                        .build()
+                                    runCatching { map.animateCamera(org.maplibre.android.camera.CameraUpdateFactory.newCameraPosition(pos), 700) }
+                                }
                             }
                         }
                     }
@@ -225,6 +250,7 @@ fun GildamMapLibreView(
                             val lineColor = String.format("#%06X", 0xFFFFFF and themeRoute.toArgb())
                             val lineLayer = LineLayer(ROUTE_LAYER_ID, ROUTE_SOURCE_ID).withProperties(
                                 PropertyFactory.lineColor(Color.parseColor(lineColor)),
+                                PropertyFactory.lineOpacity(routeOpacity),
                                 PropertyFactory.lineWidth(5.5f),
                                 PropertyFactory.lineCap(Property.LINE_CAP_ROUND),
                                 PropertyFactory.lineJoin(Property.LINE_JOIN_ROUND)
@@ -234,6 +260,9 @@ fun GildamMapLibreView(
                     } else {
                         existingStyle.getSourceAs<GeoJsonSource>(ROUTE_SOURCE_ID)?.setGeoJson(geoJson)
                         existingStyle.getSourceAs<GeoJsonSource>(COURSE_SOURCE_ID)?.setGeoJson(courseGeoJson)
+                        existingStyle.getLayerAs<LineLayer>(ROUTE_LAYER_ID)?.setProperties(
+                            PropertyFactory.lineOpacity(routeOpacity)
+                        )
                     }
                 }
             }

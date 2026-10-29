@@ -23,6 +23,9 @@ data class OverlayPadding(val left: Int, val top: Int, val right: Int, val botto
 
 data class OverviewFit(val bounds: GeoBounds, val padding: OverlayPadding)
 
+/** 카메라를 옮길 목표. null 이면 "지도를 움직이지 말라"(직전 화면 유지). */
+data class CameraTarget(val latitude: Double, val longitude: Double, val zoom: Double)
+
 /**
  * 카메라 계산 (순수 함수, MapLibre 의존 없음 → 단위 테스트 가능).
  * - 전체 경로: 출발~현재 위치(+따라 걷는 코스) 경계 + 여유, 카드 높이만큼 패딩
@@ -37,6 +40,16 @@ object MapCameraPlanner {
     /** 재맞춤 최소 간격 */
     const val MIN_REFIT_INTERVAL_MS = 4_000L
     const val EDGE_PX = 48
+
+    fun targetFor(
+        track: List<LatLonPoint>,
+        current: LatLonPoint?,
+        course: List<LatLonPoint>
+    ): CameraTarget? =
+        current?.let { CameraTarget(it.latitude, it.longitude, 15.2) }
+            ?: track.lastOrNull()?.let { CameraTarget(it.latitude, it.longitude, 15.2) }
+            ?: course.firstOrNull()?.let { CameraTarget(it.latitude, it.longitude, 15.2) }
+            ?: null // 아무것도 없으면 움직이지 않음
 
     fun boundsOf(points: List<LatLonPoint>): GeoBounds? {
         if (points.isEmpty()) return null
