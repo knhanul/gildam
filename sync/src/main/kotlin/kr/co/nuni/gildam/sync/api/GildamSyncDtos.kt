@@ -59,6 +59,8 @@ data class TrackListResponseDto(
 @Serializable
 data class MeResponseDto(
     val sub: String,
+    val nickname: String? = null,
+    @SerialName("display_name") val displayName: String? = null,
     @SerialName("brand_id") val brandId: String? = null,
     @SerialName("brand_role") val brandRole: String? = null,
     @SerialName("created_at") val createdAt: Long? = null,

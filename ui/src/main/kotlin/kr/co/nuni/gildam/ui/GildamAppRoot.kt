@@ -77,11 +77,15 @@ fun GildamAppRoot(
 
     val liveState by viewModel.liveRecordingState.collectAsState()
     val sessionState by viewModel.authSessionState.collectAsState()
+    val accountDisplay by viewModel.accountDisplay.collectAsState()
     val activities by viewModel.filteredActivities.collectAsState()
     val selectedTransportFilter by viewModel.selectedTransportFilter.collectAsState()
     val searchQuery by viewModel.searchQuery.collectAsState()
     val selectedTransportForNew by viewModel.selectedTransportForNewRecording.collectAsState()
     val thumbnailCacheBytes by viewModel.thumbnailCacheSizeBytes.collectAsState()
+    LaunchedEffect(sessionState.isLoggedIn) {
+        viewModel.refreshServerAccount()
+    }
 
     // 1단계 포그라운드 위치 + 알림 권한 요청 런처 (Android 11+ 단계별 권한 분리 정책 준수)
     val foregroundPermissionLauncher = rememberLauncherForActivityResult(
@@ -262,9 +266,10 @@ fun GildamAppRoot(
 
             composable<SettingsRoute> {
                 val serverTrackCount by viewModel.serverTrackCount.collectAsState()
-                LaunchedEffect(sessionState.isLoggedIn) { viewModel.refreshServerAccount() }
                 SettingsScreen(
                     serverTrackCount = serverTrackCount,
+                    accountDisplayName = accountDisplay.displayName,
+                    accountNickname = accountDisplay.nickname,
                     sessionState = sessionState,
                     thumbnailCacheBytes = thumbnailCacheBytes,
                     isBatteryOptimizationIgnored = viewModel.isIgnoringBatteryOptimizations(),
@@ -292,8 +297,8 @@ fun GildamAppRoot(
             composable<AccountInfoRoute> {
                 AccountInfoScreen(
                     isLoggedIn = sessionState.isLoggedIn,
-                    displayName = "누니 회원",
-                    nickname = null,
+                    displayName = accountDisplay.displayName,
+                    nickname = accountDisplay.nickname,
                     onOpenAccountPage = { viewModel.openNuniAccountPage(context) },
                     onLogout = { viewModel.logout(context) },
                     onNavigateBack = { navController.popBackStack() }

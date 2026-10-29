@@ -19,6 +19,7 @@ import kotlinx.coroutines.launch
 import kr.co.nuni.gildam.auth.KeystoreTokenStore
 import kr.co.nuni.gildam.auth.NuniAuthManager
 import kr.co.nuni.gildam.sync.ServerAccountRepository
+import kr.co.nuni.gildam.sync.AccountDisplayInfo
 import kr.co.nuni.gildam.auth.NuniSessionState
 import kr.co.nuni.gildam.data.gpx.GpxExportOptions
 import kr.co.nuni.gildam.data.gpx.GpxExportResult
@@ -55,10 +56,19 @@ class GildamViewModel @Inject constructor(
     private val _serverTrackCount = MutableStateFlow<Int?>(null)
     val serverTrackCount: StateFlow<Int?> = _serverTrackCount.asStateFlow()
 
+    private val _accountDisplay = MutableStateFlow(AccountDisplayInfo.DEFAULT)
+    val accountDisplay: StateFlow<AccountDisplayInfo> = _accountDisplay.asStateFlow()
+
     fun refreshServerAccount() {
-        if (!tokenStore.sessionFlow.value.isLoggedIn) { _serverTrackCount.value = null; return }
+        if (!tokenStore.sessionFlow.value.isLoggedIn) {
+            _serverTrackCount.value = null
+            _accountDisplay.value = AccountDisplayInfo.DEFAULT
+            return
+        }
         viewModelScope.launch {
-            _serverTrackCount.value = serverAccount.fetchTrackCount()
+            val account = serverAccount.fetchAccountInfo() ?: AccountDisplayInfo.DEFAULT
+            _accountDisplay.value = account
+            _serverTrackCount.value = account.trackCount
         }
     }
 

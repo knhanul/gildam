@@ -77,6 +77,8 @@ fun SettingsScreen(
     onNavigateBack: () -> Unit,
     /** 로그인 후 서버(GET /v1/me)에 저장된 기록 수, 모르면 null */
     serverTrackCount: Int? = null,
+    accountDisplayName: String = "누니 회원",
+    accountNickname: String? = null,
     /** 하단 탭바가 있을 때는 뒤로 아이콘을 숨김 */
     isTopLevelTab: Boolean = false,
     palette: GildamPalette = GildamPalette.DEFAULT,
@@ -172,10 +174,23 @@ fun SettingsScreen(
                     Spacer(modifier = Modifier.height(8.dp))
                     if (sessionState.isLoggedIn) {
                         Text(
-                            text = "🟢 누니 계정으로 로그인됨",
-                            style = MaterialTheme.typography.bodyMedium,
-                            fontWeight = FontWeight.SemiBold
+                            text = accountDisplayName,
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurface
                         )
+                        Text(
+                            text = "누니 계정으로 로그인됨",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        accountNickname?.takeIf { it.isNotBlank() }?.let { nickname ->
+                            Text(
+                                text = "닉네임: $nickname",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
                         Text(
                             text = if (serverTrackCount != null) "☁️ 서버에 저장된 기록 ${serverTrackCount}개" else "☁️ 서버 기록 확인 중…",
                             style = MaterialTheme.typography.labelSmall,
@@ -360,7 +375,6 @@ private fun KakaoSymbol(modifier: Modifier = Modifier) {
     }
 }
 
-@Composable
 @Composable
 private fun NuniLogo() {
     Surface(
