@@ -82,6 +82,9 @@ fun GildamAppRoot(
     val searchQuery by viewModel.searchQuery.collectAsState()
     val selectedTransportForNew by viewModel.selectedTransportForNewRecording.collectAsState()
     val keepScreenOn by viewModel.keepScreenOn.collectAsState()
+    val maxDurationMs by viewModel.maxDurationMs.collectAsState()
+    val idleLimitMs by viewModel.idleLimitMs.collectAsState()
+    val graceMs by viewModel.graceMs.collectAsState()
     val unfinishedRecording by viewModel.unfinishedRecording.collectAsState()
     val thumbnailCacheBytes by viewModel.thumbnailCacheSizeBytes.collectAsState()
 
@@ -309,7 +312,15 @@ fun GildamAppRoot(
                     onSelectRecordMapMode = appearanceViewModel::setRecordMapMode,
                     gaugeSelections = gaugeSelections,
                     onSelectGauge = appearanceViewModel::setGaugeSelection,
-                    onResetGauge = appearanceViewModel::resetGaugeSelections
+                    onResetGauge = appearanceViewModel::resetGaugeSelections,
+                    keepScreenOn = keepScreenOn,
+                    onKeepScreenOnChange = viewModel::setKeepScreenOn,
+                    maxDurationMs = maxDurationMs,
+                    onSelectMaxDurationMs = viewModel::setMaxDurationMs,
+                    idleLimitMs = idleLimitMs,
+                    onSelectIdleLimitMs = viewModel::setIdleLimitMs,
+                    graceMs = graceMs,
+                    onSelectGraceMs = viewModel::setGraceMs
                 )
             }
         }

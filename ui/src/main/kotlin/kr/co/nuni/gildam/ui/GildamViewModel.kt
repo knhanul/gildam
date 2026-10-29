@@ -85,6 +85,30 @@ class GildamViewModel @Inject constructor(
         viewModelScope.launch { recordingPrefs.setKeepScreenOn(enabled) }
     }
 
+    /** 자동 종료: 최대 기록 시간(ms, null = 사용 안 함) */
+    val maxDurationMs: StateFlow<Long?> = recordingPrefs.maxDurationMs
+        .stateIn(viewModelScope, SharingStarted.Eagerly, RecordingPrefs.DEFAULT_MAX_DURATION_MS)
+
+    fun setMaxDurationMs(durationMs: Long?) {
+        viewModelScope.launch { recordingPrefs.setMaxDurationMs(durationMs) }
+    }
+
+    /** 자동 종료: 오래 멈춤 기준(ms, null = 사용 안 함) */
+    val idleLimitMs: StateFlow<Long?> = recordingPrefs.idleLimitMs
+        .stateIn(viewModelScope, SharingStarted.Eagerly, RecordingPrefs.DEFAULT_IDLE_LIMIT_MS)
+
+    fun setIdleLimitMs(limitMs: Long?) {
+        viewModelScope.launch { recordingPrefs.setIdleLimitMs(limitMs) }
+    }
+
+    /** 자동 종료: 확인 대기 시간(ms) */
+    val graceMs: StateFlow<Long> = recordingPrefs.graceMs
+        .stateIn(viewModelScope, SharingStarted.Eagerly, RecordingPrefs.DEFAULT_GRACE_MS)
+
+    fun setGraceMs(graceMs: Long) {
+        viewModelScope.launch { recordingPrefs.setGraceMs(graceMs) }
+    }
+
     private val _thumbnailCacheSizeBytes = MutableStateFlow(0L)
     val thumbnailCacheSizeBytes: StateFlow<Long> = _thumbnailCacheSizeBytes.asStateFlow()
 

@@ -50,6 +50,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
+import kr.co.nuni.gildam.data.gpx.TrackGapDetector
 import kr.co.nuni.gildam.data.local.entity.ActivityDetailBundle
 import kr.co.nuni.gildam.data.local.entity.TrackPointEntity
 import kr.co.nuni.gildam.data.local.entity.WaypointWithPhoto
@@ -145,6 +146,9 @@ fun ActivityDetailScreen(
         val latLonList = remember(trackPoints) {
             trackPoints.map { LatLonPoint(it.latitude, it.longitude, it.altitudeMeters, it.isPauseBoundary) }
         }
+        val gapCount = remember(trackPoints) {
+            TrackGapDetector.countGaps(trackPoints)
+        }
 
         LazyColumn(
             modifier = Modifier
@@ -153,7 +157,7 @@ fun ActivityDetailScreen(
             contentPadding = PaddingValues(bottom = 48.dp)
         ) {
             item {
-                // 비공개 기본 상태 및 동기화 배지
+                // 비공개 기본 상태 및 동기화 배지 (+ 끊긴 구간 배지)
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -172,6 +176,20 @@ fun ActivityDetailScreen(
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.primary
                     )
+                    if (gapCount > 0) {
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Surface(
+                            shape = RoundedCornerShape(8.dp),
+                            color = MaterialTheme.colorScheme.errorContainer
+                        ) {
+                            Text(
+                                text = "끊김 ${gapCount}곳",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onErrorContainer,
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
+                            )
+                        }
+                    }
                 }
 
                 // 상단 전체 궤적 MapLibre 뷰

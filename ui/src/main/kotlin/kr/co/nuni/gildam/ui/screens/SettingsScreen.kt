@@ -81,7 +81,15 @@ fun SettingsScreen(
     gaugeSelections: Map<kr.co.nuni.gildam.data.model.TransportType, kr.co.nuni.gildam.data.model.GaugeMetric> =
         kr.co.nuni.gildam.data.model.TransportType.entries.associateWith { kr.co.nuni.gildam.data.model.GaugeMetric.defaultFor(it) },
     onSelectGauge: (kr.co.nuni.gildam.data.model.TransportType, kr.co.nuni.gildam.data.model.GaugeMetric) -> Unit = { _, _ -> },
-    onResetGauge: (() -> Unit)? = null
+    onResetGauge: (() -> Unit)? = null,
+    keepScreenOn: Boolean = kr.co.nuni.gildam.data.prefs.RecordingPrefs.DEFAULT_KEEP_SCREEN_ON,
+    onKeepScreenOnChange: (Boolean) -> Unit = {},
+    maxDurationMs: Long? = kr.co.nuni.gildam.recording.AutoStopPolicy.DEFAULT_MAX_DURATION_MS,
+    onSelectMaxDurationMs: (Long?) -> Unit = {},
+    idleLimitMs: Long? = kr.co.nuni.gildam.recording.AutoStopPolicy.DEFAULT_IDLE_LIMIT_MS,
+    onSelectIdleLimitMs: (Long?) -> Unit = {},
+    graceMs: Long = kr.co.nuni.gildam.recording.AutoStopPolicy.DEFAULT_GRACE_MS,
+    onSelectGraceMs: (Long) -> Unit = {}
 ) {
     val context = LocalContext.current
 
@@ -110,6 +118,17 @@ fun SettingsScreen(
             ThemeSection(palette, darkMode, onSelectPalette, onSelectDarkMode)
 
             RecordMapModeSection(recordMapMode, onSelectRecordMapMode)
+
+            RecordingSection(
+                keepScreenOn = keepScreenOn,
+                onKeepScreenOnChange = onKeepScreenOnChange,
+                maxDurationMs = maxDurationMs,
+                onSelectMaxDurationMs = onSelectMaxDurationMs,
+                idleLimitMs = idleLimitMs,
+                onSelectIdleLimitMs = onSelectIdleLimitMs,
+                graceMs = graceMs,
+                onSelectGraceMs = onSelectGraceMs
+            )
 
             GaugeSection(gaugeSelections, onSelectGauge, onResetAll = onResetGauge)
 
