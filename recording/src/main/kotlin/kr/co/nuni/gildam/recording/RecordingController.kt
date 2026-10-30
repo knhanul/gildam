@@ -65,7 +65,16 @@ class RecordingController @Inject constructor(
         _liveState.update(transform)
     }
 
+    /** 기록 종료 시 계기판 값은 0으로 되돌리고 방금 기록한 위치·경로는 스냅샷으로 남깁니다. */
+    internal fun finishState() {
+        _liveState.update { finishRecordingState(it) }
+    }
+
     internal fun resetState() {
         _liveState.value = LiveRecordingState()
+    }
+
+    companion object {
+        fun finishRecordingState(state: LiveRecordingState): LiveRecordingState = state.finished()
     }
 }

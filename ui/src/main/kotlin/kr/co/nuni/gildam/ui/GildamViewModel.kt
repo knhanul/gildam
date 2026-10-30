@@ -230,6 +230,12 @@ class GildamViewModel @Inject constructor(
     fun observeTrackPoints(activityId: String): Flow<List<TrackPointEntity>> =
         repository.observeTrackPoints(activityId)
 
+    fun observeActivityDetailWithTrack(activityId: String): Flow<Pair<ActivityDetailBundle?, List<TrackPointEntity>>> =
+        combine(
+            repository.observeActivityDetail(activityId),
+            repository.observeTrackPoints(activityId)
+        ) { detail, points -> detail to points }
+
     fun verifyPhotosOnDetailOpen(bundle: ActivityDetailBundle) {
         viewModelScope.launch {
             repository.verifyPhotosForActivity(bundle)

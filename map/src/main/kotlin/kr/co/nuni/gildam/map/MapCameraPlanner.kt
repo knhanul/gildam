@@ -24,6 +24,9 @@ data class OverlayPadding(val left: Int, val top: Int, val right: Int, val botto
 
 data class OverviewFit(val bounds: GeoBounds, val padding: OverlayPadding)
 
+/** 카메라를 옮길 목표. null 이면 "지도를 움직이지 말라"(직전 화면 유지). */
+data class CameraTarget(val latitude: Double, val longitude: Double, val zoom: Double)
+
 /**
  * 카메라 계산 (순수 함수, MapLibre 의존 없음 → 단위 테스트 가능).
  * - 전체 경로: 출발~현재 위치(+따라 걷는 코스) 경계 + 여유, 카드 높이만큼 패딩
@@ -33,11 +36,21 @@ data class OverviewFit(val bounds: GeoBounds, val padding: OverlayPadding)
 object MapCameraPlanner {
     /** 너무 작은 경계(정지 상태)는 이 정도(도)로 넓힘 ≈ 150m */
     const val MIN_SPAN_DEG = 0.0014
-    /** 경계 바깥 여유 비율 */
-    const val MARGIN_FRACTION = 0.12
+    /** 경계 바깥 여유 비율 (상하좌우 인위적 여백 없이 전체 지도 화면 활용) */
+    const val MARGIN_FRACTION = 0.0
     /** 재맞춤 최소 간격 */
     const val MIN_REFIT_INTERVAL_MS = 4_000L
-    const val EDGE_PX = 48
+    const val EDGE_PX = 0
+
+    fun targetFor(
+        track: List<LatLonPoint>,
+        current: LatLonPoint?,
+        course: List<LatLonPoint>
+    ): CameraTarget? =
+        current?.let { CameraTarget(it.latitude, it.longitude, 15.2) }
+            ?: track.lastOrNull()?.let { CameraTarget(it.latitude, it.longitude, 15.2) }
+            ?: course.firstOrNull()?.let { CameraTarget(it.latitude, it.longitude, 15.2) }
+            ?: null // 아무것도 없으면 움직이지 않음
 
     fun boundsOf(points: List<LatLonPoint>): GeoBounds? {
         if (points.isEmpty()) return null
@@ -48,10 +61,15 @@ object MapCameraPlanner {
 
     /** 비율만큼 바깥으로 넓히고, 최소 크기를 보장 */
     fun expand(b: GeoBounds, fraction: Double = MARGIN_FRACTION, minSpan: Double = MIN_SPAN_DEG): GeoBounds {
+        if (fraction == 0.0 && b.latSpan >= minSpan && b.lonSpan >= minSpan) return b
         val latSpan = max(b.latSpan * (1 + 2 * fraction), minSpan)
         val lonSpan = max(b.lonSpan * (1 + 2 * fraction), minSpan)
         val cLat = (b.minLat + b.maxLat) / 2; val cLon = (b.minLon + b.maxLon) / 2
-        return GeoBounds(cLat - latSpan / 2, cLon - lonSpan / 2, cLat + latSpan / 2, cLon + lonSpan / 2)
+        val minLat = if (fraction == 0.0 && b.latSpan >= minSpan) b.minLat else cLat - latSpan / 2
+        val maxLat = if (fraction == 0.0 && b.latSpan >= minSpan) b.maxLat else cLat + latSpan / 2
+        val minLon = if (fraction == 0.0 && b.lonSpan >= minSpan) b.minLon else cLon - lonSpan / 2
+        val maxLon = if (fraction == 0.0 && b.lonSpan >= minSpan) b.maxLon else cLon + lonSpan / 2
+        return GeoBounds(minLat, minLon, maxLat, maxLon)
     }
 
     /** 카드 크기(px)로 패딩 계산. 화면의 절반 이상을 가리지 않도록 제한. */
@@ -74,12 +92,8 @@ object MapCameraPlanner {
     /** 다시 맞춰야 하는지 */
     fun needsRefit(lastFit: GeoBounds?, wanted: GeoBounds, current: LatLonPoint?, nowMs: Long, lastFitMs: Long, minIntervalMs: Long = MIN_REFIT_INTERVAL_MS): Boolean {
         if (lastFit == null) return true
-        // 현재 위치가 지난 경계의 안쪽 여유(가장자리 10%) 밖이면 바로
-        if (current != null) {
-            val inner = GeoBounds(lastFit.minLat + lastFit.latSpan * 0.1, lastFit.minLon + lastFit.lonSpan * 0.1,
-                lastFit.maxLat - lastFit.latSpan * 0.1, lastFit.maxLon - lastFit.lonSpan * 0.1)
-            if (!inner.contains(current)) return true
-        }
+        // 현재 위치가 지난 경계 밖으로 나가면 바로 재맞춤
+        if (current != null && !lastFit.contains(current)) return true
         if (nowMs - lastFitMs < minIntervalMs) return false
         // 경로가 지난 경계를 넘었거나, 경계가 많이 작아져야 하는 경우(새 출발 등)
         if (!lastFit.contains(wanted)) return true

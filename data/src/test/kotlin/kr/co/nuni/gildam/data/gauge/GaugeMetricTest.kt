@@ -63,11 +63,14 @@ class GaugeMetricTest {
 
     @Test fun labelsCarryUnits() {
         assertEquals("누적 거리 (km)", GaugeMetric.DISTANCE.labelWithUnit)
-        assertEquals("현재 속도 (km/h)", GaugeMetric.CURRENT_SPEED.labelWithUnit)
-        assertEquals("이동 평균 속도 (km/h)", GaugeMetric.MOVING_AVG_SPEED.labelWithUnit)
+        assertEquals("현재 속도", GaugeMetric.CURRENT_SPEED.labelWithUnit)
+        assertEquals("이동 평균 속도", GaugeMetric.MOVING_AVG_SPEED.labelWithUnit)
         assertEquals("총 시간", GaugeMetric.TOTAL_TIME.labelWithUnit)
         assertEquals("현재 시간", GaugeMetric.CLOCK.labelWithUnit)
         assertNull(GaugeMetric.CLOCK.unit)
+        // 값 옆 단위(km/h)는 유지 — 라벨에서만 빠짐
+        assertEquals("km/h", GaugeMetric.CURRENT_SPEED.unit)
+        assertEquals("km/h", GaugeMetric.MOVING_AVG_SPEED.unit)
     }
 
     @Test fun formatDistanceAndSpeed() {

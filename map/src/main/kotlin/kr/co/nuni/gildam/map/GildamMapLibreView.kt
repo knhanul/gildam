@@ -82,7 +82,9 @@ fun GildamMapLibreView(
     /** 사용자가 손으로 지도를 움직였을 때 */
     onUserGesture: () -> Unit = {},
     /** 바뀌면 자동 카메라를 즉시 다시 맞춤 ('다시 맞추기') */
-    recenterKey: Int = 0
+    recenterKey: Int = 0,
+    /** 경로선 투명도 (기록 중 1.0f, 종료 직후 남겨 둔 경로 스냅샷 0.6f) */
+    routeOpacity: Float = 1.0f
 ) {
     val isPreview = LocalInspectionMode.current
     val themeRoute = MaterialTheme.colorScheme.primary
@@ -120,7 +122,7 @@ fun GildamMapLibreView(
     }
     val loadedStyleKey = remember { arrayOfNulls<String>(1) }
     // 카메라 상태: [마지막 맞춤 경계, 마지막 맞춤 시각, 제스처 리스너 등록 여부]
-    val camState = remember { object { var lastFit: GeoBounds? = null; var lastFitMs = 0L; var lastFollowMs = 0L; var listener = false; var lastMode: MapCameraMode? = null; var lastKey = 0 } }
+    val camState = remember { object { var initialized = false; var lastFit: GeoBounds? = null; var lastFitMs = 0L; var lastFollowMs = 0L; var listener = false; var lastMode: MapCameraMode? = null; var lastKey = 0 } }
     val gestureCallback = androidx.compose.runtime.rememberUpdatedState(onUserGesture)
 
     DisposableEffect(lifecycleOwner, mapView) {
@@ -148,12 +150,8 @@ fun GildamMapLibreView(
                 view.getMapAsync { map ->
                     val styleUrl = if (isDarkTheme) GildamMapConfig.DARK_STYLE_URL else GildamMapConfig.LIGHT_STYLE_URL
 
-                    val targetLat = currentLocation?.latitude
-                        ?: trackPoints.lastOrNull()?.latitude
-                        ?: GildamMapConfig.SEOUL_DEFAULT_LAT
-                    val targetLon = currentLocation?.longitude
-                        ?: trackPoints.lastOrNull()?.longitude
-                        ?: GildamMapConfig.SEOUL_DEFAULT_LON
+                    // 현재 위치 → 경로 마지막 점 → 코스 첫 점. 아무것도 없으면 null (카메라를 옮기지 않음, 서울로 튀지 않게)
+                    val target = MapCameraPlanner.targetFor(trackPoints, currentLocation, coursePoints)
 
                     if (!camState.listener) {
                         camState.listener = true
@@ -163,6 +161,17 @@ fun GildamMapLibreView(
                     }
                     if (camState.lastMode != cameraMode || camState.lastKey != recenterKey) { camState.lastMode = cameraMode; camState.lastKey = recenterKey; camState.lastFit = null; camState.lastFollowMs = 0L }
                     val now = android.os.SystemClock.elapsedRealtime()
+                    if (target == null) {
+                        // 보여 줄 것이 없을 때: 지도를 처음 만들 때만 한국 전체 보기, 그 뒤엔 직전 화면 유지
+                        if (!camState.initialized) {
+                            camState.initialized = true
+                            map.cameraPosition = CameraPosition.Builder()
+                                .target(LatLng(GildamMapConfig.KOREA_DEFAULT_LAT, GildamMapConfig.KOREA_DEFAULT_LON))
+                                .zoom(GildamMapConfig.KOREA_DEFAULT_ZOOM)
+                                .build()
+                        }
+                    } else {
+                    camState.initialized = true
                     when {
                         cameraMode == null -> {
                             val fitPts = if (fitToTrack) trackPoints.ifEmpty { coursePoints } else emptyList()
@@ -184,13 +193,10 @@ fun GildamMapLibreView(
                                         }
                                     })
                                 }
-                            } else if (fitToTrack && currentLocation == null && trackPoints.isEmpty() && coursePoints.isEmpty()) {
-                                // 선이 아직 없으면 카메라를 옮기지 않음 (서울 기본 위치로 튀지 않게)
                             } else {
-                                val c = if (currentLocation == null && trackPoints.isEmpty()) coursePoints.firstOrNull() else null
                                 map.cameraPosition = CameraPosition.Builder()
-                                    .target(LatLng(c?.latitude ?: targetLat, c?.longitude ?: targetLon))
-                                    .zoom(15.2)
+                                    .target(LatLng(target.latitude, target.longitude))
+                                    .zoom(target.zoom)
                                     .build()
                             }
                         }
@@ -199,7 +205,7 @@ fun GildamMapLibreView(
                             val pad = MapCameraPlanner.overlayPadding(view.width, view.height, overlayTopPx, overlayBottomPx)
                             val fit = MapCameraPlanner.overviewFit(trackPoints, currentLocation, coursePoints, pad)
                             if (fit == null) {
-                                map.cameraPosition = CameraPosition.Builder().target(LatLng(targetLat, targetLon)).zoom(15.2).bearing(0.0).build()
+                                map.cameraPosition = CameraPosition.Builder().target(LatLng(target.latitude, target.longitude)).zoom(target.zoom).bearing(0.0).build()
                             } else if (MapCameraPlanner.needsRefit(camState.lastFit, fit.bounds, currentLocation, now, camState.lastFitMs)) {
                                 camState.lastFit = fit.bounds; camState.lastFitMs = now
                                 if (map.cameraPosition.bearing != 0.0) {
@@ -224,13 +230,14 @@ fun GildamMapLibreView(
                                     0.0
                                 }
                                 val pos = CameraPosition.Builder()
-                                    .target(LatLng(targetLat, targetLon))
+                                    .target(LatLng(target.latitude, target.longitude))
                                     .zoom(MapCameraPlanner.followZoom(speedMps, distanceM))
                                     .bearing(targetBearing)
                                     .build()
                                 runCatching { map.animateCamera(org.maplibre.android.camera.CameraUpdateFactory.newCameraPosition(pos), 700) }
                             }
                         }
+                    }
                     }
                     if (cameraMode == MapCameraMode.OVERVIEW) map.setPadding(0, 0, 0, 0)
 
@@ -254,6 +261,7 @@ fun GildamMapLibreView(
                             val lineColor = String.format("#%06X", 0xFFFFFF and themeRoute.toArgb())
                             val lineLayer = LineLayer(ROUTE_LAYER_ID, ROUTE_SOURCE_ID).withProperties(
                                 PropertyFactory.lineColor(Color.parseColor(lineColor)),
+                                PropertyFactory.lineOpacity(routeOpacity),
                                 PropertyFactory.lineWidth(5.5f),
                                 PropertyFactory.lineCap(Property.LINE_CAP_ROUND),
                                 PropertyFactory.lineJoin(Property.LINE_JOIN_ROUND)
@@ -263,6 +271,9 @@ fun GildamMapLibreView(
                     } else {
                         existingStyle.getSourceAs<GeoJsonSource>(ROUTE_SOURCE_ID)?.setGeoJson(geoJson)
                         existingStyle.getSourceAs<GeoJsonSource>(COURSE_SOURCE_ID)?.setGeoJson(courseGeoJson)
+                        existingStyle.getLayerAs<LineLayer>(ROUTE_LAYER_ID)?.setProperties(
+                            PropertyFactory.lineOpacity(routeOpacity)
+                        )
                     }
                 }
             }

@@ -16,4 +16,9 @@ object GildamMapConfig {
 
     const val SEOUL_DEFAULT_LAT = 37.5796
     const val SEOUL_DEFAULT_LON = 126.9770
+
+    /** 지도 최초 생성 시 목표 좌표가 전혀 없을 때 한 번만 잡는 한국 전체 보기 */
+    const val KOREA_DEFAULT_LAT = 36.3
+    const val KOREA_DEFAULT_LON = 127.8
+    const val KOREA_DEFAULT_ZOOM = 6.3
 }

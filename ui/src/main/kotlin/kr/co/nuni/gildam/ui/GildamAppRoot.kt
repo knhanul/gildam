@@ -259,10 +259,10 @@ fun GildamAppRoot(
 
             composable<ActivityDetailRoute> { backStackEntry ->
                 val route: ActivityDetailRoute = backStackEntry.toRoute()
-                val detailBundle by viewModel.observeActivityDetail(route.activityId)
-                    .collectAsState(initial = null)
-                val trackPoints by viewModel.observeTrackPoints(route.activityId)
-                    .collectAsState(initial = emptyList())
+                val detailWithTrack by remember(route.activityId) {
+                    viewModel.observeActivityDetailWithTrack(route.activityId)
+                }.collectAsState(initial = null to emptyList())
+                val (detailBundle, trackPoints) = detailWithTrack
 
                 ActivityDetailScreen(
                     bundle = detailBundle,

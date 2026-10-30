@@ -145,9 +145,12 @@ fun LiveRecordingScreen(
 
     Box(modifier = Modifier.fillMaxSize()) {
         // 1. 전체화면 MapLibre 벡터 지도 + 실시간 폴리라인
+        // 종료 직후에는 방금 기록한 경로·위치 스냅샷을 유지 (지도가 서울로 튀지 않게)
+        val displayTrack = if (liveState.isRecording) liveState.liveTrackPoints else liveState.lastFinishedTrackPoints
+        val displayLocation = if (liveState.isRecording) liveState.currentLocation else liveState.lastFinishedLocation
         GildamMapLibreView(
-            trackPoints = liveState.liveTrackPoints,
-            currentLocation = liveState.currentLocation,
+            trackPoints = displayTrack,
+            currentLocation = displayLocation,
             modifier = Modifier.fillMaxSize(),
             coursePoints = follow?.route ?: emptyList(),
             cameraMode = cameraMode,
@@ -158,7 +161,8 @@ fun LiveRecordingScreen(
             distanceM = liveState.distanceMeters,
             bearingDeg = liveState.currentBearingDeg,
             onUserGesture = { cameraPaused = true },
-            recenterKey = recenterKey
+            recenterKey = recenterKey,
+            routeOpacity = if (liveState.isRecording) 1.0f else 0.6f
         )
 
         // 2. 상단 상태 바 & 네비게이션 칩 (Edge-to-Edge statusBars 인셋 준수)
@@ -271,8 +275,7 @@ fun LiveRecordingScreen(
         Column(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
-                .fillMaxWidth()
-                .onSizeChanged { bottomPx = it.height },
+                .fillMaxWidth(),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             // '표시 안 함'을 고른 활동은 지도 위에 큰 값을 띄우지 않습니다.
@@ -291,7 +294,10 @@ fun LiveRecordingScreen(
                     containerColor = MaterialTheme.colorScheme.surface
                 ),
                 elevation = CardDefaults.cardElevation(defaultElevation = 12.dp),
-                modifier = Modifier.fillMaxWidth()
+                // 지도 위 칩은 지도 위에 떠 있으므로 카드 높이만 아래 여백으로 잡음
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .onSizeChanged { bottomPx = it.height }
             ) {
                 Column(
                     modifier = Modifier
