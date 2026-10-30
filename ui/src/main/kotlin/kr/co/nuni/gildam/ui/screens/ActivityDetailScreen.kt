@@ -5,6 +5,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -174,16 +175,31 @@ fun ActivityDetailScreen(
                     )
                 }
 
-                // 상단 전체 궤적 MapLibre 뷰
-                GildamMapLibreView(
-                    trackPoints = latLonList,
-                    currentLocation = latLonList.lastOrNull(),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(260.dp)
-                        .padding(horizontal = 16.dp, vertical = 8.dp)
-                        .clip(RoundedCornerShape(20.dp))
-                )
+                // 상단 전체 궤적 MapLibre 뷰: 경로 전체가 한 화면에 보이게 맞춤.
+                // 경로 점을 다 읽기 전에는 지도를 만들지 않아 서울 기본 위치가 잠깐 보이지 않게 함.
+                val mapModifier = Modifier
+                    .fillMaxWidth()
+                    .height(260.dp)
+                    .padding(horizontal = 16.dp, vertical = 8.dp)
+                    .clip(RoundedCornerShape(20.dp))
+                if (latLonList.isEmpty()) {
+                    Surface(color = MaterialTheme.colorScheme.surfaceVariant, modifier = mapModifier) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Text(
+                                if (activity.distanceMeters > 0.0) "경로를 불러오는 중…" else "저장된 경로가 없어요",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                } else {
+                    GildamMapLibreView(
+                        trackPoints = latLonList,
+                        currentLocation = null,
+                        fitToTrack = true,
+                        modifier = mapModifier
+                    )
+                }
 
                 // 핵심 통계 요약 바
                 Surface(

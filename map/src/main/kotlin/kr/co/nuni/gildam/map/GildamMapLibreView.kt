@@ -164,11 +164,25 @@ fun GildamMapLibreView(
                         cameraMode == null -> {
                             val fitPts = if (fitToTrack) trackPoints.ifEmpty { coursePoints } else emptyList()
                             if (fitPts.size >= 2) {
-                                val b = org.maplibre.android.geometry.LatLngBounds.Builder()
-                                fitPts.forEach { b.include(LatLng(it.latitude, it.longitude)) }
-                                view.post {
-                                    runCatching { map.moveCamera(org.maplibre.android.camera.CameraUpdateFactory.newLatLngBounds(b.build(), 64)) }
+                                // 같은 선이면 한 번만 맞춤 (손으로 움직인 지도를 되돌리지 않음)
+                                val raw = MapCameraPlanner.boundsOf(fitPts)!!
+                                if (camState.lastFit != raw) {
+                                    camState.lastFit = raw
+                                    val e = MapCameraPlanner.expand(raw)
+                                    val bb = org.maplibre.android.geometry.LatLngBounds.from(e.maxLat, e.maxLon, e.minLat, e.minLon)
+                                    val fit = Runnable {
+                                        runCatching { map.moveCamera(org.maplibre.android.camera.CameraUpdateFactory.newLatLngBounds(bb, 48)) }
+                                    }
+                                    // 아직 크기가 0이면 맞춤이 실패하므로 배치가 끝난 뒤에 맞춤
+                                    if (view.width > 0 && view.height > 0) view.post(fit)
+                                    else view.addOnLayoutChangeListener(object : android.view.View.OnLayoutChangeListener {
+                                        override fun onLayoutChange(v: android.view.View, l: Int, t: Int, r: Int, b: Int, ol: Int, ot: Int, or: Int, ob: Int) {
+                                            if (r - l > 0 && b - t > 0) { v.removeOnLayoutChangeListener(this); v.post(fit) }
+                                        }
+                                    })
                                 }
+                            } else if (fitToTrack && currentLocation == null && trackPoints.isEmpty() && coursePoints.isEmpty()) {
+                                // 선이 아직 없으면 카메라를 옮기지 않음 (서울 기본 위치로 튀지 않게)
                             } else {
                                 val c = if (currentLocation == null && trackPoints.isEmpty()) coursePoints.firstOrNull() else null
                                 map.cameraPosition = CameraPosition.Builder()
