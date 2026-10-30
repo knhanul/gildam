@@ -106,6 +106,7 @@ fun GildamMapLibreView(
 
     remember {
         MapLibre.getInstance(context)
+        TileCache.ensure(context)
     }
 
     val mapView = remember {
