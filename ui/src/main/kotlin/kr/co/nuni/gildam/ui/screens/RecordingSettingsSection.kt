@@ -34,7 +34,75 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.automirrored.outlined.ArrowBack
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.TopAppBar
 import kr.co.nuni.gildam.recording.AutoStopPolicy
+
+/** 설정 목록 행에 보여 줄 한 줄 요약 (예: "화면 켜 두기 꺼짐 · 최대 4시간 · 멈춤 20분") */
+internal fun recordingAutoStopSummary(keepScreenOn: Boolean, maxDurationMs: Long?, idleLimitMs: Long?): String {
+    val screen = if (keepScreenOn) "화면 켜 두기 켜짐" else "화면 켜 두기 꺼짐"
+    val max = if (maxDurationMs == null) "최대 시간 끔" else "최대 ${AutoStopPolicy.formatMaxDurationLabel(maxDurationMs)}"
+    val idle = if (idleLimitMs == null) "멈춤 끔" else "멈춤 ${AutoStopPolicy.formatIdleLimitLabel(idleLimitMs)}"
+    return "$screen · $max · $idle"
+}
+
+/** 설정 > 기록 설정 > 기록 중 화면·자동 종료 (지도 강조 지표와 같은 서브 화면) */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun RecordingAutoStopScreen(
+    keepScreenOn: Boolean,
+    onKeepScreenOnChange: (Boolean) -> Unit,
+    maxDurationMs: Long?,
+    onSelectMaxDurationMs: (Long?) -> Unit,
+    idleLimitMs: Long?,
+    onSelectIdleLimitMs: (Long?) -> Unit,
+    graceMs: Long,
+    onSelectGraceMs: (Long) -> Unit,
+    onNavigateBack: () -> Unit
+) {
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text("기록 중 화면·자동 종료") },
+                navigationIcon = {
+                    IconButton(onClick = onNavigateBack) {
+                        Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = "뒤로")
+                    }
+                }
+            )
+        }
+    ) { innerPadding ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(innerPadding)
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 20.dp)
+        ) {
+            Spacer(Modifier.height(4.dp))
+            Text(
+                text = "깜빡하고 기록을 끄지 않았을 때, 알림으로 먼저 물어본 뒤 기록을 마쳐요.",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(horizontal = 4.dp, vertical = 8.dp)
+            )
+            SettingsListCard {
+                RecordingSettingsItems(
+                    keepScreenOn, onKeepScreenOnChange,
+                    maxDurationMs, onSelectMaxDurationMs,
+                    idleLimitMs, onSelectIdleLimitMs,
+                    graceMs, onSelectGraceMs
+                )
+            }
+            Spacer(Modifier.height(16.dp))
+        }
+    }
+}
 
 /**
  * 설정 > 기록 설정 카드 안에 들어가는 '화면 켜 두기·자동 종료' 행들 (새 설정 목록 디자인).

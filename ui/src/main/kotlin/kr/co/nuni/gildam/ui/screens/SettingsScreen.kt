@@ -22,6 +22,7 @@ import androidx.compose.material.icons.outlined.Map
 import androidx.compose.material.icons.outlined.NightsStay
 import androidx.compose.material.icons.outlined.Palette
 import androidx.compose.material.icons.outlined.PhotoLibrary
+import androidx.compose.material.icons.outlined.Timer
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -75,13 +76,10 @@ fun SettingsScreen(
     onOpenGaugeEditor: () -> Unit = {},
     onOpenPhotoStorage: () -> Unit = {},
     keepScreenOn: Boolean = kr.co.nuni.gildam.data.prefs.RecordingPrefs.DEFAULT_KEEP_SCREEN_ON,
-    onKeepScreenOnChange: (Boolean) -> Unit = {},
     maxDurationMs: Long? = kr.co.nuni.gildam.recording.AutoStopPolicy.DEFAULT_MAX_DURATION_MS,
-    onSelectMaxDurationMs: (Long?) -> Unit = {},
     idleLimitMs: Long? = kr.co.nuni.gildam.recording.AutoStopPolicy.DEFAULT_IDLE_LIMIT_MS,
-    onSelectIdleLimitMs: (Long?) -> Unit = {},
     graceMs: Long = kr.co.nuni.gildam.recording.AutoStopPolicy.DEFAULT_GRACE_MS,
-    onSelectGraceMs: (Long) -> Unit = {}
+    onOpenRecordingAutoStop: () -> Unit = {}
 ) {
     var showThemeSheet by remember { mutableStateOf(false) }
     var showModeSheet by remember { mutableStateOf(false) }
@@ -147,15 +145,11 @@ fun SettingsScreen(
                     onClick = onOpenGaugeEditor
                 )
                 SettingsItemDivider()
-                RecordingSettingsItems(
-                    keepScreenOn = keepScreenOn,
-                    onKeepScreenOnChange = onKeepScreenOnChange,
-                    maxDurationMs = maxDurationMs,
-                    onSelectMaxDurationMs = onSelectMaxDurationMs,
-                    idleLimitMs = idleLimitMs,
-                    onSelectIdleLimitMs = onSelectIdleLimitMs,
-                    graceMs = graceMs,
-                    onSelectGraceMs = onSelectGraceMs
+                SettingsListItem(
+                    title = "기록 중 화면·자동 종료",
+                    supportingText = recordingAutoStopSummary(keepScreenOn, maxDurationMs, idleLimitMs),
+                    icon = Icons.Outlined.Timer,
+                    onClick = onOpenRecordingAutoStop
                 )
             }
 

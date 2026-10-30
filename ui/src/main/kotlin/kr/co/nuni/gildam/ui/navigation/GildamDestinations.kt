@@ -31,6 +31,10 @@ object RecordingStatusRoute
 @Serializable
 object GaugeHighlightRoute
 
+/** 설정 > 기록 설정 > 기록 중 화면·자동 종료 */
+@Serializable
+object RecordingAutoStopRoute
+
 /** 설정 > 데이터 보관 > 사진 보관 안내 */
 @Serializable
 object PhotoStorageRoute

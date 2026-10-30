@@ -41,6 +41,8 @@ import kr.co.nuni.gildam.ui.navigation.SafeShareExportRoute
 import kr.co.nuni.gildam.ui.navigation.SettingsRoute
 import kr.co.nuni.gildam.ui.navigation.RecordingStatusRoute
 import kr.co.nuni.gildam.ui.navigation.GaugeHighlightRoute
+import kr.co.nuni.gildam.ui.navigation.RecordingAutoStopRoute
+import kr.co.nuni.gildam.ui.screens.RecordingAutoStopScreen
 import kr.co.nuni.gildam.ui.navigation.PhotoStorageRoute
 import kr.co.nuni.gildam.ui.screens.ActivityDetailScreen
 import kr.co.nuni.gildam.ui.screens.ActivityListScreen
@@ -320,13 +322,24 @@ fun GildamAppRoot(
                     onOpenGaugeEditor = { navController.navigate(GaugeHighlightRoute) },
                     onOpenPhotoStorage = { navController.navigate(PhotoStorageRoute) },
                     keepScreenOn = keepScreenOn,
+                    maxDurationMs = maxDurationMs,
+                    idleLimitMs = idleLimitMs,
+                    graceMs = graceMs,
+                    onOpenRecordingAutoStop = { navController.navigate(RecordingAutoStopRoute) }
+                )
+            }
+
+            composable<RecordingAutoStopRoute> {
+                RecordingAutoStopScreen(
+                    keepScreenOn = keepScreenOn,
                     onKeepScreenOnChange = viewModel::setKeepScreenOn,
                     maxDurationMs = maxDurationMs,
                     onSelectMaxDurationMs = viewModel::setMaxDurationMs,
                     idleLimitMs = idleLimitMs,
                     onSelectIdleLimitMs = viewModel::setIdleLimitMs,
                     graceMs = graceMs,
-                    onSelectGraceMs = viewModel::setGraceMs
+                    onSelectGraceMs = viewModel::setGraceMs,
+                    onNavigateBack = { navController.popBackStack() }
                 )
             }
 
