@@ -1,6 +1,7 @@
 package kr.co.nuni.gildam.ui.screens
 
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.PaddingValues
@@ -281,23 +282,16 @@ fun LiveRecordingScreen(
 
                     Row(
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
-                        heroMetrics.forEachIndexed { i, metric ->
-                            Column(horizontalAlignment = if (i == 0) Alignment.Start else Alignment.End) {
-                                Text(
-                                    text = metric.labelWithUnit,
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                                GaugeValueText(
-                                    metric = metric,
-                                    live = liveState,
-                                    clockTick = clockTick,
-                                    style = TabularStatHeroStyle.copy(fontSize = 38.sp, lineHeight = 44.sp),
-                                    color = MaterialTheme.colorScheme.onSurface
-                                )
-                            }
+                        heroMetrics.forEach { metric ->
+                            StatSubCard(
+                                metric = metric,
+                                live = liveState,
+                                clockTick = clockTick,
+                                valueStyle = TabularStatHeroStyle.copy(fontSize = 38.sp, lineHeight = 44.sp),
+                                modifier = Modifier.weight(1f)
+                            )
                         }
                     }
 
@@ -386,26 +380,36 @@ private fun StatSubCard(
     metric: GaugeMetric,
     live: LiveRecordingState,
     clockTick: androidx.compose.runtime.State<Long>,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    valueStyle: androidx.compose.ui.text.TextStyle =
+        TabularStatMediumStyle.copy(fontSize = 24.sp, lineHeight = 29.sp)
 ) {
     Surface(
         shape = RoundedCornerShape(14.dp),
         color = MaterialTheme.colorScheme.surfaceVariant,
         modifier = modifier
     ) {
-        Column(modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp)) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 14.dp, vertical = 10.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
             Text(
                 text = metric.labelWithUnit,
                 style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center,
+                maxLines = 1
             )
             Spacer(modifier = Modifier.height(2.dp))
             GaugeValueText(
                 metric = metric,
                 live = live,
                 clockTick = clockTick,
-                style = TabularStatMediumStyle.copy(fontSize = 24.sp, lineHeight = 29.sp),
-                color = MaterialTheme.colorScheme.onSurface
+                style = valueStyle.copy(textAlign = TextAlign.Center),
+                color = MaterialTheme.colorScheme.onSurface,
+                maxLines = 1
             )
         }
     }
@@ -540,10 +544,11 @@ internal fun GaugeValueText(
     live: LiveRecordingState,
     clockTick: androidx.compose.runtime.State<Long>,
     style: androidx.compose.ui.text.TextStyle,
-    color: androidx.compose.ui.graphics.Color
+    color: androidx.compose.ui.graphics.Color,
+    maxLines: Int = Int.MAX_VALUE
 ) {
     val text = gaugeValue(metric, live, clockTick.value)
-    Text(text = text, style = style, color = color)
+    Text(text = text, style = style, color = color, maxLines = maxLines)
 }
 
 /** 다른 화면(기록 목록·상세)에서도 같은 표기를 쓰도록 한 곳으로 모음 */
