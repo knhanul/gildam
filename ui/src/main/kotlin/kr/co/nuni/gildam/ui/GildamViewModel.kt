@@ -2,7 +2,6 @@ package kr.co.nuni.gildam.ui
 
 import android.content.Context
 import android.net.Uri
-import android.os.PowerManager
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -19,6 +18,9 @@ import kotlinx.coroutines.launch
 import kr.co.nuni.gildam.auth.KeystoreTokenStore
 import kr.co.nuni.gildam.auth.NuniAuthManager
 import kr.co.nuni.gildam.sync.ServerAccountRepository
+import kr.co.nuni.gildam.sync.SyncCursorStore
+import kr.co.nuni.gildam.sync.SyncStatusObserver
+import kr.co.nuni.gildam.sync.SyncUiStatus
 import kr.co.nuni.gildam.auth.NuniSessionState
 import kr.co.nuni.gildam.data.gpx.GpxExportOptions
 import kr.co.nuni.gildam.data.gpx.GpxExportResult
@@ -48,7 +50,9 @@ class GildamViewModel @Inject constructor(
     private val localPhotoManager: LocalPhotoManager,
     private val gpxExporter: GpxExporter,
     private val serverAccount: ServerAccountRepository,
-    private val recordingPrefs: RecordingPrefs
+    private val recordingPrefs: RecordingPrefs,
+    private val syncStatusObserver: SyncStatusObserver,
+    private val syncCursorStore: SyncCursorStore
 ) : ViewModel() {
 
     /** 로그인 후 GET /v1/me 의 track_count (모르면 null) */
@@ -65,6 +69,14 @@ class GildamViewModel @Inject constructor(
     val liveRecordingState: StateFlow<LiveRecordingState> = recordingController.liveState
 
     val authSessionState: StateFlow<NuniSessionState> = tokenStore.sessionFlow
+
+    /** 동기화 워커의 현재 진행 상태 (실제 WorkManager 상태) */
+    val syncStatus: StateFlow<SyncUiStatus> = syncStatusObserver.status
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), SyncUiStatus.IDLE)
+
+    /** 마지막 동기화 성공 시각(epoch ms). 성공 기록이 없으면 0 */
+    val lastSyncSuccessAtMs: StateFlow<Long> = syncCursorStore.lastSuccessAtMs
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0L)
 
     private val _selectedTransportFilter = MutableStateFlow<TransportType?>(null)
     val selectedTransportFilter: StateFlow<TransportType?> = _selectedTransportFilter.asStateFlow()
@@ -210,6 +222,8 @@ class GildamViewModel @Inject constructor(
     }
 
     fun triggerDemoLoginAndSync() {
+        // 배포 빌드에서는 데모 세션 실행 경로가 없어야 하므로 여기서도 차단합니다.
+        if (!BuildConfig.DEBUG) return
         authManager.simulateDemoNuniLogin()
         GildamSyncWorker.enqueueImmediateSync(appContext)
     }
@@ -227,11 +241,6 @@ class GildamViewModel @Inject constructor(
             localPhotoManager.clearLocalThumbnailCache()
             refreshThumbnailCacheSize()
         }
-    }
-
-    fun isIgnoringBatteryOptimizations(): Boolean {
-        val pm = appContext.getSystemService(PowerManager::class.java)
-        return pm?.isIgnoringBatteryOptimizations(appContext.packageName) ?: true
     }
 
     suspend fun generateSafeGpxExport(

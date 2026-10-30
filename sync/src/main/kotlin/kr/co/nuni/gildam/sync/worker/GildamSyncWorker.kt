@@ -53,6 +53,7 @@ class GildamSyncWorker @AssistedInject constructor(
             val sub = me.body()!!.sub
             pull(sub)
             push(sub)
+            cursorStore.markSyncSuccess()
             Result.success()
         } catch (e: AuthRequired) {
             tokenStore.markReauthRequired()
@@ -135,7 +136,7 @@ class GildamSyncWorker @AssistedInject constructor(
     }
 
     companion object {
-        private const val UNIQUE_WORK_NAME = "gildam_nuni_cloud_sync"
+        internal const val UNIQUE_WORK_NAME = "gildam_nuni_cloud_sync"
         private const val PAGE_LIMIT = 200
 
         fun enqueueImmediateSync(context: Context) {

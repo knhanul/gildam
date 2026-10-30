@@ -2,6 +2,9 @@ package kr.co.nuni.gildam.sync
 
 import android.content.Context
 import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -14,7 +17,23 @@ class SyncCursorStore @Inject constructor(@ApplicationContext context: Context) 
 
     fun set(sub: String, cursor: Long) { prefs.edit().putString(KEY_SUB, sub).putLong(KEY_CURSOR, cursor).apply() }
 
-    fun clear() { prefs.edit().clear().apply() }
+    private val _lastSuccessAtMs = MutableStateFlow(prefs.getLong(KEY_LAST_SUCCESS_AT, 0L))
+    /** 마지막으로 동기화가 성공한 시각(epoch ms). 한 번도 성공한 적 없으면 0. */
+    val lastSuccessAtMs: StateFlow<Long> = _lastSuccessAtMs.asStateFlow()
 
-    private companion object { const val KEY_SUB = "sub"; const val KEY_CURSOR = "cursor" }
+    fun markSyncSuccess(nowMs: Long = System.currentTimeMillis()) {
+        prefs.edit().putLong(KEY_LAST_SUCCESS_AT, nowMs).apply()
+        _lastSuccessAtMs.value = nowMs
+    }
+
+    fun clear() {
+        prefs.edit().clear().apply()
+        _lastSuccessAtMs.value = 0L
+    }
+
+    private companion object {
+        const val KEY_SUB = "sub"
+        const val KEY_CURSOR = "cursor"
+        const val KEY_LAST_SUCCESS_AT = "last_success_at"
+    }
 }

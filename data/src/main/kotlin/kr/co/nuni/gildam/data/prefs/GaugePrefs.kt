@@ -34,6 +34,11 @@ class GaugePrefs @Inject constructor(@ApplicationContext private val context: Co
         context.gaugeStore.edit { it[key(type)] = metric.name }
     }
 
+    /** 한 활동의 선택만 지워 그 활동의 기본값으로 되돌림 */
+    suspend fun resetSelection(type: TransportType) {
+        context.gaugeStore.edit { it.remove(key(type)) }
+    }
+
     /** 활동 5개 선택을 모두 지워 기본값으로 되돌림 */
     suspend fun resetAll() {
         context.gaugeStore.edit { prefs ->

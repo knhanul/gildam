@@ -238,12 +238,15 @@ fun LiveRecordingScreen(
                 .onSizeChanged { bottomPx = it.height },
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            GaugeOverlayChip(
-                metric = overlayMetric,
-                live = liveState,
-                clockTick = clockTick,
-                modifier = Modifier.padding(bottom = 10.dp)
-            )
+            // '표시 안 함'을 고른 활동은 지도 위에 큰 값을 띄우지 않습니다.
+            if (overlayMetric != GaugeMetric.NONE) {
+                GaugeOverlayChip(
+                    metric = overlayMetric,
+                    live = liveState,
+                    clockTick = clockTick,
+                    modifier = Modifier.padding(bottom = 10.dp)
+                )
+            }
 
             Card(
                 shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
@@ -272,7 +275,7 @@ fun LiveRecordingScreen(
 
                     Spacer(modifier = Modifier.height(12.dp))
 
-                    // 지도 아래 계기판 4개: 지도 위 1개를 뺀 나머지 (큰 값 2개 + 작은 값 2개)
+                    // 지도 아래 계기판: 지도 위 강조 지표를 뺀 나머지 (큰 값 2개 + 작은 값들, '표시 안 함'이면 5개 전부)
                     val heroMetrics = GaugeMetric.heroesFor(overlayMetric)
                     val subMetrics = GaugeMetric.subsFor(overlayMetric)
 
@@ -513,6 +516,7 @@ internal fun gaugeValue(metric: GaugeMetric, live: LiveRecordingState, clockNowM
     GaugeMetric.CURRENT_SPEED -> GaugeFormat.speedKmh(live.currentSpeedMps)
     GaugeMetric.MOVING_AVG_SPEED -> GaugeFormat.speedKmh(live.movingAvgSpeedMps)
     GaugeMetric.CLOCK -> GaugeFormat.clockHms(clockNowMs)
+    GaugeMetric.NONE -> ""
 }
 
 /** 1초마다 현재 시각을 담는 상태. [fixed] 가 있으면 그 값으로 고정합니다(테스트·미리보기). */

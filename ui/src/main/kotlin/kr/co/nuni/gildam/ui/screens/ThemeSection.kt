@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -42,17 +43,13 @@ import kr.co.nuni.gildam.ui.theme.DarkModePref
 import kr.co.nuni.gildam.ui.theme.GildamPalette
 import kr.co.nuni.gildam.ui.theme.gildamColorScheme
 
-/** 설정 > 테마 색: 팔레트 미리보기 카드 3개 + 밝기 모드 */
-@OptIn(ExperimentalMaterial3Api::class)
+/** 설정 > 테마 색 시트: 팔레트 미리보기 카드 3개 (기존 '햇살 산책/민트 소풍/노을 러닝' 일러스트 재사용) */
 @Composable
-fun ThemeSection(
+internal fun ThemePickerSheetContent(
     palette: GildamPalette,
-    darkMode: DarkModePref,
-    onSelectPalette: (GildamPalette) -> Unit,
-    onSelectDarkMode: (DarkModePref) -> Unit
+    onSelectPalette: (GildamPalette) -> Unit
 ) {
-    Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
-        Text("테마 색", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             GildamPalette.selectable.forEachIndexed { i, p ->
                 PaletteCard(p, ('A' + i).toString(), selected = p == palette, onClick = { onSelectPalette(p) }, modifier = Modifier.weight(1f))
@@ -61,17 +58,35 @@ fun ThemeSection(
         Text(
             palette.moodKo,
             style = MaterialTheme.typography.bodySmall,
-            fontSize = 9.5.sp,
-            lineHeight = 12.sp,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
-        Text("화면 밝기", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold)
-        SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
-            DarkModePref.entries.forEachIndexed { i, m ->
-                SegmentedButton(
-                    selected = m == darkMode, onClick = { onSelectDarkMode(m) },
-                    shape = SegmentedButtonDefaults.itemShape(i, DarkModePref.entries.size)
-                ) { Text(m.labelKo, style = MaterialTheme.typography.labelMedium) }
+    }
+}
+
+/** 설정 > 화면 모드 시트: 시스템/밝게/어둡게 선택 행 (저장값·시스템 연동은 기존 그대로) */
+@Composable
+internal fun DarkModeSheetContent(
+    darkMode: DarkModePref,
+    onSelectDarkMode: (DarkModePref) -> Unit
+) {
+    Column {
+        DarkModePref.entries.forEach { mode ->
+            val selected = mode == darkMode
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(min = 48.dp)
+                    .clickable(role = Role.RadioButton) { onSelectDarkMode(mode) }
+                    .padding(horizontal = 4.dp, vertical = 6.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                androidx.compose.material3.RadioButton(selected = selected, onClick = null)
+                Spacer(Modifier.width(4.dp))
+                Text(
+                    mode.labelKo,
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal
+                )
             }
         }
     }
@@ -112,4 +127,3 @@ private fun PaletteCard(p: GildamPalette, letter: String, selected: Boolean, onC
         }
     }
 }
-

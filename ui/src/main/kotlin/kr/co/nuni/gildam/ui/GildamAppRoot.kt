@@ -37,11 +37,17 @@ import kr.co.nuni.gildam.ui.navigation.ActivityListRoute
 import kr.co.nuni.gildam.ui.navigation.LiveRecordingRoute
 import kr.co.nuni.gildam.ui.navigation.SafeShareExportRoute
 import kr.co.nuni.gildam.ui.navigation.SettingsRoute
+import kr.co.nuni.gildam.ui.navigation.RecordingStatusRoute
+import kr.co.nuni.gildam.ui.navigation.GaugeHighlightRoute
+import kr.co.nuni.gildam.ui.navigation.PhotoStorageRoute
 import kr.co.nuni.gildam.ui.screens.ActivityDetailScreen
 import kr.co.nuni.gildam.ui.screens.ActivityListScreen
 import kr.co.nuni.gildam.ui.screens.LiveRecordingScreen
 import kr.co.nuni.gildam.ui.screens.SafeShareExportScreen
 import kr.co.nuni.gildam.ui.screens.SettingsScreen
+import kr.co.nuni.gildam.ui.screens.RecordingStatusScreen
+import kr.co.nuni.gildam.ui.screens.GaugeHighlightEditorScreen
+import kr.co.nuni.gildam.ui.screens.PhotoStorageScreen
 import kr.co.nuni.gildam.ui.theme.GildamTheme
 
 @Composable
@@ -261,27 +267,48 @@ fun GildamAppRoot(
 
             composable<SettingsRoute> {
                 val serverTrackCount by viewModel.serverTrackCount.collectAsState()
+                val syncStatus by viewModel.syncStatus.collectAsState()
+                val lastSyncSuccessAtMs by viewModel.lastSyncSuccessAtMs.collectAsState()
                 LaunchedEffect(sessionState.isLoggedIn) { viewModel.refreshServerAccount() }
                 SettingsScreen(
                     serverTrackCount = serverTrackCount,
                     sessionState = sessionState,
-                    thumbnailCacheBytes = thumbnailCacheBytes,
-                    isBatteryOptimizationIgnored = viewModel.isIgnoringBatteryOptimizations(),
+                    syncStatus = syncStatus,
+                    lastSyncSuccessAtMs = lastSyncSuccessAtMs,
                     onKakaoLogin = { viewModel.launchKakaoLogin(context) },
                     onSwitchAccount = { viewModel.launchKakaoLogin(context, switchAccount = true) },
                     onDemoSimulateLogin = if (BuildConfig.DEBUG) viewModel::triggerDemoLoginAndSync else null,
                     onManualSync = viewModel::triggerManualSync,
                     onLogout = { viewModel.logout(context) },
-                    onClearThumbnailCache = viewModel::clearThumbnailCache,
                     onNavigateBack = { navController.popBackStack() },
                     isTopLevelTab = true,
                     palette = palette,
                     darkMode = darkMode,
                     onSelectPalette = appearanceViewModel::setPalette,
                     onSelectDarkMode = appearanceViewModel::setDarkMode,
-                    gaugeSelections = gaugeSelections,
-                    onSelectGauge = appearanceViewModel::setGaugeSelection,
-                    onResetGauge = appearanceViewModel::resetGaugeSelections
+                    onOpenRecordingStatus = { navController.navigate(RecordingStatusRoute) },
+                    onOpenGaugeEditor = { navController.navigate(GaugeHighlightRoute) },
+                    onOpenPhotoStorage = { navController.navigate(PhotoStorageRoute) }
+                )
+            }
+
+            composable<RecordingStatusRoute> {
+                RecordingStatusScreen(onNavigateBack = { navController.popBackStack() })
+            }
+
+            composable<GaugeHighlightRoute> {
+                GaugeHighlightEditorScreen(
+                    savedSelections = gaugeSelections,
+                    onSave = { draft -> appearanceViewModel.applyGaugeSelections(gaugeSelections, draft) },
+                    onNavigateBack = { navController.popBackStack() }
+                )
+            }
+
+            composable<PhotoStorageRoute> {
+                PhotoStorageScreen(
+                    thumbnailCacheBytes = thumbnailCacheBytes,
+                    onClearThumbnailCache = viewModel::clearThumbnailCache,
+                    onNavigateBack = { navController.popBackStack() }
                 )
             }
         }

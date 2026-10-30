@@ -16,6 +16,7 @@ import androidx.compose.material.icons.outlined.Schedule
 import androidx.compose.material.icons.outlined.Speed
 import androidx.compose.material.icons.outlined.Straighten
 import androidx.compose.material.icons.outlined.Timer
+import androidx.compose.material.icons.outlined.VisibilityOff
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -45,6 +46,7 @@ val GaugeMetric.icon: ImageVector
         GaugeMetric.CURRENT_SPEED -> Icons.Outlined.Speed
         GaugeMetric.MOVING_AVG_SPEED -> Icons.Outlined.AvTimer
         GaugeMetric.CLOCK -> Icons.Outlined.Schedule
+        GaugeMetric.NONE -> Icons.Outlined.VisibilityOff // 칩 자체는 표시하지 않음
     }
 
 /** 말풍선에 쓰는 계기판 이름 (테스트에서 라벨로 찾음) */

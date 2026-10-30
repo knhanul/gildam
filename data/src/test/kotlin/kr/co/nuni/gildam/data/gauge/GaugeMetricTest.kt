@@ -28,7 +28,18 @@ class GaugeMetricTest {
         assertEquals(5, GaugeMetric.displayOrder.size)
         assertEquals(5, GaugeMetric.displayOrder.toSet().size)
         assertTrue(GaugeMetric.displayOrder.contains(GaugeMetric.CLOCK))
-        assertEquals(5, GaugeMetric.selectable.size)
+        // 선택지는 계기판 5개 + '표시 안 함'
+        assertEquals(6, GaugeMetric.selectable.size)
+        assertTrue(GaugeMetric.selectable.contains(GaugeMetric.NONE))
+    }
+
+    @Test fun noneOverlayShowsAllFiveBelow() {
+        val bottom = GaugeMetric.bottomFor(GaugeMetric.NONE)
+        assertEquals(GaugeMetric.displayOrder, bottom)
+        assertEquals(2, GaugeMetric.heroesFor(GaugeMetric.NONE).size)
+        assertEquals(3, GaugeMetric.subsFor(GaugeMetric.NONE).size)
+        assertEquals("표시 안 함", GaugeMetric.NONE.labelWithUnit)
+        assertNull(GaugeMetric.NONE.unit)
     }
 
     @Test fun bottomAlwaysFourWithoutOverlay() {
