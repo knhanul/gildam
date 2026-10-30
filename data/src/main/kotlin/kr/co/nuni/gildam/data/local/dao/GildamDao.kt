@@ -6,6 +6,7 @@ import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import androidx.room.Transaction
 import androidx.room.Update
+import androidx.room.Upsert
 import kotlinx.coroutines.flow.Flow
 import kr.co.nuni.gildam.data.local.entity.ActivityDetailBundle
 import kr.co.nuni.gildam.data.local.entity.ActivityEntity
@@ -36,7 +37,8 @@ interface GildamDao {
     @Query("SELECT * FROM activities WHERE id = :activityId")
     suspend fun getActivityById(activityId: String): ActivityEntity?
 
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    // 주의: REPLACE 는 행을 지웠다 다시 넣어서 CASCADE 로 경로 점·위치 메모가 모두 지워짐 → @Upsert(갱신) 사용
+    @Upsert
     suspend fun upsertActivity(activity: ActivityEntity)
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
@@ -55,7 +57,8 @@ interface GildamDao {
     @Query("SELECT * FROM waypoints WHERE activity_id = :activityId AND deleted_at IS NULL ORDER BY recorded_at ASC")
     suspend fun getWaypointsForActivity(activityId: String): List<WaypointEntity>
 
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    // REPLACE 면 사진 행이 CASCADE 로 지워짐 → @Upsert
+    @Upsert
     suspend fun upsertWaypoint(waypoint: WaypointEntity)
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
