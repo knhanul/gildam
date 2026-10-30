@@ -152,6 +152,7 @@ fun GildamAppRoot(
                     follow = followUi,
                     onStopFollow = courseViewModel::stopFollow,
                     defaultCameraMode = recordMapMode,
+                    onSelectCameraMode = appearanceViewModel::setRecordMapMode,
                     overlayMetric = gaugeSelections[if (liveState.isRecording) liveState.transportType else selectedTransportForNew]
                         ?: kr.co.nuni.gildam.data.model.GaugeMetric.defaultFor(selectedTransportForNew)
                 )
@@ -278,8 +279,6 @@ fun GildamAppRoot(
                     darkMode = darkMode,
                     onSelectPalette = appearanceViewModel::setPalette,
                     onSelectDarkMode = appearanceViewModel::setDarkMode,
-                    recordMapMode = recordMapMode,
-                    onSelectRecordMapMode = appearanceViewModel::setRecordMapMode,
                     gaugeSelections = gaugeSelections,
                     onSelectGauge = appearanceViewModel::setGaugeSelection,
                     onResetGauge = appearanceViewModel::resetGaugeSelections

@@ -283,6 +283,11 @@ class LocationTrackingService : LifecycleService() {
             longitude = location.longitude,
             altitudeMeters = entity.altitudeMeters
         )
+        val movementBearing: Float? = when {
+            location.hasBearing() -> ((location.bearing % 360f) + 360f) % 360f
+            prev != null && deltaMeters >= 0.8 -> ((prev.bearingTo(location) % 360f) + 360f) % 360f
+            else -> null
+        }
         recordingController.updateState { state ->
             state.copy(
                 distanceMeters = totalDistanceMeters,
@@ -290,6 +295,7 @@ class LocationTrackingService : LifecycleService() {
                 movingAvgSpeedMps = movingAvgMps,
                 maxSpeedMps = maxSpeedMps,
                 elevationGainMeters = elevationGainMeters,
+                currentBearingDeg = movementBearing ?: state.currentBearingDeg,
                 currentLocation = newLatLon,
                 liveTrackPoints = state.liveTrackPoints + newLatLon,
                 isGpsSignalWeak = false

@@ -77,6 +77,8 @@ fun GildamMapLibreView(
     overlayBottomPx: Int = 0,
     speedMps: Float = 0f,
     distanceM: Double = 0.0,
+    /** 주행 방향 각도(도, 0=북, 시계방향). HEADING 모드에서 단말기 위쪽을 진행 방향으로 맞춤 */
+    bearingDeg: Float? = null,
     /** 사용자가 손으로 지도를 움직였을 때 */
     onUserGesture: () -> Unit = {},
     /** 바뀌면 자동 카메라를 즉시 다시 맞춤 ('다시 맞추기') */
@@ -92,7 +94,7 @@ fun GildamMapLibreView(
             trackPoints = trackPoints,
             coursePoints = coursePoints,
             currentLocation = currentLocation,
-            followSpanM = if (cameraMode == MapCameraMode.FOLLOW) 900.0 * Math.pow(2.0, 17.0 - MapCameraPlanner.followZoom(speedMps, distanceM)) else null,
+            followSpanM = if (cameraMode == MapCameraMode.FOLLOW || cameraMode == MapCameraMode.HEADING) 900.0 * Math.pow(2.0, 17.0 - MapCameraPlanner.followZoom(speedMps, distanceM)) else null,
             overlayTopPx = overlayTopPx, overlayBottomPx = overlayBottomPx,
             isDarkTheme = isDarkTheme,
             modifier = modifier
@@ -197,9 +199,12 @@ fun GildamMapLibreView(
                             val pad = MapCameraPlanner.overlayPadding(view.width, view.height, overlayTopPx, overlayBottomPx)
                             val fit = MapCameraPlanner.overviewFit(trackPoints, currentLocation, coursePoints, pad)
                             if (fit == null) {
-                                map.cameraPosition = CameraPosition.Builder().target(LatLng(targetLat, targetLon)).zoom(15.2).build()
+                                map.cameraPosition = CameraPosition.Builder().target(LatLng(targetLat, targetLon)).zoom(15.2).bearing(0.0).build()
                             } else if (MapCameraPlanner.needsRefit(camState.lastFit, fit.bounds, currentLocation, now, camState.lastFitMs)) {
                                 camState.lastFit = fit.bounds; camState.lastFitMs = now
+                                if (map.cameraPosition.bearing != 0.0) {
+                                    map.cameraPosition = CameraPosition.Builder(map.cameraPosition).bearing(0.0).build()
+                                }
                                 val bb = org.maplibre.android.geometry.LatLngBounds.from(fit.bounds.maxLat, fit.bounds.maxLon, fit.bounds.minLat, fit.bounds.minLon)
                                 view.post {
                                     runCatching {
@@ -208,12 +213,21 @@ fun GildamMapLibreView(
                                 }
                             }
                         }
-                        else -> { // FOLLOW
+                        else -> { // FOLLOW (단말기 위쪽 = 북쪽) 또는 HEADING (단말기 위쪽 = 주행방향)
                             if (now - camState.lastFollowMs >= 900) {
                                 camState.lastFollowMs = now
                                 val pad = MapCameraPlanner.overlayPadding(view.width, view.height, overlayTopPx, overlayBottomPx)
                                 map.setPadding(0, pad.top, 0, pad.bottom)
-                                val pos = CameraPosition.Builder().target(LatLng(targetLat, targetLon)).zoom(MapCameraPlanner.followZoom(speedMps, distanceM)).build()
+                                val targetBearing = if (cameraMode == MapCameraMode.HEADING) {
+                                    MapCameraPlanner.resolveBearing(bearingDeg, trackPoints, currentLocation)
+                                } else {
+                                    0.0
+                                }
+                                val pos = CameraPosition.Builder()
+                                    .target(LatLng(targetLat, targetLon))
+                                    .zoom(MapCameraPlanner.followZoom(speedMps, distanceM))
+                                    .bearing(targetBearing)
+                                    .build()
                                 runCatching { map.animateCamera(org.maplibre.android.camera.CameraUpdateFactory.newCameraPosition(pos), 700) }
                             }
                         }

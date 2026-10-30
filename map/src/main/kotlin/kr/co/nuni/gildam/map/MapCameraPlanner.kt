@@ -6,7 +6,8 @@ import kotlin.math.min
 
 /** 기록 중 지도 카메라 모드 */
 enum class MapCameraMode(val labelKo: String) {
-    FOLLOW("내 위치 따라가기"),
+    FOLLOW("내 위치 따라가기 (북쪽 위)"),
+    HEADING("주행 방향을 위쪽으로"),
     OVERVIEW("전체 경로");
     companion object { val DEFAULT = FOLLOW }
 }
@@ -90,5 +91,37 @@ object MapCameraPlanner {
         val bySpeed = 17.0 - (speedMps.coerceAtLeast(0f) / 2.5).coerceAtMost(3.0)
         val byDistance = (distanceM / 10_000.0).coerceIn(0.0, 0.7)
         return (bySpeed - byDistance).coerceIn(13.5, 17.0)
+    }
+
+    /** 두 지점(from -> to) 사이의 진행 방위각(0°=북, 90°=동, 180°=남, 270°=서, 0~360 범위) */
+    fun bearingDegrees(from: LatLonPoint, to: LatLonPoint): Double {
+        val lat1 = Math.toRadians(from.latitude)
+        val lat2 = Math.toRadians(to.latitude)
+        val dLon = Math.toRadians(to.longitude - from.longitude)
+        val y = kotlin.math.sin(dLon) * kotlin.math.cos(lat2)
+        val x = kotlin.math.cos(lat1) * kotlin.math.sin(lat2) -
+            kotlin.math.sin(lat1) * kotlin.math.cos(lat2) * kotlin.math.cos(dLon)
+        val deg = Math.toDegrees(kotlin.math.atan2(y, x))
+        return ((deg % 360.0) + 360.0) % 360.0
+    }
+
+    /** 주행 방향 모드에서 카메라에 적용할 회전 각도(도). 센서/GPS bearing 우선, 없으면 최근 두 점으로 계산 */
+    fun resolveBearing(
+        bearingDeg: Float?,
+        track: List<LatLonPoint>,
+        current: LatLonPoint?
+    ): Double {
+        if (bearingDeg != null && !bearingDeg.isNaN()) {
+            return ((bearingDeg.toDouble() % 360.0) + 360.0) % 360.0
+        }
+        val pts = if (current != null && (track.isEmpty() || track.last() != current)) track + current else track
+        for (i in pts.size - 1 downTo 1) {
+            val prev = pts[i - 1]
+            val curr = pts[i]
+            if (prev.latitude != curr.latitude || prev.longitude != curr.longitude) {
+                return bearingDegrees(prev, curr)
+            }
+        }
+        return 0.0
     }
 }

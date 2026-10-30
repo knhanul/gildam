@@ -62,4 +62,24 @@ class MapCameraPlannerTest {
         assertTrue(MapCameraPlanner.followZoom(1.4f, 8_000.0) < MapCameraPlanner.followZoom(1.4f, 0.0))
         assertEquals(13.5, MapCameraPlanner.followZoom(40f, 50_000.0), 1e-9)
     }
+
+    @Test fun bearingAndResolveBearingComputeHeadingCorrectly() {
+        // 정북(0°), 정동(≈90°), 정남(180°), 정서(≈270°)
+        assertEquals(0.0, MapCameraPlanner.bearingDegrees(p(37.50, 127.00), p(37.51, 127.00)), 0.5)
+        assertEquals(90.0, MapCameraPlanner.bearingDegrees(p(37.50, 127.00), p(37.50, 127.01)), 0.5)
+        assertEquals(180.0, MapCameraPlanner.bearingDegrees(p(37.51, 127.00), p(37.50, 127.00)), 0.5)
+        assertEquals(270.0, MapCameraPlanner.bearingDegrees(p(37.50, 127.01), p(37.50, 127.00)), 0.5)
+
+        // 센서/GPS bearing이 있으면 정규화하여 우선 사용
+        assertEquals(45.0, MapCameraPlanner.resolveBearing(45f, emptyList(), null), 1e-6)
+        assertEquals(350.0, MapCameraPlanner.resolveBearing(-10f, emptyList(), null), 1e-6)
+
+        // bearing이 없으면 최근 두 점의 이동 방향으로 계산
+        val eastTrack = listOf(p(37.50, 127.00), p(37.50, 127.01))
+        assertEquals(90.0, MapCameraPlanner.resolveBearing(null, eastTrack, null), 0.5)
+
+        // 점이 부족하면 0.0(북쪽 위)
+        assertEquals(0.0, MapCameraPlanner.resolveBearing(null, listOf(p(37.50, 127.00)), null), 1e-6)
+        assertTrue(MapCameraMode.entries.contains(MapCameraMode.HEADING))
+    }
 }

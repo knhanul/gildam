@@ -18,6 +18,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.CenterFocusStrong
 import androidx.compose.material.icons.outlined.MyLocation
+import androidx.compose.material.icons.outlined.Navigation
 import androidx.compose.material.icons.outlined.Route
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -54,7 +55,8 @@ fun MapCameraControls(
         Spacer(Modifier.width(6.dp))
         Surface(shape = RoundedCornerShape(50), color = MaterialTheme.colorScheme.surface.copy(alpha = 0.95f), shadowElevation = 6.dp) {
             Row(Modifier.padding(horizontal = 2.dp)) {
-                Seg(Icons.Outlined.MyLocation, "내 위치 따라가기", mode == MapCameraMode.FOLLOW && !paused) { onSelect(MapCameraMode.FOLLOW) }
+                Seg(Icons.Outlined.MyLocation, "내 위치 따라가기 (북쪽 위)", mode == MapCameraMode.FOLLOW && !paused) { onSelect(MapCameraMode.FOLLOW) }
+                Seg(Icons.Outlined.Navigation, "주행 방향을 위쪽으로", mode == MapCameraMode.HEADING && !paused) { onSelect(MapCameraMode.HEADING) }
                 Seg(Icons.Outlined.Route, "전체 경로 보기", mode == MapCameraMode.OVERVIEW && !paused) { onSelect(MapCameraMode.OVERVIEW) }
             }
         }

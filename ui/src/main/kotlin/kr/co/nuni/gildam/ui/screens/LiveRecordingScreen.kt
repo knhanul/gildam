@@ -100,8 +100,10 @@ fun LiveRecordingScreen(
     /** 코스 따라 걷기 중이면 코스 선·남은 거리·도착 예정 표시 */
     follow: CourseFollowUi? = null,
     onStopFollow: () -> Unit = {},
-    /** 설정의 '기록 중 지도 보기' 기본값 */
+    /** 마지막으로 선택했던 '기록 중 지도 보기' 모드 (DataStore에서 복원) */
     defaultCameraMode: MapCameraMode = MapCameraMode.DEFAULT,
+    /** 지도 보기 모드를 바꿀 때 DataStore에 기억시켜 다음 실행에도 유지 */
+    onSelectCameraMode: (MapCameraMode) -> Unit = {},
     /** 설정에서 활동 구분별로 고른 '지도 위 계기판' 값 */
     overlayMetric: GaugeMetric = GaugeMetric.defaultFor(selectedTransport),
     /** 테스트·미리보기에서 현재 시각을 고정할 때 사용. null 이면 1초마다 실제 시각으로 갱신 */
@@ -130,6 +132,7 @@ fun LiveRecordingScreen(
             overlayBottomPx = bottomPx,
             speedMps = liveState.currentSpeedMps,
             distanceM = liveState.distanceMeters,
+            bearingDeg = liveState.currentBearingDeg,
             onUserGesture = { cameraPaused = true },
             recenterKey = recenterKey
         )
@@ -215,7 +218,12 @@ fun LiveRecordingScreen(
             MapCameraControls(
                 mode = cameraMode,
                 paused = cameraPaused,
-                onSelect = { cameraMode = it; cameraPaused = false; recenterKey++ },
+                onSelect = {
+                    cameraMode = it
+                    cameraPaused = false
+                    recenterKey++
+                    onSelectCameraMode(it)
+                },
                 onRecenter = { cameraPaused = false; recenterKey++ },
                 modifier = Modifier.padding(top = 10.dp)
             )

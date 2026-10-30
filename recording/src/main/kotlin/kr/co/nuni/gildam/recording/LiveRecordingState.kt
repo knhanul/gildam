@@ -20,6 +20,7 @@ data class LiveRecordingState(
     val movingAvgSpeedMps: Float = 0f,
     val maxSpeedMps: Float = 0f,
     val elevationGainMeters: Float = 0f,
+    val currentBearingDeg: Float? = null,
     val currentLocation: LatLonPoint? = null,
     val liveTrackPoints: List<LatLonPoint> = emptyList(),
     val isGpsSignalWeak: Boolean = false
