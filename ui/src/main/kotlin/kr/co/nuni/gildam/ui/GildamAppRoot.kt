@@ -8,6 +8,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.compose.NavHost
@@ -85,7 +87,14 @@ fun GildamAppRoot(
     val selectedTransportFilter by viewModel.selectedTransportFilter.collectAsState()
     val searchQuery by viewModel.searchQuery.collectAsState()
     val selectedTransportForNew by viewModel.selectedTransportForNewRecording.collectAsState()
+    val keepScreenOn by viewModel.keepScreenOn.collectAsState()
+    val maxDurationMs by viewModel.maxDurationMs.collectAsState()
+    val idleLimitMs by viewModel.idleLimitMs.collectAsState()
+    val graceMs by viewModel.graceMs.collectAsState()
+    val unfinishedRecording by viewModel.unfinishedRecording.collectAsState()
     val thumbnailCacheBytes by viewModel.thumbnailCacheSizeBytes.collectAsState()
+
+    var pendingResumeUnfinished by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
 
     // 1단계 포그라운드 위치 + 알림 권한 요청 런처 (Android 11+ 단계별 권한 분리 정책 준수)
     val foregroundPermissionLauncher = rememberLauncherForActivityResult(
@@ -94,7 +103,14 @@ fun GildamAppRoot(
         val fineGranted = grants[Manifest.permission.ACCESS_FINE_LOCATION] == true ||
             grants[Manifest.permission.ACCESS_COARSE_LOCATION] == true
         if (fineGranted) {
-            viewModel.startRecording()
+            if (pendingResumeUnfinished) {
+                pendingResumeUnfinished = false
+                viewModel.resumeUnfinishedRecording()
+            } else {
+                viewModel.startRecording()
+            }
+        } else {
+            pendingResumeUnfinished = false
         }
     }
 
@@ -160,7 +176,21 @@ fun GildamAppRoot(
                     defaultCameraMode = recordMapMode,
                     onSelectCameraMode = appearanceViewModel::setRecordMapMode,
                     overlayMetric = gaugeSelections[if (liveState.isRecording) liveState.transportType else selectedTransportForNew]
-                        ?: kr.co.nuni.gildam.data.model.GaugeMetric.defaultFor(selectedTransportForNew)
+                        ?: kr.co.nuni.gildam.data.model.GaugeMetric.defaultFor(selectedTransportForNew),
+                    keepScreenOn = keepScreenOn,
+                    unfinishedRecording = unfinishedRecording,
+                    onResumeUnfinishedRecording = {
+                        pendingResumeUnfinished = true
+                        val permissions = buildList {
+                            add(Manifest.permission.ACCESS_FINE_LOCATION)
+                            add(Manifest.permission.ACCESS_COARSE_LOCATION)
+                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                                add(Manifest.permission.POST_NOTIFICATIONS)
+                            }
+                        }.toTypedArray()
+                        foregroundPermissionLauncher.launch(permissions)
+                    },
+                    onFinishUnfinishedRecording = viewModel::finishUnfinishedRecordingNow
                 )
             }
 
@@ -288,7 +318,15 @@ fun GildamAppRoot(
                     onSelectDarkMode = appearanceViewModel::setDarkMode,
                     onOpenRecordingStatus = { navController.navigate(RecordingStatusRoute) },
                     onOpenGaugeEditor = { navController.navigate(GaugeHighlightRoute) },
-                    onOpenPhotoStorage = { navController.navigate(PhotoStorageRoute) }
+                    onOpenPhotoStorage = { navController.navigate(PhotoStorageRoute) },
+                    keepScreenOn = keepScreenOn,
+                    onKeepScreenOnChange = viewModel::setKeepScreenOn,
+                    maxDurationMs = maxDurationMs,
+                    onSelectMaxDurationMs = viewModel::setMaxDurationMs,
+                    idleLimitMs = idleLimitMs,
+                    onSelectIdleLimitMs = viewModel::setIdleLimitMs,
+                    graceMs = graceMs,
+                    onSelectGraceMs = viewModel::setGraceMs
                 )
             }
 

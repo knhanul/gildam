@@ -338,7 +338,12 @@ private fun PreviewFallbackMapCanvas(
                 ox = pad.left + (availW - spanX.toFloat() * sc) / 2; oy = pad.top + (availH - spanY.toFloat() * sc) / 2
             }
             fun pt(p: LatLonPoint) = Offset(ox + ((p.longitude - minLon) * kx).toFloat() * sc, oy + (maxLat - p.latitude).toFloat() * sc)
-            fun line(ps: List<LatLonPoint>) = Path().apply { ps.forEachIndexed { i, p -> val o = pt(p); if (i == 0) moveTo(o.x, o.y) else lineTo(o.x, o.y) } }
+            fun line(ps: List<LatLonPoint>) = Path().apply {
+                ps.forEachIndexed { i, p ->
+                    val o = pt(p)
+                    if (i == 0 || p.isPauseBoundary) moveTo(o.x, o.y) else lineTo(o.x, o.y)
+                }
+            }
             if (coursePoints.size >= 2) {
                 drawPath(line(coursePoints), courseColor.copy(alpha = 0.75f), style = Stroke(width = 16f, cap = StrokeCap.Round, join = StrokeJoin.Round))
                 drawCircle(courseColor, 14f, pt(coursePoints.first()))
@@ -359,12 +364,33 @@ private fun PreviewFallbackMapCanvas(
     }
 }
 
+internal fun splitIntoSegments(points: List<LatLonPoint>): List<List<LatLonPoint>> {
+    if (points.isEmpty()) return emptyList()
+    val segments = mutableListOf<MutableList<LatLonPoint>>()
+    var current = mutableListOf<LatLonPoint>()
+    for (pt in points) {
+        if (pt.isPauseBoundary && current.isNotEmpty()) {
+            segments.add(current)
+            current = mutableListOf()
+        }
+        current.add(pt)
+    }
+    if (current.isNotEmpty()) {
+        segments.add(current)
+    }
+    return segments.filter { it.size >= 2 }
+}
+
 private fun buildLineStringGeoJson(points: List<LatLonPoint>): String {
-    if (points.size < 2) {
+    val segments = splitIntoSegments(points)
+    if (segments.isEmpty()) {
         return """{"type":"FeatureCollection","features":[]}"""
     }
-    val coords = points.joinToString(",") { "[${it.longitude},${it.latitude}]" }
-    return """{"type":"FeatureCollection","features":[{"type":"Feature","geometry":{"type":"LineString","coordinates":[$coords]}}]}"""
+    val multiCoords = segments.joinToString(",") { seg ->
+        val coords = seg.joinToString(",") { "[${it.longitude},${it.latitude}]" }
+        "[$coords]"
+    }
+    return """{"type":"FeatureCollection","features":[{"type":"Feature","geometry":{"type":"MultiLineString","coordinates":[$multiCoords]}}]}"""
 }
 
 private val LocalMapPreviewColors = androidx.compose.runtime.staticCompositionLocalOf {

@@ -36,6 +36,41 @@ class GildamRepository @Inject constructor(
     suspend fun getTrackPoints(activityId: String): List<TrackPointEntity> =
         dao.getTrackPoints(activityId)
 
+    suspend fun getActivityById(activityId: String): ActivityEntity? =
+        dao.getActivityById(activityId)
+
+    suspend fun getMaxTrackPointSeq(activityId: String): Int =
+        dao.getMaxTrackPointSeq(activityId)
+
+    suspend fun deleteTrackPointsAfter(activityId: String, cutoffMs: Long) {
+        dao.deleteTrackPointsAfter(activityId, cutoffMs)
+    }
+
+    /**
+     * 강제 종료 등으로 남아 있던 미완료 기록을 '여기서 마치기'로 완료 처리합니다.
+     * 종료 시각은 마지막 저장 점의 시각으로 하고, 거리·시간은 저장된 값을 그대로 사용합니다.
+     */
+    suspend fun finishUnfinishedRecording(activityId: String): Boolean {
+        val existing = dao.getActivityById(activityId) ?: return false
+        val points = dao.getTrackPoints(activityId)
+        val endedAt = points.lastOrNull()?.recordedAtEpochMs
+            ?: existing.endedAtEpochMs
+            ?: System.currentTimeMillis()
+        updateRecordingProgress(
+            activityId = existing.id,
+            status = ActivityStatus.COMPLETED,
+            totalDurationMs = existing.totalDurationMs,
+            movingDurationMs = existing.movingDurationMs,
+            distanceMeters = existing.distanceMeters,
+            avgSpeedMps = existing.avgSpeedMps,
+            movingAvgSpeedMps = existing.movingAvgSpeedMps,
+            maxSpeedMps = existing.maxSpeedMps,
+            elevationGainMeters = existing.elevationGainMeters,
+            endedAtEpochMs = endedAt
+        )
+        return true
+    }
+
     suspend fun getWaypoints(activityId: String): List<WaypointEntity> =
         dao.getWaypointsForActivity(activityId)
 
@@ -71,14 +106,15 @@ class GildamRepository @Inject constructor(
         avgSpeedMps: Float,
         movingAvgSpeedMps: Float,
         maxSpeedMps: Float,
-        elevationGainMeters: Float
+        elevationGainMeters: Float,
+        endedAtEpochMs: Long? = null
     ) {
         val existing = dao.getActivityById(activityId) ?: return
         val now = System.currentTimeMillis()
         dao.upsertActivity(
             existing.copy(
                 status = status,
-                endedAtEpochMs = if (status == ActivityStatus.COMPLETED) now else existing.endedAtEpochMs,
+                endedAtEpochMs = if (status == ActivityStatus.COMPLETED) (endedAtEpochMs ?: now) else existing.endedAtEpochMs,
                 totalDurationMs = totalDurationMs,
                 movingDurationMs = movingDurationMs,
                 distanceMeters = distanceMeters,

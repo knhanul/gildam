@@ -89,8 +89,44 @@ class GildamViewModel @Inject constructor(
         .map { n -> TransportType.entries.firstOrNull { it.name == n } ?: TransportType.WALK }
         .stateIn(viewModelScope, SharingStarted.Eagerly, TransportType.WALK)
 
+    /** 기록 중 화면 켜 두기 설정 (기본값 false) */
+    val keepScreenOn: StateFlow<Boolean> = recordingPrefs.keepScreenOn
+        .stateIn(viewModelScope, SharingStarted.Eagerly, RecordingPrefs.DEFAULT_KEEP_SCREEN_ON)
+
+    fun setKeepScreenOn(enabled: Boolean) {
+        viewModelScope.launch { recordingPrefs.setKeepScreenOn(enabled) }
+    }
+
+    /** 자동 종료: 최대 기록 시간(ms, null = 사용 안 함) */
+    val maxDurationMs: StateFlow<Long?> = recordingPrefs.maxDurationMs
+        .stateIn(viewModelScope, SharingStarted.Eagerly, RecordingPrefs.DEFAULT_MAX_DURATION_MS)
+
+    fun setMaxDurationMs(durationMs: Long?) {
+        viewModelScope.launch { recordingPrefs.setMaxDurationMs(durationMs) }
+    }
+
+    /** 자동 종료: 오래 멈춤 기준(ms, null = 사용 안 함) */
+    val idleLimitMs: StateFlow<Long?> = recordingPrefs.idleLimitMs
+        .stateIn(viewModelScope, SharingStarted.Eagerly, RecordingPrefs.DEFAULT_IDLE_LIMIT_MS)
+
+    fun setIdleLimitMs(limitMs: Long?) {
+        viewModelScope.launch { recordingPrefs.setIdleLimitMs(limitMs) }
+    }
+
+    /** 자동 종료: 확인 대기 시간(ms) */
+    val graceMs: StateFlow<Long> = recordingPrefs.graceMs
+        .stateIn(viewModelScope, SharingStarted.Eagerly, RecordingPrefs.DEFAULT_GRACE_MS)
+
+    fun setGraceMs(graceMs: Long) {
+        viewModelScope.launch { recordingPrefs.setGraceMs(graceMs) }
+    }
+
     private val _thumbnailCacheSizeBytes = MutableStateFlow(0L)
     val thumbnailCacheSizeBytes: StateFlow<Long> = _thumbnailCacheSizeBytes.asStateFlow()
+
+    /** 강제 종료 등으로 완료되지 못한 채 남아 있는 기록 (앱 시작 시 감지) */
+    private val _unfinishedRecording = MutableStateFlow<ActivityEntity?>(null)
+    val unfinishedRecording: StateFlow<ActivityEntity?> = _unfinishedRecording.asStateFlow()
 
     val filteredActivities: StateFlow<List<ActivityEntity>> = combine(
         repository.observeAllActivities(),
@@ -107,6 +143,31 @@ class GildamViewModel @Inject constructor(
     init {
         refreshThumbnailCacheSize()
         seedSampleDataIfEmpty()
+        checkUnfinishedRecording()
+    }
+
+    private fun checkUnfinishedRecording() {
+        viewModelScope.launch {
+            if (!recordingController.liveState.value.isRecording) {
+                _unfinishedRecording.value = repository.getActiveRecording()
+            }
+        }
+    }
+
+    fun resumeUnfinishedRecording() {
+        val target = _unfinishedRecording.value ?: return
+        _unfinishedRecording.value = null
+        recordingController.resumeExistingRecordingService(target.id)
+    }
+
+    fun finishUnfinishedRecordingNow() {
+        val target = _unfinishedRecording.value ?: return
+        _unfinishedRecording.value = null
+        viewModelScope.launch {
+            if (repository.finishUnfinishedRecording(target.id)) {
+                GildamSyncWorker.enqueueImmediateSync(appContext)
+            }
+        }
     }
 
     fun selectTransportForNewRecording(type: TransportType) {

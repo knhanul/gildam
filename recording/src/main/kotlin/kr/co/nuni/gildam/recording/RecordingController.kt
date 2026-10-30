@@ -31,6 +31,14 @@ class RecordingController @Inject constructor(
         ContextCompat.startForegroundService(context, intent)
     }
 
+    fun resumeExistingRecordingService(activityId: String) {
+        val intent = Intent(context, LocationTrackingService::class.java).apply {
+            action = LocationTrackingService.ACTION_RESUME_EXISTING
+            putExtra(LocationTrackingService.EXTRA_ACTIVITY_ID, activityId)
+        }
+        ContextCompat.startForegroundService(context, intent)
+    }
+
     fun pauseRecordingService() {
         val intent = Intent(context, LocationTrackingService::class.java).apply {
             action = LocationTrackingService.ACTION_PAUSE
@@ -45,9 +53,10 @@ class RecordingController @Inject constructor(
         context.startService(intent)
     }
 
-    fun stopRecordingService() {
+    fun stopRecordingService(reason: StopReason = StopReason.MANUAL) {
         val intent = Intent(context, LocationTrackingService::class.java).apply {
             action = LocationTrackingService.ACTION_STOP
+            putExtra(LocationTrackingService.EXTRA_STOP_REASON, reason.name)
         }
         context.startService(intent)
     }

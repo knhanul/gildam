@@ -50,6 +50,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -60,10 +61,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import kr.co.nuni.gildam.ui.R
+import kr.co.nuni.gildam.data.local.entity.ActivityEntity
 import kr.co.nuni.gildam.data.model.GaugeFormat
 import kr.co.nuni.gildam.data.model.GaugeMetric
 import kr.co.nuni.gildam.data.model.TransportType
@@ -82,6 +85,10 @@ import kr.co.nuni.gildam.recording.LiveRecordingState
 import kr.co.nuni.gildam.ui.theme.TabularStatHeroStyle
 import kr.co.nuni.gildam.ui.theme.TabularStatMediumStyle
 import kr.co.nuni.gildam.ui.theme.WarningAmber
+import java.time.Instant
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
+import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -107,9 +114,25 @@ fun LiveRecordingScreen(
     onSelectCameraMode: (MapCameraMode) -> Unit = {},
     /** 설정에서 활동 구분별로 고른 '지도 위 계기판' 값 */
     overlayMetric: GaugeMetric = GaugeMetric.defaultFor(selectedTransport),
+    /** 설정의 '기록 중 화면 켜 두기' 값 */
+    keepScreenOn: Boolean = false,
+    /** 앱이 강제 종료되어 남아 있던 미완료 기록 (기록 중이 아닐 때만 표시) */
+    unfinishedRecording: ActivityEntity? = null,
+    onResumeUnfinishedRecording: () -> Unit = {},
+    onFinishUnfinishedRecording: () -> Unit = {},
     /** 테스트·미리보기에서 현재 시각을 고정할 때 사용. null 이면 1초마다 실제 시각으로 갱신 */
     fixedClockMs: Long? = null
 ) {
+    // 기록 중 화면 켜 두기: 켜져 있고 기록 중(일시정지 포함)일 때만 이 화면에서 화면 꺼짐 방지, 벗어나거나 종료 시 해제
+    val currentView = LocalView.current
+    val shouldKeepScreenOn = keepScreenOn && (liveState.isRecording || liveState.isPaused)
+    DisposableEffect(currentView, shouldKeepScreenOn) {
+        currentView.keepScreenOn = shouldKeepScreenOn
+        onDispose {
+            currentView.keepScreenOn = false
+        }
+    }
+
     // 현재 시간 계기판만 1초마다 다시 그리도록, 시각 상태는 읽는 곳에서만 구독합니다.
     val clockTick = rememberClockTick(fixedClockMs)
     var cameraMode by rememberSaveable(defaultCameraMode) { mutableStateOf(defaultCameraMode) }
@@ -180,7 +203,11 @@ fun LiveRecordingScreen(
                                 color = MaterialTheme.colorScheme.primary
                             )
                             Text(
-                                text = "화면이 꺼져도 1초 주기로 궤적을 기록합니다",
+                                text = if (keepScreenOn) {
+                                    "화면을 켜 둡니다 · 1초 주기로 궤적 기록"
+                                } else {
+                                    "화면이 꺼져도 1초 주기로 궤적을 기록합니다"
+                                },
                                 style = MaterialTheme.typography.labelSmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -198,6 +225,15 @@ fun LiveRecordingScreen(
             }
 
             follow?.let { FollowCourseCard(it, onStopFollow, Modifier.padding(top = 8.dp)) }
+
+            if (!liveState.isRecording && unfinishedRecording != null) {
+                UnfinishedRecordingCard(
+                    activity = unfinishedRecording,
+                    onResume = onResumeUnfinishedRecording,
+                    onFinishNow = onFinishUnfinishedRecording,
+                    modifier = Modifier.padding(top = 8.dp)
+                )
+            }
 
             // GPS 신호 미약 경고 배너 (터널/실내)
             AnimatedVisibility(visible = liveState.isGpsSignalWeak) {
@@ -372,6 +408,67 @@ fun LiveRecordingScreen(
                 showAddMemoSheet = false
             }
         )
+    }
+}
+
+private val UNFINISHED_TIME_FMT = DateTimeFormatter.ofPattern("M월 d일 HH:mm", Locale.KOREA)
+
+@Composable
+private fun UnfinishedRecordingCard(
+    activity: ActivityEntity,
+    onResume: () -> Unit,
+    onFinishNow: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val startTimeStr = remember(activity.startedAtEpochMs) {
+        UNFINISHED_TIME_FMT.format(
+            Instant.ofEpochMilli(activity.startedAtEpochMs).atZone(ZoneId.systemDefault())
+        )
+    }
+    val distanceKmStr = remember(activity.distanceMeters) {
+        String.format(Locale.KOREA, "%.2f", activity.distanceMeters / 1000.0)
+    }
+
+    Card(
+        shape = RoundedCornerShape(18.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.secondaryContainer
+        ),
+        elevation = CardDefaults.cardElevation(defaultElevation = 6.dp),
+        modifier = modifier.fillMaxWidth()
+    ) {
+        Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
+            Text(
+                text = "끝나지 않은 기록이 있어요",
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSecondaryContainer
+            )
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                text = "「${activity.title}」 · $startTimeStr · 지금까지 $distanceKmStr km. 이어서 기록할까요?",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSecondaryContainer
+            )
+            Spacer(modifier = Modifier.height(10.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End)
+            ) {
+                OutlinedButton(
+                    onClick = onFinishNow,
+                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
+                ) {
+                    Text("여기서 마치기", style = MaterialTheme.typography.labelMedium)
+                }
+                Button(
+                    onClick = onResume,
+                    contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp)
+                ) {
+                    Text("이어서 기록", style = MaterialTheme.typography.labelMedium)
+                }
+            }
+        }
     }
 }
 

@@ -73,7 +73,15 @@ fun SettingsScreen(
     onSelectDarkMode: (DarkModePref) -> Unit = {},
     onOpenRecordingStatus: () -> Unit = {},
     onOpenGaugeEditor: () -> Unit = {},
-    onOpenPhotoStorage: () -> Unit = {}
+    onOpenPhotoStorage: () -> Unit = {},
+    keepScreenOn: Boolean = kr.co.nuni.gildam.data.prefs.RecordingPrefs.DEFAULT_KEEP_SCREEN_ON,
+    onKeepScreenOnChange: (Boolean) -> Unit = {},
+    maxDurationMs: Long? = kr.co.nuni.gildam.recording.AutoStopPolicy.DEFAULT_MAX_DURATION_MS,
+    onSelectMaxDurationMs: (Long?) -> Unit = {},
+    idleLimitMs: Long? = kr.co.nuni.gildam.recording.AutoStopPolicy.DEFAULT_IDLE_LIMIT_MS,
+    onSelectIdleLimitMs: (Long?) -> Unit = {},
+    graceMs: Long = kr.co.nuni.gildam.recording.AutoStopPolicy.DEFAULT_GRACE_MS,
+    onSelectGraceMs: (Long) -> Unit = {}
 ) {
     var showThemeSheet by remember { mutableStateOf(false) }
     var showModeSheet by remember { mutableStateOf(false) }
@@ -137,6 +145,17 @@ fun SettingsScreen(
                     supportingText = "활동별로 지도에 크게 표시할 값을 선택해요.",
                     icon = Icons.Outlined.Map,
                     onClick = onOpenGaugeEditor
+                )
+                SettingsItemDivider()
+                RecordingSettingsItems(
+                    keepScreenOn = keepScreenOn,
+                    onKeepScreenOnChange = onKeepScreenOnChange,
+                    maxDurationMs = maxDurationMs,
+                    onSelectMaxDurationMs = onSelectMaxDurationMs,
+                    idleLimitMs = idleLimitMs,
+                    onSelectIdleLimitMs = onSelectIdleLimitMs,
+                    graceMs = graceMs,
+                    onSelectGraceMs = onSelectGraceMs
                 )
             }
 
