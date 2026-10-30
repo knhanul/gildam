@@ -43,6 +43,16 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kr.co.nuni.gildam.auth.NuniSessionState
+import kr.co.nuni.gildam.data.prefs.ProfilePrefs
+import kr.co.nuni.gildam.ui.illustration.GildamTooltip
+import androidx.compose.material.icons.outlined.Edit
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import kr.co.nuni.gildam.sync.SyncUiStatus
 import java.time.Instant
 import java.time.ZoneId
@@ -58,6 +68,8 @@ internal fun AccountCard(
     syncStatus: SyncUiStatus,
     lastSyncSuccessAtMs: Long,
     serverTrackCount: Int?,
+    nickname: String? = null,
+    onUpdateNickname: (String) -> Boolean = { true },
     onKakaoLogin: () -> Unit,
     onSwitchAccount: () -> Unit,
     onManualSync: () -> Unit,
@@ -83,6 +95,7 @@ internal fun AccountCard(
             if (sessionState.isLoggedIn) {
                 LoggedInContent(
                     sessionState, syncStatus, lastSyncSuccessAtMs, serverTrackCount,
+                    nickname, onUpdateNickname,
                     onKakaoLogin, onSwitchAccount, onManualSync, onLogout
                 )
             } else {
@@ -117,22 +130,45 @@ private fun LoggedInContent(
     syncStatus: SyncUiStatus,
     lastSyncSuccessAtMs: Long,
     serverTrackCount: Int?,
+    nickname: String?,
+    onUpdateNickname: (String) -> Boolean,
     onKakaoLogin: () -> Unit,
     onSwitchAccount: () -> Unit,
     onManualSync: () -> Unit,
     onLogout: () -> Unit
 ) {
+    var showNicknameDialog by remember { mutableStateOf(false) }
     Text(
         text = "카카오 계정으로 로그인됨",
         style = MaterialTheme.typography.bodyMedium,
         fontWeight = FontWeight.SemiBold,
         color = MaterialTheme.colorScheme.onSurface
     )
-    Text(
-        text = "회원번호 ${shortSub(sessionState.nuniUserId)}",
-        style = MaterialTheme.typography.labelSmall,
-        color = MaterialTheme.colorScheme.onSurfaceVariant
-    )
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Text(
+            text = nickname ?: "닉네임을 정해 주세요",
+            style = MaterialTheme.typography.labelMedium,
+            fontWeight = if (nickname != null) FontWeight.SemiBold else FontWeight.Normal,
+            color = if (nickname != null) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        GildamTooltip(label = "닉네임 바꾸기") {
+            IconButton(onClick = { showNicknameDialog = true }, modifier = Modifier.size(32.dp)) {
+                Icon(
+                    Icons.Outlined.Edit,
+                    contentDescription = "닉네임 바꾸기",
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(16.dp)
+                )
+            }
+        }
+    }
+    if (showNicknameDialog) {
+        NicknameDialog(
+            initial = nickname.orEmpty(),
+            onDismiss = { showNicknameDialog = false },
+            onSave = { if (onUpdateNickname(it)) showNicknameDialog = false }
+        )
+    }
     if (serverTrackCount != null) {
         Text(
             text = "서버에 저장된 기록 ${serverTrackCount}개",
@@ -284,3 +320,32 @@ private fun NuniFootnote() {
 
 internal fun shortSub(sub: String?): String =
     if (sub.isNullOrBlank()) "-" else if (sub.length <= 12) sub else sub.take(6) + "…" + sub.takeLast(4)
+
+/** 닉네임 바꾸기: 앞뒤 공백을 빼고 1~20자 */
+@Composable
+private fun NicknameDialog(initial: String, onDismiss: () -> Unit, onSave: (String) -> Unit) {
+    var text by remember { mutableStateOf(initial) }
+    val trimmed = text.trim()
+    val valid = ProfilePrefs.normalize(text) != null
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("닉네임 바꾸기") },
+        text = {
+            OutlinedTextField(
+                value = text,
+                onValueChange = { if (it.length <= ProfilePrefs.MAX_LENGTH + 10) text = it },
+                singleLine = true,
+                isError = text.isNotEmpty() && !valid,
+                supportingText = {
+                    Text(
+                        if (text.isNotEmpty() && !valid) "1~${ProfilePrefs.MAX_LENGTH}자로 정해 주세요"
+                        else "${trimmed.length}/${ProfilePrefs.MAX_LENGTH}"
+                    )
+                },
+                placeholder = { Text("닉네임") }
+            )
+        },
+        confirmButton = { TextButton(onClick = { onSave(text) }, enabled = valid) { Text("저장") } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("취소") } }
+    )
+}

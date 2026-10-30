@@ -31,6 +31,10 @@ import kr.co.nuni.gildam.data.local.entity.TrackPointEntity
 import kr.co.nuni.gildam.data.media.LocalPhotoManager
 import kr.co.nuni.gildam.data.model.TransportType
 import kr.co.nuni.gildam.data.prefs.RecordingPrefs
+import kr.co.nuni.gildam.data.prefs.ProfilePrefs
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flowOf
 import kr.co.nuni.gildam.data.model.Visibility
 import kr.co.nuni.gildam.data.repository.GildamRepository
 import kr.co.nuni.gildam.recording.LiveRecordingState
@@ -52,7 +56,8 @@ class GildamViewModel @Inject constructor(
     private val serverAccount: ServerAccountRepository,
     private val recordingPrefs: RecordingPrefs,
     private val syncStatusObserver: SyncStatusObserver,
-    private val syncCursorStore: SyncCursorStore
+    private val syncCursorStore: SyncCursorStore,
+    private val profilePrefs: ProfilePrefs
 ) : ViewModel() {
 
     /** 로그인 후 GET /v1/me 의 track_count (모르면 null) */
@@ -62,8 +67,28 @@ class GildamViewModel @Inject constructor(
     fun refreshServerAccount() {
         if (!tokenStore.sessionFlow.value.isLoggedIn) { _serverTrackCount.value = null; return }
         viewModelScope.launch {
-            _serverTrackCount.value = serverAccount.fetchTrackCount()
+            val acc = serverAccount.fetchAccount()
+            _serverTrackCount.value = acc?.trackCount
+            _serverNickname.value = acc?.nickname
         }
+    }
+
+    /** NUNI ID(카카오) 닉네임: 서버 /v1/me 값 */
+    private val _serverNickname = MutableStateFlow<String?>(null)
+
+    /** 화면에 보일 닉네임: 이 기기에서 고친 값 > NUNI ID 닉네임 > null('닉네임을 정해 주세요') */
+    @OptIn(ExperimentalCoroutinesApi::class)
+    val nickname: StateFlow<String?> = tokenStore.sessionFlow
+        .flatMapLatest { s -> s.nuniUserId?.let { profilePrefs.nickname(it) } ?: flowOf(null) }
+        .combine(_serverNickname) { local, server -> local ?: server }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
+
+    /** 1~20자(앞뒤 공백 제거)면 저장하고 true */
+    fun updateNickname(raw: String): Boolean {
+        val sub = tokenStore.sessionFlow.value.nuniUserId ?: return false
+        val nick = ProfilePrefs.normalize(raw) ?: return false
+        viewModelScope.launch { profilePrefs.setNickname(sub, nick) }
+        return true
     }
 
     val liveRecordingState: StateFlow<LiveRecordingState> = recordingController.liveState

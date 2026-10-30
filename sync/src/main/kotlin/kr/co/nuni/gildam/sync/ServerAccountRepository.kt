@@ -8,5 +8,12 @@ import javax.inject.Singleton
 @Singleton
 class ServerAccountRepository @Inject constructor(private val api: GildamOvhApi) {
     /** 서버에 저장된 기록 수, 실패하면 null */
-    suspend fun fetchTrackCount(): Int? = runCatching { api.getMe() }.getOrNull()?.takeIf { it.isSuccessful }?.body()?.trackCount
+    suspend fun fetchTrackCount(): Int? = fetchAccount()?.trackCount
+
+    /** GET /v1/me 요약 (기록 수 + NUNI ID 닉네임). 실패하면 null */
+    suspend fun fetchAccount(): ServerAccount? =
+        runCatching { api.getMe() }.getOrNull()?.takeIf { it.isSuccessful }?.body()
+            ?.let { ServerAccount(trackCount = it.trackCount, nickname = it.nickname?.trim()?.takeIf(String::isNotEmpty)) }
 }
+
+data class ServerAccount(val trackCount: Int, val nickname: String?)

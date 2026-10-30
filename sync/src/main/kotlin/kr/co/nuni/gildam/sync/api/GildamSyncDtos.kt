@@ -59,6 +59,8 @@ data class TrackListResponseDto(
 @Serializable
 data class MeResponseDto(
     val sub: String,
+    /** NUNI ID 닉네임 (액세스 토큰 claim 또는 userinfo). 없으면 null */
+    val nickname: String? = null,
     @SerialName("brand_id") val brandId: String? = null,
     @SerialName("brand_role") val brandRole: String? = null,
     @SerialName("created_at") val createdAt: Long? = null,

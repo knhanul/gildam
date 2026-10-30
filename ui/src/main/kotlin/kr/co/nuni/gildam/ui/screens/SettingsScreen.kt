@@ -59,6 +59,8 @@ fun SettingsScreen(
     syncStatus: SyncUiStatus,
     lastSyncSuccessAtMs: Long,
     serverTrackCount: Int?,
+    nickname: String? = null,
+    onUpdateNickname: (String) -> Boolean = { true },
     onKakaoLogin: () -> Unit,
     onSwitchAccount: () -> Unit,
     /** 디버그 빌드에서만 전달 (릴리스는 null → 버튼 숨김) */
@@ -116,6 +118,8 @@ fun SettingsScreen(
                 syncStatus = syncStatus,
                 lastSyncSuccessAtMs = lastSyncSuccessAtMs,
                 serverTrackCount = serverTrackCount,
+                nickname = nickname,
+                onUpdateNickname = onUpdateNickname,
                 onKakaoLogin = onKakaoLogin,
                 onSwitchAccount = onSwitchAccount,
                 onManualSync = onManualSync,

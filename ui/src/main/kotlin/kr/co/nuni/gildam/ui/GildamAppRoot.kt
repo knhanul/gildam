@@ -299,11 +299,14 @@ fun GildamAppRoot(
 
             composable<SettingsRoute> {
                 val serverTrackCount by viewModel.serverTrackCount.collectAsState()
+                val nickname by viewModel.nickname.collectAsState()
                 val syncStatus by viewModel.syncStatus.collectAsState()
                 val lastSyncSuccessAtMs by viewModel.lastSyncSuccessAtMs.collectAsState()
                 LaunchedEffect(sessionState.isLoggedIn) { viewModel.refreshServerAccount() }
                 SettingsScreen(
                     serverTrackCount = serverTrackCount,
+                    nickname = nickname,
+                    onUpdateNickname = viewModel::updateNickname,
                     sessionState = sessionState,
                     syncStatus = syncStatus,
                     lastSyncSuccessAtMs = lastSyncSuccessAtMs,

@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
 
     <!-- 네트워크 및 동기화 -->
     <uses-permission android:name="android.permission.VIBRATE" />
@@ -57,6 +58,18 @@
             android:exported="false"
             android:foregroundServiceType="location" />
 
+        <!-- WorkManager 기본 초기화를 끄고 GildamApplication(Configuration.Provider)의 HiltWorkerFactory 를 쓰게 함.
+             이게 없으면 GildamSyncWorker(@HiltWorker) 생성에 실패해 동기화가 항상 '실패'로 끝남 -->
+        <provider
+            android:name="androidx.startup.InitializationProvider"
+            android:authorities="${applicationId}.androidx-startup"
+            android:exported="false"
+            tools:node="merge">
+            <meta-data
+                android:name="androidx.work.WorkManagerInitializer"
+                android:value="androidx.startup"
+                tools:node="remove" />
+        </provider>
     </application>
 
 </manifest>
