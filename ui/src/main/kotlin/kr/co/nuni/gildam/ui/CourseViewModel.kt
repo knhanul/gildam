@@ -27,6 +27,7 @@ import kotlinx.coroutines.withContext
 import kr.co.nuni.gildam.data.course.CourseEntity
 import kr.co.nuni.gildam.data.course.CourseFollower
 import kr.co.nuni.gildam.data.course.CourseRepository
+import kr.co.nuni.gildam.data.course.FollowEta
 import kr.co.nuni.gildam.data.course.HikingTimeEstimator
 import kr.co.nuni.gildam.data.gpxcompare.GpxPoint
 import kr.co.nuni.gildam.data.gpxcompare.GpxRuggedness
@@ -234,19 +235,34 @@ class CourseViewModel @Inject constructor(
         }
     }
 
-    val follow: StateFlow<CourseFollowUi?> = combine(_follow, recordingController.liveState.map { it.currentLocation }) { f, loc ->
+    /**
+     * 따라 걷기 카드 값.
+     * 남은 시간은 **지금 기록의 이동 평균 속도**(남은 거리 ÷ 평균 속도)로 계산하고,
+     * 속도를 믿을 수 없을 때(0.3 m/s 미만·아직 이동 시간 없음·24시간 초과)만 Tobler 모델값으로 돌아갑니다.
+     * 위치 신호가 잠깐 없거나 일시정지여도 상태에 남아 있는 평균 속도를 그대로 씁니다.
+     */
+    val follow: StateFlow<CourseFollowUi?> = combine(_follow, recordingController.liveState) { f, live ->
         f ?: return@combine null
         val pace = _paceFactor.value ?: 1.0
+        val loc = live.currentLocation
+        // 지금 기록의 이동 평균 속도 (쓸 수 없으면 null)
+        val avgSpeed = FollowEta.usableSpeedMps(live.movingAvgSpeedMps, live.distanceMeters, live.elapsedMovingMs)
+
+        fun etaFor(remainingM: Double, fromKm: Double): Double {
+            val fallback = HikingTimeEstimator.estimateSeconds(f.result.profile, f.result.distanceM, pace, fromKm = fromKm)
+            return FollowEta.etaSeconds(remainingM, avgSpeed, fallback)
+        }
+
         if (loc == null) {
             // 아직 위치 신호가 없을 때: 저장해 둔 진행 지점이 있으면 거기서부터 보여 줌
             val along = f.follower.lastAlongM
             val remaining = if (along != null) (f.follower.totalM - along).coerceAtLeast(0.0) else f.follower.totalM
-            val eta = HikingTimeEstimator.estimateSeconds(f.result.profile, f.result.distanceM, pace, fromKm = (along ?: 0.0) / 1000.0)
+            val eta = etaFor(remaining, (along ?: 0.0) / 1000.0)
             return@combine CourseFollowUi(f.name, f.route, f.follower.totalM, remaining, eta, arrivalClock(eta), f.follower.isOffCourse, f.follower.lastOffsetM)
         }
         val (p, newlyOff) = f.follower.update(loc.latitude, loc.longitude)
         if (newlyOff) vibrateOffCourse()
-        val eta = HikingTimeEstimator.estimateSeconds(f.result.profile, f.result.distanceM, pace, fromKm = p.alongM / 1000.0)
+        val eta = etaFor(p.remainingM, p.alongM / 1000.0)
         CourseFollowUi(f.name, f.route, f.follower.totalM, p.remainingM, eta, arrivalClock(eta), f.follower.isOffCourse, p.offsetM)
     }.stateIn(viewModelScope, SharingStarted.Eagerly, null)
 
