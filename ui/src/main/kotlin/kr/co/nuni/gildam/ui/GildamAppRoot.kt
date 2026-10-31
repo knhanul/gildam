@@ -191,7 +191,11 @@ fun GildamAppRoot(
                         }.toTypedArray()
                         foregroundPermissionLauncher.launch(permissions)
                     },
-                    onFinishUnfinishedRecording = viewModel::finishUnfinishedRecordingNow
+                    onFinishUnfinishedRecording = {
+                        // 여기서 마치면 그 걷기는 끝난 것 → 따라 걷던 코스도 함께 정리
+                        viewModel.finishUnfinishedRecordingNow()
+                        courseViewModel.stopFollow()
+                    }
                 )
             }
 

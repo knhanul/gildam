@@ -27,6 +27,19 @@ class CourseFollower(private val route: List<GpxPoint>) {
     var isOffCourse: Boolean = false
         private set
 
+    /** 마지막으로 확인한 위치 기준 진행(m) · 이탈(m). 아직 위치를 못 받았으면 null */
+    var lastAlongM: Double? = null
+        private set
+    var lastOffsetM: Double? = null
+        private set
+
+    /** 저장해 두었던 진행 상태로 되돌립니다 (앱이 백그라운드에서 정리됐다 돌아왔을 때). */
+    fun restoreState(alongM: Double?, offsetM: Double?, offCourse: Boolean) {
+        lastAlongM = alongM
+        lastOffsetM = offsetM
+        isOffCourse = offCourse
+    }
+
     fun locate(lat: Double, lon: Double): CourseProgress {
         if (route.isEmpty()) return CourseProgress(Double.MAX_VALUE, 0.0, 0.0)
         if (route.size == 1) {
@@ -52,6 +65,8 @@ class CourseFollower(private val route: List<GpxPoint>) {
     /** 위치를 반영하고 이탈 상태가 '새로' 켜졌으면 true (진동 트리거용). */
     fun update(lat: Double, lon: Double): Pair<CourseProgress, Boolean> {
         val p = locate(lat, lon)
+        lastAlongM = p.alongM
+        lastOffsetM = p.offsetM
         val was = isOffCourse
         isOffCourse = if (was) p.offsetM >= BACK_ON_COURSE_M else p.offsetM > OFF_COURSE_M
         return p to (!was && isOffCourse)
