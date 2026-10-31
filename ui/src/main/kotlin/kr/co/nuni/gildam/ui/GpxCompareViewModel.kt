@@ -4,6 +4,8 @@ import android.content.Context
 import android.net.Uri
 import android.provider.OpenableColumns
 import androidx.lifecycle.ViewModel
+import dagger.hilt.android.lifecycle.HiltViewModel
+import javax.inject.Inject
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -11,17 +13,22 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kr.co.nuni.gildam.data.course.CourseRepository
 import kr.co.nuni.gildam.data.gpxcompare.GpxParseException
 import kr.co.nuni.gildam.data.gpxcompare.GpxRuggedness
 import kr.co.nuni.gildam.data.gpxcompare.GpxTrackParser
 import kr.co.nuni.gildam.ui.screens.GpxCompareEntry
+import kr.co.nuni.gildam.ui.screens.CompareSource
 import java.util.UUID
 
 /**
  * GPX 비교 상태. 파일은 SAF 로 읽기만 하고 DB 저장·동기화·영구 권한 요청을 하지 않습니다.
  * 화면을 떠나면(ViewModel 정리) 결과도 사라집니다.
  */
-class GpxCompareViewModel : ViewModel() {
+@HiltViewModel
+class GpxCompareViewModel @Inject constructor(
+    private val courseRepository: CourseRepository
+) : ViewModel() {
     private val _entries = MutableStateFlow<List<GpxCompareEntry>>(emptyList())
     val entries: StateFlow<List<GpxCompareEntry>> = _entries.asStateFlow()
 
@@ -46,6 +53,32 @@ class GpxCompareViewModel : ViewModel() {
                     } catch (e: Exception) {
                         GpxCompareEntry.Failed(UUID.randomUUID().toString(), name, "파일을 읽는 중 문제가 생겼어요.")
                     }
+                }
+            }
+            _entries.value = _entries.value + added
+            _loading.value = false
+        }
+    }
+
+    /** 같은 코스 묶음을 화면 회전 등으로 다시 넣지 않도록 기억 */
+    private var preloadedKey: String? = null
+
+    /** 코스 목록에서 고른 코스를 파일 대신 미리 넣기 (이미 있으면 건너뜀) */
+    fun preloadCourses(context: Context, courseIds: List<String>) {
+        if (courseIds.isEmpty()) return
+        val key = courseIds.joinToString(",")
+        if (preloadedKey == key) return
+        preloadedKey = key
+        val existing = _entries.value.map { it.id }.toSet()
+        val todo = courseIds.filterNot { it in existing }.take(MAX_FILES - _entries.value.size)
+        if (todo.isEmpty()) return
+        viewModelScope.launch {
+            _loading.value = true
+            val added = withContext(Dispatchers.IO) {
+                todo.mapNotNull { id ->
+                    val course = courseRepository.getCourse(id) ?: return@mapNotNull null
+                    val result = GpxRuggedness.analyze(course.name, course.points())
+                    GpxCompareEntry.Loaded(id, result, CompareSource.COURSE)
                 }
             }
             _entries.value = _entries.value + added

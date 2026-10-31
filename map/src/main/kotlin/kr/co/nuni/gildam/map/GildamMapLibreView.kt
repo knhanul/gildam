@@ -84,7 +84,9 @@ fun GildamMapLibreView(
     /** 바뀌면 자동 카메라를 즉시 다시 맞춤 ('다시 맞추기') */
     recenterKey: Int = 0,
     /** 경로선 투명도 (기록 중 1.0f, 종료 직후 남겨 둔 경로 스냅샷 0.6f) */
-    routeOpacity: Float = 1.0f
+    routeOpacity: Float = 1.0f,
+    /** 전체 화면 지도: 회전·기울이기 제스처와 나침반을 켬 (북쪽 고정을 강제하지 않음) */
+    fullscreenGestures: Boolean = false
 ) {
     val isPreview = LocalInspectionMode.current
     val themeRoute = MaterialTheme.colorScheme.primary
@@ -152,6 +154,21 @@ fun GildamMapLibreView(
 
                     // 현재 위치 → 경로 마지막 점 → 코스 첫 점. 아무것도 없으면 null (카메라를 옮기지 않음, 서울로 튀지 않게)
                     val target = MapCameraPlanner.targetFor(trackPoints, currentLocation, coursePoints)
+
+                    // 전체 화면: 회전·기울이기·나침반 허용 (기본 화면은 그대로 둠)
+                    if (fullscreenGestures) {
+                        val ui = map.uiSettings
+                        ui.isRotateGesturesEnabled = true
+                        ui.isTiltGesturesEnabled = true
+                        ui.isZoomGesturesEnabled = true
+                        ui.isScrollGesturesEnabled = true
+                        ui.isCompassEnabled = true
+                        // 상단 오버레이(코스 이름·닫기) 아래 오른쪽에 나침반
+                        ui.compassGravity = android.view.Gravity.TOP or android.view.Gravity.END
+                        val d = view.resources.displayMetrics.density
+                        val side = (12 * d).toInt(); val top = (76 * d).toInt()
+                        ui.setCompassMargins(side, top, side, side)
+                    }
 
                     if (!camState.listener) {
                         camState.listener = true

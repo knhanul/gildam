@@ -68,9 +68,16 @@ import kotlin.math.floor
 import kotlin.math.max
 import kotlin.math.roundToInt
 
+/** 비교 항목이 GPX 파일에서 왔는지, 내 코스에서 왔는지 */
+enum class CompareSource { FILE, COURSE }
+
 sealed interface GpxCompareEntry {
     val id: String
-    data class Loaded(override val id: String, val result: RuggednessResult) : GpxCompareEntry
+    data class Loaded(
+        override val id: String,
+        val result: RuggednessResult,
+        val source: CompareSource = CompareSource.FILE
+    ) : GpxCompareEntry
     data class Failed(override val id: String, val name: String, val message: String) : GpxCompareEntry
 }
 
@@ -114,10 +121,13 @@ fun GpxCompareScreen(
     isTopLevelTab: Boolean = false
 ) {
     val loaded = entries.filterIsInstance<GpxCompareEntry.Loaded>()
+    // 내 코스로만 채워졌으면 '코스 비교', GPX 파일이 섞이면 'GPX 길 비교'
+    val title = if (entries.isNotEmpty() && loaded.size == entries.size &&
+        loaded.all { it.source == CompareSource.COURSE }) "코스 비교" else "GPX 길 비교"
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("GPX 길 비교") },
+                title = { Text(title) },
                 navigationIcon = {
                     if (!isTopLevelTab) IconButton(onClick = onNavigateBack) { Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = "뒤로") }
                 },
@@ -133,7 +143,7 @@ fun GpxCompareScreen(
             if (entries.isEmpty()) IntroCard(maxFiles, onPickFiles)
             else {
                 FileList(entries, loaded, maxFiles, onPickFiles, onRemove)
-                if (loaded.size == 1) HintText("비교하려면 GPX 파일을 하나 더 불러오세요.")
+                if (loaded.size == 1) HintText("비교하려면 하나 더 불러오거나 코스를 골라 주세요.")
                 if (loaded.isNotEmpty()) {
                     if (loaded.size >= 2) VerdictCard(loaded)
                     val withEle = loaded.filter { it.result.hasElevation }
@@ -169,7 +179,13 @@ private fun IntroCard(maxFiles: Int, onPick: () -> Unit) {
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
-            Spacer(Modifier.height(16.dp))
+            Spacer(Modifier.height(10.dp))
+            Text(
+                "코스 목록에서 코스를 골라 들어오면 파일 없이 바로 비교할 수 있어요.",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Spacer(Modifier.height(12.dp))
             Button(onClick = onPick, shape = RoundedCornerShape(14.dp), modifier = Modifier.fillMaxWidth().height(52.dp)) {
                 Icon(Icons.Outlined.FileOpen, null); Spacer(Modifier.width(8.dp)); Text("GPX 파일 불러오기")
             }
@@ -189,7 +205,18 @@ private fun FileList(entries: List<GpxCompareEntry>, loaded: List<GpxCompareEntr
                             Box(Modifier.size(12.dp).clip(CircleShape).background(CompareColors[idx % CompareColors.size]))
                             Spacer(Modifier.width(10.dp))
                             Column(Modifier.weight(1f)) {
-                                Text(e.result.displayName, style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Text(e.result.displayName, style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                                        modifier = Modifier.weight(1f, fill = false))
+                                    if (e.source == CompareSource.COURSE) {
+                                        Spacer(Modifier.width(6.dp))
+                                        Surface(shape = RoundedCornerShape(50), color = MaterialTheme.colorScheme.primaryContainer) {
+                                            Text("코스", style = MaterialTheme.typography.labelSmall,
+                                                color = MaterialTheme.colorScheme.onPrimaryContainer,
+                                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 1.dp))
+                                        }
+                                    }
+                                }
                                 Text(
                                     if (e.result.hasElevation) "%.2f km · 상승 %,d m".format(e.result.distanceM / 1000, e.result.ascentM.roundToInt())
                                     else "%.2f km · 고도 정보 없음".format(e.result.distanceM / 1000),

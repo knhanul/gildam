@@ -1,6 +1,20 @@
 package kr.co.nuni.gildam.ui.screens
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.semantics.stateDescription
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.outlined.RadioButtonUnchecked
+import androidx.compose.material.icons.outlined.OpenInFull
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -14,6 +28,8 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -96,18 +112,62 @@ fun CourseListScreen(
     isImporting: Boolean,
     onImport: () -> Unit,
     onOpenCourse: (String) -> Unit,
-    onOpenCompare: () -> Unit
+    onOpenCompare: () -> Unit,
+    /** 코스 목록에서 골라 바로 비교 (고른 순서 그대로 코스 id 전달) */
+    onCompareCourses: (List<String>) -> Unit = {},
+    /** 한 번에 비교할 수 있는 코스 수 (GPX 파일 비교와 같은 값) */
+    maxCompare: Int = 4
 ) {
+    // 선택 모드: 코스를 눌러 고르고 상단 '비교'로 넘어감. 길게 눌러도 시작
+    var selecting by rememberSaveable { mutableStateOf(false) }
+    // 고른 코스 id 를 쉼표로 이어 저장 (화면 회전에도 유지)
+    var selectedCsv by rememberSaveable { mutableStateOf("") }
+    val selected = remember(selectedCsv) { selectedCsv.split(',').filter { it.isNotEmpty() } }
+    val haptics = LocalHapticFeedback.current
+
+    fun toggle(id: String) {
+        val next = if (id in selected) selected - id else if (selected.size < maxCompare) selected + id else selected
+        selectedCsv = next.joinToString(",")
+    }
+
+    fun exitSelection() { selecting = false; selectedCsv = "" }
+
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = { Text("코스") },
-                actions = { if (courses.isNotEmpty()) kr.co.nuni.gildam.ui.illustration.TooltipIconButton(
-                    Icons.AutoMirrored.Outlined.NoteAdd, "GPX 코스 불러오기", onImport,
-                    style = kr.co.nuni.gildam.ui.illustration.IconButtonStyle.BRAND, visualSize = 38.dp, iconSize = 20.dp,
-                    modifier = Modifier.padding(end = 8.dp)
-                ) }
-            )
+            if (selecting) {
+                TopAppBar(
+                    title = { Text("코스 비교 · ${selected.size}/$maxCompare") },
+                    navigationIcon = {
+                        IconButton(onClick = { exitSelection() }) {
+                            Icon(Icons.Outlined.Close, contentDescription = "선택 취소")
+                        }
+                    },
+                    actions = {
+                        TextButton(
+                            onClick = { val ids = selected.toList(); exitSelection(); onCompareCourses(ids) },
+                            enabled = selected.size >= 2
+                        ) {
+                            Text("비교" + if (selected.isNotEmpty()) " (${selected.size})" else "")
+                        }
+                    }
+                )
+            } else {
+                TopAppBar(
+                    title = { Text("코스") },
+                    actions = {
+                        if (courses.size >= 2) kr.co.nuni.gildam.ui.illustration.TooltipIconButton(
+                            Icons.Outlined.CompareArrows, "코스 골라 비교", { selecting = true },
+                            style = kr.co.nuni.gildam.ui.illustration.IconButtonStyle.TONAL, visualSize = 38.dp, iconSize = 20.dp,
+                            modifier = Modifier.padding(end = 4.dp)
+                        )
+                        if (courses.isNotEmpty()) kr.co.nuni.gildam.ui.illustration.TooltipIconButton(
+                            Icons.AutoMirrored.Outlined.NoteAdd, "GPX 코스 불러오기", onImport,
+                            style = kr.co.nuni.gildam.ui.illustration.IconButtonStyle.BRAND, visualSize = 38.dp, iconSize = 20.dp,
+                            modifier = Modifier.padding(end = 8.dp)
+                        )
+                    }
+                )
+            }
         }
     ) { inner ->
         LazyColumn(
@@ -115,15 +175,37 @@ fun CourseListScreen(
             contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 24.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            item { CompareEntryCard(enabled = true, onClick = onOpenCompare) }
+            if (!selecting) item { CompareEntryCard(enabled = true, onClick = onOpenCompare) }
             if (isImporting) item { LinearProgressIndicator(Modifier.fillMaxWidth()) }
             if (courses.isEmpty()) item { EmptyCourses(onImport) }
             else {
                 item {
-                    Text("내 코스 ${courses.size}", style = MaterialTheme.typography.titleSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 6.dp, start = 4.dp))
+                    Text(
+                        if (selecting) "비교할 코스를 2~${maxCompare}개 골라 주세요"
+                        else "내 코스 ${courses.size}",
+                        style = MaterialTheme.typography.titleSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(top = 6.dp, start = 4.dp)
+                    )
                 }
-                items(courses, key = { it.id }) { CourseCard(it) { onOpenCourse(it.id) } }
+                items(courses, key = { it.id }) { c ->
+                    CourseCard(
+                        c = c,
+                        selected = if (selecting) (c.id in selected) else null,
+                        onClick = {
+                            if (!selecting) onOpenCourse(c.id)
+                            else if (c.id in selected || selected.size < maxCompare) toggle(c.id)
+                            else haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                        },
+                        onLongClick = {
+                            if (!selecting) {
+                                haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                                selecting = true
+                                if (c.id !in selected) toggle(c.id)
+                            }
+                        }
+                    )
+                }
             }
         }
     }
@@ -169,14 +251,43 @@ private fun EmptyCourses(onImport: () -> Unit) {
     }
 }
 
+/**
+ * 코스 카드. [selected] 가 null 이면 일반(탭=상세), 아니면 선택 모드(체크 표시).
+ * 길게 누르면 선택 모드로 들어갑니다.
+ */
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun CourseCard(c: CourseListItem, onClick: () -> Unit) {
+private fun CourseCard(
+    c: CourseListItem,
+    selected: Boolean?,
+    onClick: () -> Unit,
+    onLongClick: () -> Unit
+) {
+    val shape = RoundedCornerShape(20.dp)
     Card(
-        onClick = onClick, shape = RoundedCornerShape(20.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+        shape = shape,
+        colors = CardDefaults.cardColors(
+            containerColor = if (selected == true) MaterialTheme.colorScheme.primaryContainer
+            else MaterialTheme.colorScheme.surfaceVariant
+        ),
+        border = if (selected == true) BorderStroke(1.5.dp, MaterialTheme.colorScheme.primary) else null,
         modifier = Modifier.fillMaxWidth()
+            .clip(shape)
+            .combinedClickable(onClick = onClick, onLongClick = onLongClick)
+            .semantics {
+                if (selected != null) stateDescription = if (selected) "선택됨" else "선택 안 됨"
+            }
     ) {
         Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
+            if (selected != null) {
+                Icon(
+                    if (selected) Icons.Filled.CheckCircle else Icons.Outlined.RadioButtonUnchecked,
+                    contentDescription = null,
+                    tint = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(22.dp)
+                )
+                Spacer(Modifier.width(10.dp))
+            }
             RouteThumb(c.thumb, Modifier.size(76.dp))
             Spacer(Modifier.width(14.dp))
             Column(Modifier.weight(1f)) {
@@ -235,6 +346,7 @@ fun CourseDetailScreen(
     onFollow: (String) -> Unit,
     onDelete: (String) -> Unit
 ) {
+    var showFullscreenMap by rememberSaveable { mutableStateOf(false) }
     Scaffold(
         topBar = {
             TopAppBar(
@@ -259,14 +371,31 @@ fun CourseDetailScreen(
     ) { inner ->
         if (detail == null) { Box(Modifier.fillMaxSize().padding(inner), contentAlignment = Alignment.Center) { Text("코스를 불러오는 중…") }; return@Scaffold }
         val r = detail.result
+        // 전체 화면 지도 (다이얼로그 창이라 스크롤과 무관하게 화면을 덮음)
+        if (showFullscreenMap) {
+            CourseMapFullscreen(
+                name = detail.name,
+                route = detail.route,
+                onClose = { showFullscreenMap = false }
+            )
+        }
         Column(
             Modifier.fillMaxSize().padding(inner).verticalScroll(rememberScrollState()).padding(horizontal = 16.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
-            GildamMapLibreView(
-                trackPoints = emptyList(), currentLocation = null, coursePoints = detail.route, fitToTrack = true,
-                modifier = Modifier.fillMaxWidth().height(220.dp).clip(RoundedCornerShape(22.dp))
-            )
+            Box(Modifier.fillMaxWidth().height(220.dp).clip(RoundedCornerShape(22.dp))) {
+                GildamMapLibreView(
+                    trackPoints = emptyList(), currentLocation = null, coursePoints = detail.route, fitToTrack = true,
+                    modifier = Modifier.fillMaxSize()
+                )
+                // 전체 화면으로 보기 (작은 아이콘 + 말풍선 안내)
+                kr.co.nuni.gildam.ui.illustration.TooltipIconButton(
+                    Icons.Outlined.OpenInFull, "지도 전체 화면", { showFullscreenMap = true },
+                    style = kr.co.nuni.gildam.ui.illustration.IconButtonStyle.TONAL,
+                    visualSize = 34.dp, iconSize = 18.dp,
+                    modifier = Modifier.align(Alignment.TopEnd).padding(6.dp)
+                )
+            }
             Row(verticalAlignment = Alignment.CenterVertically) {
                 GradeBadge(r.grade); Spacer(Modifier.width(10.dp))
                 Text(r.grade.descriptionKo, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -354,4 +483,77 @@ fun FollowCourseCard(f: CourseFollowUi, onStop: () -> Unit, modifier: Modifier =
 private fun FollowStat(label: String, value: String, fg: Color) = Column {
     Text(label, style = MaterialTheme.typography.labelSmall, color = fg.copy(alpha = 0.8f))
     Text(value, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold, color = fg)
+}
+
+/**
+ * 코스 지도 전체 화면. 같은 지도를 화면 가득 띄우고, 두 손가락 회전·확대·이동과 나침반을 허용합니다.
+ * 닫기는 오른쪽 위 작은 X 버튼 (뒤로 가기도 닫기로 동작).
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun CourseMapFullscreen(name: String, route: List<LatLonPoint>, onClose: () -> Unit) {
+    androidx.activity.compose.BackHandler(onBack = onClose)
+    androidx.compose.ui.window.Dialog(
+        onDismissRequest = onClose,
+        properties = androidx.compose.ui.window.DialogProperties(
+            usePlatformDefaultWidth = false,
+            decorFitsSystemWindows = false
+        )
+    ) {
+        Surface(color = MaterialTheme.colorScheme.surface, modifier = Modifier.fillMaxSize()) {
+            Box(Modifier.fillMaxSize()) {
+                GildamMapLibreView(
+                    trackPoints = emptyList(),
+                    currentLocation = null,
+                    coursePoints = route,
+                    fitToTrack = true,
+                    fullscreenGestures = true,
+                    modifier = Modifier.fillMaxSize()
+                )
+                // 코스 이름 + 닫기 (지도 위 작은 오버레이)
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .align(Alignment.TopCenter)
+                        .background(
+                            androidx.compose.ui.graphics.Brush.verticalGradient(
+                                listOf(MaterialTheme.colorScheme.surface.copy(alpha = 0.92f), Color.Transparent)
+                            )
+                        )
+                        .statusBarsPadding()
+                        .padding(start = 16.dp, end = 8.dp, top = 10.dp, bottom = 18.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = name,
+                        style = MaterialTheme.typography.titleMedium,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f)
+                    )
+                    kr.co.nuni.gildam.ui.illustration.TooltipIconButton(
+                        Icons.Outlined.Close, "지도 닫기", onClose,
+                        style = kr.co.nuni.gildam.ui.illustration.IconButtonStyle.PLAIN,
+                        visualSize = 36.dp, iconSize = 20.dp
+                    )
+                }
+                // 두 손가락으로 돌려 보라는 짧은 안내
+                Surface(
+                    shape = RoundedCornerShape(50),
+                    color = MaterialTheme.colorScheme.surface.copy(alpha = 0.86f),
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .navigationBarsPadding()
+                        .padding(bottom = 26.dp)
+                ) {
+                    Text(
+                        "두 손가락으로 돌리고, 벌려서 확대해 보세요",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
+                    )
+                }
+            }
+        }
+    }
 }

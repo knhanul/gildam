@@ -31,7 +31,6 @@ import kr.co.nuni.gildam.ui.navigation.CourseDetailRoute
 import kr.co.nuni.gildam.ui.screens.CourseListScreen
 import kr.co.nuni.gildam.ui.screens.CourseDetailScreen
 import androidx.compose.runtime.remember
-import androidx.lifecycle.viewmodel.compose.viewModel
 import kr.co.nuni.gildam.ui.navigation.GpxCompareRoute
 import kr.co.nuni.gildam.ui.screens.GpxCompareScreen
 import kr.co.nuni.gildam.ui.navigation.ActivityDetailRoute
@@ -196,10 +195,15 @@ fun GildamAppRoot(
                 )
             }
 
-            composable<GpxCompareRoute> {
-                val compareViewModel: GpxCompareViewModel = viewModel()
+            composable<GpxCompareRoute> { entry ->
+                val route: GpxCompareRoute = entry.toRoute()
+                val compareViewModel: GpxCompareViewModel = hiltViewModel()
                 val entries by compareViewModel.entries.collectAsState()
                 val loading by compareViewModel.loading.collectAsState()
+                // 코스 목록에서 골라 들어온 경우: 파일 고르기 없이 그 코스들로 비교 시작
+                LaunchedEffect(route.courseIds) {
+                    compareViewModel.preloadCourses(context, route.ids())
+                }
                 // SAF: 읽기 전용, 영구 권한 요청 없음
                 val pickGpx = rememberLauncherForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { uris ->
                     compareViewModel.addFiles(context, uris)
@@ -226,7 +230,9 @@ fun GildamAppRoot(
                     isImporting = importing,
                     onImport = { pickCourses.launch(arrayOf("application/gpx+xml", "application/xml", "text/xml", "application/octet-stream", "*/*")) },
                     onOpenCourse = { id -> navController.navigate(CourseDetailRoute(id)) },
-                    onOpenCompare = { navController.navigate(GpxCompareRoute) }
+                    onOpenCompare = { navController.navigate(GpxCompareRoute()) },
+                    onCompareCourses = { ids -> navController.navigate(GpxCompareRoute(ids.joinToString(","))) },
+                    maxCompare = GpxCompareViewModel.MAX_FILES
                 )
             }
 
