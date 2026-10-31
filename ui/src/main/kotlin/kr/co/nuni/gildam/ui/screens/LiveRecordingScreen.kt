@@ -135,7 +135,15 @@ fun LiveRecordingScreen(
 
     // 현재 시간 계기판만 1초마다 다시 그리도록, 시각 상태는 읽는 곳에서만 구독합니다.
     val clockTick = rememberClockTick(fixedClockMs)
-    var cameraMode by rememberSaveable(defaultCameraMode) { mutableStateOf(defaultCameraMode) }
+    // 코스 따라 걷기 중에는 북쪽 고정을 쓰지 않음 (코스 방향 위 = HEADING 고정)
+    val followingCourse = follow != null
+    var cameraMode by rememberSaveable(defaultCameraMode) {
+        mutableStateOf(if (followingCourse && defaultCameraMode == MapCameraMode.FOLLOW) MapCameraMode.HEADING else defaultCameraMode)
+    }
+    // 따라 걷기가 시작되면(설정 기본값이 북쪽 위여도) 자동으로 코스 방향 위로 바꿈
+    LaunchedEffect(followingCourse) {
+        if (followingCourse && cameraMode == MapCameraMode.FOLLOW) cameraMode = MapCameraMode.HEADING
+    }
     var cameraPaused by remember { mutableStateOf(false) }
     var recenterKey by remember { mutableStateOf(0) }
     var topPx by remember { mutableStateOf(0) }
@@ -162,7 +170,11 @@ fun LiveRecordingScreen(
             bearingDeg = liveState.currentBearingDeg,
             onUserGesture = { cameraPaused = true },
             recenterKey = recenterKey,
-            routeOpacity = if (liveState.isRecording) 1.0f else 0.6f
+            routeOpacity = if (liveState.isRecording) 1.0f else 0.6f,
+            // 기록 중에만 진행 방향 화살표, 끝난 뒤에는 출발·도착 점만
+            showDirectionArrow = liveState.isRecording && !liveState.isPaused,
+            offCourse = follow?.isOffCourse == true,
+            followingCourse = followingCourse
         )
 
         // 2. 상단 상태 바 & 네비게이션 칩 (Edge-to-Edge statusBars 인셋 준수)
@@ -259,6 +271,7 @@ fun LiveRecordingScreen(
             MapCameraControls(
                 mode = cameraMode,
                 paused = cameraPaused,
+                allowNorthUp = !followingCourse,
                 onSelect = {
                     cameraMode = it
                     cameraPaused = false

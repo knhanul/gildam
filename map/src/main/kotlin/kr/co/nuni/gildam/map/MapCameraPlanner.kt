@@ -100,6 +100,48 @@ object MapCameraPlanner {
         return wanted.latSpan < lastFit.latSpan * 0.5 && wanted.lonSpan < lastFit.lonSpan * 0.5
     }
 
+    // ---- 따라가기: 현재 위치를 화면 아래쪽(약 64%)에 두기 ----
+
+    /** 기본: 현재 위치가 지도 여백 안에서 위에서 64% 지점에 오게 (아래에 계기판·칩 자리) */
+    const val FOLLOW_TARGET_FRACTION = 0.64
+    /** 코스 따라 걷기: 코스 앞쪽도 조금 더 보이게 68% */
+    const val FOLLOW_TARGET_FRACTION_COURSE = 0.68
+
+    fun followTargetFraction(hasCourse: Boolean): Double =
+        if (hasCourse) FOLLOW_TARGET_FRACTION_COURSE else FOLLOW_TARGET_FRACTION
+
+    /** 줌·위도 기준 1px 당 거리(m) */
+    fun metersPerPixel(latitude: Double, zoom: Double): Double =
+        156_543.03392 * kotlin.math.cos(Math.toRadians(latitude)) / Math.pow(2.0, zoom)
+
+    /**
+     * 현재 위치가 화면 [fraction] 높이(0=위, 1=아래)에 오도록 카메라 목표를 옮깁니다.
+     * 카메라가 [bearingDeg] 만큼 돌아가 있으면(위쪽 = 그 방위) 화면 '위' 방향이 그 방위이므로,
+     * 목표를 그 방위 쪽으로 밀면 현재 위치가 아래로 내려옵니다.
+     * - [topPx]/[bottomPx]: 지도 카드가 가리는 여백 (그 사이 영역 기준으로 계산)
+     * - [fraction] 0.5 이면 가운데(이동 없음)
+     */
+    fun followCameraTarget(
+        latitude: Double,
+        longitude: Double,
+        bearingDeg: Double,
+        zoom: Double,
+        viewHeightPx: Int,
+        topPx: Int,
+        bottomPx: Int,
+        fraction: Double = FOLLOW_TARGET_FRACTION
+    ): LatLonPoint {
+        val availH = (viewHeightPx - topPx - bottomPx).coerceAtLeast((viewHeightPx * 0.3).toInt())
+        val dyPx = (fraction.coerceIn(0.1, 0.95) - 0.5) * availH
+        if (dyPx == 0.0 || availH <= 0) return LatLonPoint(latitude, longitude)
+        val meters = dyPx * metersPerPixel(latitude, zoom)
+        val theta = Math.toRadians(((bearingDeg % 360.0) + 360.0) % 360.0)
+        val dLat = meters * kotlin.math.cos(theta) / 111_320.0
+        val mPerDegLon = 111_320.0 * kotlin.math.cos(Math.toRadians(latitude)).coerceAtLeast(1e-6)
+        val dLon = meters * kotlin.math.sin(theta) / mPerDegLon
+        return LatLonPoint(latitude + dLat, longitude + dLon)
+    }
+
     /** 따라가기 줌: 걷기 ≈17, 자전거 ≈15.5, 차 ≈14. 오래 갈수록 최대 0.7 더 넓게. */
     fun followZoom(speedMps: Float, distanceM: Double): Double {
         val bySpeed = 17.0 - (speedMps.coerceAtLeast(0f) / 2.5).coerceAtMost(3.0)

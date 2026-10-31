@@ -176,4 +176,59 @@ class MapCameraPlannerTest {
         assertEquals(0.0, MapCameraPlanner.resolveBearing(null, listOf(p(37.50, 127.00)), null), 1e-6)
         assertTrue(MapCameraMode.entries.contains(MapCameraMode.HEADING))
     }
+
+    @Test fun followTargetPutsCurrentLocationInLowerThird() {
+        // 화면 1000px, 위/아래 카드 100px 씩 → 가용 800px, 목표 64% = 512px (중심 400px 에서 112px 아래)
+        // 줌 15, 위도 37.5 에서 1px ≈ 3.78m → 약 423m 남쪽으로 밀어야 현재 위치가 아래로 내려옴
+        val aim = MapCameraPlanner.followCameraTarget(
+            latitude = 37.5, longitude = 127.0, bearingDeg = 0.0, zoom = 15.0,
+            viewHeightPx = 1000, topPx = 100, bottomPx = 100
+        )
+        assertEquals(37.5 + 423.0 / 111_320.0, aim.latitude, 0.0002)
+        assertEquals(127.0, aim.longitude, 1e-6)
+        // 목표가 현재 위치보다 북쪽에 있으므로 현재 위치는 화면 아래쪽에 그려짐
+        assertTrue(aim.latitude > 37.5)
+    }
+
+    @Test fun followTargetOffsetRotatesWithBearing() {
+        // 방위 90°(동쪽이 위)면 카메라 목표를 동쪽으로 밀어야 현재 위치가 아래로 내려감
+        val east = MapCameraPlanner.followCameraTarget(37.5, 127.0, 90.0, 15.0, 1000, 100, 100)
+        assertTrue(east.longitude > 127.0)
+        assertEquals(37.5, east.latitude, 1e-6)
+        // 방위 180°(남쪽이 위)면 목표는 남쪽
+        val south = MapCameraPlanner.followCameraTarget(37.5, 127.0, 180.0, 15.0, 1000, 100, 100)
+        assertTrue(south.latitude < 37.5)
+    }
+
+    @Test fun courseFollowSitsALittleLowerThanPlainRecording() {
+        assertEquals(0.64, MapCameraPlanner.followTargetFraction(hasCourse = false), 1e-9)
+        assertEquals(0.68, MapCameraPlanner.followTargetFraction(hasCourse = true), 1e-9)
+        val plain = MapCameraPlanner.followCameraTarget(37.5, 127.0, 0.0, 15.0, 1000, 100, 100, MapCameraPlanner.FOLLOW_TARGET_FRACTION)
+        val course = MapCameraPlanner.followCameraTarget(37.5, 127.0, 0.0, 15.0, 1000, 100, 100, MapCameraPlanner.FOLLOW_TARGET_FRACTION_COURSE)
+        assertTrue(course.latitude > plain.latitude)
+    }
+
+    @Test fun noOffsetWhenTargetIsCenteredOrViewTooSmall() {
+        val centered = MapCameraPlanner.followCameraTarget(37.5, 127.0, 45.0, 15.0, 1000, 100, 100, fraction = 0.5)
+        assertEquals(37.5, centered.latitude, 1e-12)
+        assertEquals(127.0, centered.longitude, 1e-12)
+    }
+
+    @Test fun courseSplitSeparatesWalkedAndRemaining() {
+        val course = listOf(p(37.50, 127.00), p(37.50, 127.01), p(37.50, 127.02), p(37.50, 127.03))
+        val split = MapRouteGeometry.splitCourseAt(course, p(37.5001, 127.011))!!
+        assertEquals(2, split.walked.size)
+        assertEquals(127.00, split.walked.first().longitude, 1e-9)
+        assertEquals(127.01, split.walked.last().longitude, 1e-9)
+        assertEquals(127.01, split.remaining.first().longitude, 1e-9)
+        assertEquals(127.03, split.remaining.last().longitude, 1e-9)
+    }
+
+    @Test fun courseSplitStartsWholeWhenFarAway() {
+        val course = listOf(p(37.50, 127.00), p(37.50, 127.01), p(37.50, 127.02))
+        // 5km 떨어짐 → 자르지 않고 전부 '남은 코스'
+        val split = MapRouteGeometry.splitCourseAt(course, p(37.55, 127.05))!!
+        assertTrue(split.walked.isEmpty())
+        assertEquals(course, split.remaining)
+    }
 }
