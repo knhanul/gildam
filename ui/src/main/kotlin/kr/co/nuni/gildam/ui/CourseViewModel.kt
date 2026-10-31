@@ -32,6 +32,8 @@ import kr.co.nuni.gildam.data.gpxcompare.GpxPoint
 import kr.co.nuni.gildam.data.gpxcompare.GpxRuggedness
 import kr.co.nuni.gildam.data.gpxcompare.RuggednessResult
 import kr.co.nuni.gildam.data.prefs.FollowPrefs
+import kr.co.nuni.gildam.data.prefs.FollowRestorePolicy
+import kr.co.nuni.gildam.data.prefs.FollowRestorePolicy.OnRecordingStart
 import kr.co.nuni.gildam.data.prefs.SavedFollow
 import kr.co.nuni.gildam.data.local.entity.TrackPointEntity
 import kr.co.nuni.gildam.data.model.ActivityStatus
@@ -39,6 +41,7 @@ import kr.co.nuni.gildam.data.model.TransportType
 import kr.co.nuni.gildam.data.repository.GildamRepository
 import kr.co.nuni.gildam.recording.LatLonPoint
 import kr.co.nuni.gildam.recording.RecordingController
+import java.util.UUID
 import kotlin.math.abs
 import kr.co.nuni.gildam.ui.screens.CourseDetailUi
 import kr.co.nuni.gildam.ui.screens.CourseFollowUi
@@ -92,12 +95,21 @@ class CourseViewModel @Inject constructor(
             courses.delete(id)
             // 지운 코스를 따라 걷던 중이었으면 따라 걷기도 끝내고 저장값도 지움
             if (_follow.value?.id == id) stopFollow()
-            else if (followPrefs.saved.first()?.courseId == id) followPrefs.clear()
+            else if (followPrefs.saved()?.courseId == id) followPrefs.clearNow()
         }
     }
 
     // ---- 코스 따라 걷기 ----
-    private data class Following(val id: String, val name: String, val result: RuggednessResult, val route: List<LatLonPoint>, val follower: CourseFollower)
+    private data class Following(
+        val id: String,
+        val name: String,
+        val result: RuggednessResult,
+        val route: List<LatLonPoint>,
+        val follower: CourseFollower,
+        val sessionId: String,
+        /** 이 따라 걷기가 붙어 있는 기록 id (아직 없으면 null) */
+        val boundActivityId: String? = null
+    )
     private val _follow = MutableStateFlow<Following?>(null)
 
     fun startFollow(id: String) {
@@ -105,15 +117,28 @@ class CourseViewModel @Inject constructor(
             val c = courses.getCourse(id) ?: return@launch
             val pts = c.points()
             val r = withContext(Dispatchers.Default) { GpxRuggedness.analyze(c.name, pts) }
-            _follow.value = Following(c.id, c.name, r, pts.map { LatLonPoint(it.lat, it.lon) }, CourseFollower(pts))
+            val newSessionId = UUID.randomUUID().toString()
+            val activeId = activities.getActiveRecording()?.id
+            _follow.value = Following(c.id, c.name, r, pts.map { LatLonPoint(it.lat, it.lon) }, CourseFollower(pts), newSessionId, activeId)
             // 기록 중이면 앱이 정리돼도 다시 살아나도록 저장 (기록 없이 코스만 볼 때는 저장하지 않음)
-            if (isRecordingNow()) followPrefs.save(SavedFollow(c.id, 0.0, 0.0, false))
+            if (activeId != null || recordingController.liveState.value.let { it.isRecording || it.isPaused }) {
+                followPrefs.saveNow(SavedFollow(c.id, 0.0, 0.0, false, newSessionId, activeId))
+            }
         }
     }
 
+    /**
+     * 따라 걷기 그만두기 (X). 저장값을 **먼저 디스크에서 지운 뒤** 화면에서 카드를 닫습니다.
+     * 지우기가 실패하면 카드를 닫지 않고 그대로 둬서, '닫혔는데 다시 살아나는' 상태를 만들지 않습니다.
+     */
     fun stopFollow() {
-        _follow.value = null
+        if (followPrefs.clearNow()) _follow.value = null
+    }
+
+    /** 기록이 끝났을 때처럼 실패해도 화면은 닫아야 하는 경우: 디스크 정리를 먼저 시도하고 카드는 닫음 */
+    private fun endFollowAfterRecording() {
         followPrefs.clearNow()
+        _follow.value = null
     }
 
     /** 지금 기록이 살아 있는지: 서비스 상태(같은 프로세스) 또는 DB 의 미완료 기록 */
@@ -126,17 +151,21 @@ class CourseViewModel @Inject constructor(
      * 기록이 살아 있거나 미완료 기록이 남아 있을 때만 되살리고, 아니면 저장값을 지웁니다.
      */
     private suspend fun restoreSavedFollow() {
-        val saved = followPrefs.saved.first() ?: return
-        if (!isRecordingNow()) { followPrefs.clear(); return }
-        val c = courses.getCourse(saved.courseId)
-        if (c == null) { followPrefs.clear(); return } // 코스가 지워졌으면 복원하지 않음
+        val saved = followPrefs.saved() ?: return          // 그만뒀거나 지운 상태면 절대 되살리지 않음
+        val recordingAlive = isRecordingNow()
+        val activeId = if (recordingAlive) activities.getActiveRecording()?.id else null
+        val c = if (recordingAlive) courses.getCourse(saved.courseId) else null
+        if (!FollowRestorePolicy.shouldRestore(saved, recordingAlive, c != null, activeId)) {
+            followPrefs.clearNow()                          // 기록이 끝났거나 코스가 지워짐 → 저장값 정리
+            return
+        }
         if (_follow.value != null) return
-        val pts = c.points()
+        val pts = c!!.points()
         val r = withContext(Dispatchers.Default) { GpxRuggedness.analyze(c.name, pts) }
         val follower = CourseFollower(pts).also {
             it.restoreState(saved.alongM, saved.offsetM, saved.offCourse)
         }
-        _follow.value = Following(c.id, c.name, r, pts.map { LatLonPoint(it.lat, it.lon) }, follower)
+        _follow.value = Following(c.id, c.name, r, pts.map { LatLonPoint(it.lat, it.lon) }, follower, saved.sessionId, saved.activityId)
     }
 
     /**
@@ -152,11 +181,24 @@ class CourseViewModel @Inject constructor(
             recordingController.liveState.map { it.isRecording || it.isPaused }.distinctUntilChanged().collect { active ->
                 if (active) {
                     wasRecording = true
-                    _follow.value?.let { f ->
-                        val along = (f.follower.lastAlongM ?: 0.0)
-                        val next = SavedFollow(f.id, along, f.follower.lastOffsetM ?: 0.0, f.follower.isOffCourse)
+                    val f = _follow.value
+                    // 서비스가 새 기록 행을 DB 에 만들 시간을 조금 준 뒤 기록 id 확인
+                    // (방금 시작한 기록을 예전 '미완료 기록'으로 잘못 보지 않게)
+                    if (f != null) delay(1_500)
+                    // 기록 id 에 묶어 저장: 미완료 기록을 두고 '새로 기록'을 시작해 id 가 달라지면
+                    // 예전 코스는 여기서 바로 정리되어 되살아나지 않음
+                    val activeId = activities.getActiveRecording()?.id
+                    if (f != null && FollowRestorePolicy.onRecordingStart(f.boundActivityId, activeId) == OnRecordingStart.CLEAR) {
+                        lastSaved = null
+                        endFollowAfterRecording()   // 디스크에서 먼저 지우고 카드를 닫음
+                        return@collect
+                    }
+                    f?.let { cur ->
+                        val along = (cur.follower.lastAlongM ?: 0.0)
+                        val next = SavedFollow(cur.id, along, cur.follower.lastOffsetM ?: 0.0, cur.follower.isOffCourse, cur.sessionId, activeId)
                         lastSaved = next
-                        followPrefs.save(next)
+                        _follow.value = cur.copy(boundActivityId = activeId)
+                        followPrefs.saveNow(next)
                     }
                     return@collect
                 }
@@ -172,7 +214,7 @@ class CourseViewModel @Inject constructor(
                 }
                 if (!stillActive && _follow.value != null) {
                     wasRecording = false
-                    stopFollow()
+                    endFollowAfterRecording()
                 }
             }
         }
@@ -184,10 +226,11 @@ class CourseViewModel @Inject constructor(
             if (!recordingController.liveState.value.let { it.isRecording || it.isPaused }) return@collect
             val along = (f.totalM - f.remainingM).coerceAtLeast(0.0)
             val prev = lastSaved
-            if (prev != null && prev.courseId == cur.id && abs(prev.alongM - along) < 25.0 && prev.offCourse == f.isOffCourse) return@collect
-            val next = SavedFollow(cur.id, along, f.offsetM ?: 0.0, f.isOffCourse)
+            val sameSession = prev != null && prev.sessionId == cur.sessionId
+            if (sameSession && abs(prev!!.alongM - along) < 25.0 && prev.offCourse == f.isOffCourse) return@collect
+            val next = SavedFollow(cur.id, along, f.offsetM ?: 0.0, f.isOffCourse, cur.sessionId, cur.boundActivityId)
             lastSaved = next
-            followPrefs.save(next)
+            followPrefs.saveProgress(next)
         }
     }
 

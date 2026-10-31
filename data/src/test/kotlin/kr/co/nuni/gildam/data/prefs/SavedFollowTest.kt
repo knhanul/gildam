@@ -13,7 +13,7 @@ class SavedFollowTest {
     @Test fun notOffCourseRoundTrip() {
         val f = SavedFollow("course-1", 0.0, 0.0, false)
         assertEquals(f, SavedFollow.decode(f.encode()))
-        assertEquals("course-1;0.0;0.0;false", f.encode())
+        assertEquals("course-1;0.0;0.0;false;;", f.encode())
     }
 
     @Test fun brokenValuesAreIgnored() {
@@ -23,6 +23,20 @@ class SavedFollowTest {
         assertNull(SavedFollow.decode(";abc;0;false"))
         assertNull(SavedFollow.decode("id;NaN?!;0;false"))
         assertNull(SavedFollow.decode("id;10;0;maybe"))
+    }
+
+    @Test fun activityIdRoundTripsAndBlankMeansNone() {
+        val f = SavedFollow("c1", 10.0, 2.0, false, "s1", "act-9")
+        assertEquals("c1;10.0;2.0;false;s1;act-9", f.encode())
+        assertEquals(f, SavedFollow.decode(f.encode()))
+        assertNull(SavedFollow.decode("c1;10.0;2.0;false;s1;")!!.activityId)
+    }
+
+    @Test fun legacyFourAndFiveFieldValuesStillRead() {
+        val four = SavedFollow.decode("c1;10.0;2.0;false")!!
+        assertEquals("c1", four.courseId); assertEquals(10.0, four.alongM, 1e-9); assertEquals("", four.sessionId); assertNull(four.activityId)
+        val five = SavedFollow.decode("c1;10.0;2.0;true;s1")!!
+        assertEquals("s1", five.sessionId); assertNull(five.activityId)
     }
 
     @Test fun negativeProgressIsClamped() {
