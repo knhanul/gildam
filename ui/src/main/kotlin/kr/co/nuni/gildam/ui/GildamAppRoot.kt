@@ -28,6 +28,7 @@ import kr.co.nuni.gildam.ui.navigation.GildamBottomBar
 import kr.co.nuni.gildam.ui.navigation.GildamTab
 import kr.co.nuni.gildam.ui.navigation.CoursesRoute
 import kr.co.nuni.gildam.ui.navigation.CourseDetailRoute
+import kr.co.nuni.gildam.data.model.TransportType
 import kr.co.nuni.gildam.ui.screens.CourseListScreen
 import kr.co.nuni.gildam.ui.screens.CourseDetailScreen
 import androidx.compose.runtime.remember
@@ -243,10 +244,22 @@ fun GildamAppRoot(
             composable<CourseDetailRoute> { entry ->
                 val route: CourseDetailRoute = entry.toRoute()
                 val detail by remember(route.courseId) { courseViewModel.observeDetail(route.courseId) }.collectAsState(initial = null)
+                // 시트 기본 활동: 마지막으로 고른 활동 → 없으면 코스로 추정 (걷기/등산/자전거)
+                val suggestedActivity by remember(route.courseId) {
+                    courseViewModel.suggestedFollowActivity(route.courseId)
+                }.collectAsState(initial = TransportType.WALK)
                 CourseDetailScreen(
                     detail = detail,
                     onNavigateBack = { navController.popBackStack() },
-                    onFollow = { id -> courseViewModel.startFollow(id); selectTab(GildamTab.RECORD) },
+                    suggestedActivity = suggestedActivity,
+                    onRememberActivity = courseViewModel::rememberFollowActivity,
+                    onFollow = { id, type ->
+                        // 고른 활동을 '새 기록' 이동 수단으로 먼저 정해 둔 뒤 따라 걷기 시작
+                        // (기록 시작 버튼을 눌렀을 때 만들어질 기록이 이 활동 종류를 갖게 됨)
+                        viewModel.selectTransportForNewRecording(type)
+                        courseViewModel.startFollow(id)
+                        selectTab(GildamTab.RECORD)
+                    },
                     onDelete = { id -> courseViewModel.delete(id); navController.popBackStack() }
                 )
             }

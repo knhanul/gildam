@@ -16,6 +16,7 @@ import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.outlined.RadioButtonUnchecked
 import androidx.compose.material.icons.outlined.OpenInFull
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -43,7 +44,10 @@ import androidx.compose.material.icons.automirrored.outlined.DirectionsWalk
 import androidx.compose.material.icons.outlined.ChevronRight
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.automirrored.outlined.NoteAdd
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.material.icons.outlined.CompareArrows
 import androidx.compose.material.icons.outlined.DeleteOutline
@@ -63,6 +67,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -82,6 +87,7 @@ import kr.co.nuni.gildam.data.course.HikingTimeEstimator
 import kr.co.nuni.gildam.data.gpxcompare.RuggednessGrade
 import kr.co.nuni.gildam.data.gpxcompare.RuggednessResult
 import kr.co.nuni.gildam.map.GildamMapLibreView
+import kr.co.nuni.gildam.data.model.TransportType
 import kr.co.nuni.gildam.recording.LatLonPoint
 import kr.co.nuni.gildam.ui.theme.WarningAmber
 import kotlin.math.cos
@@ -343,10 +349,16 @@ internal fun RouteThumb(points: List<LatLonPoint>, modifier: Modifier = Modifier
 fun CourseDetailScreen(
     detail: CourseDetailUi?,
     onNavigateBack: () -> Unit,
-    onFollow: (String) -> Unit,
-    onDelete: (String) -> Unit
+    /** 활동 선택 시트에서 고른 활동으로 따라 걷기 시작 (활동 종류도 함께 전달) */
+    onFollow: (String, TransportType) -> Unit,
+    onDelete: (String) -> Unit,
+    /** 시트를 처음 열 때 미리 골라 둘 활동 (마지막으로 고른 활동 또는 코스로 추정한 값) */
+    suggestedActivity: TransportType = TransportType.WALK,
+    /** 사용자가 활동을 고르면 기억해 두기 (다음 시트 기본값) */
+    onRememberActivity: (TransportType) -> Unit = {}
 ) {
     var showFullscreenMap by rememberSaveable { mutableStateOf(false) }
+    var showFollowSheet by rememberSaveable { mutableStateOf(false) }
     Scaffold(
         topBar = {
             TopAppBar(
@@ -362,8 +374,8 @@ fun CourseDetailScreen(
                 kr.co.nuni.gildam.ui.illustration.VividActionButton(
                     title = "이 코스 따라 걷기",
                     subtitle = "예상 " + HikingTimeEstimator.formatKo(detail.etaSec) + " · 남은 거리와 도착 시간을 알려드려요",
-                    type = kr.co.nuni.gildam.data.model.TransportType.HIKE,
-                    onClick = { onFollow(detail.id) },
+                    type = suggestedActivity,
+                    onClick = { showFollowSheet = true },
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)
                 )
             }
@@ -371,6 +383,18 @@ fun CourseDetailScreen(
     ) { inner ->
         if (detail == null) { Box(Modifier.fillMaxSize().padding(inner), contentAlignment = Alignment.Center) { Text("코스를 불러오는 중…") }; return@Scaffold }
         val r = detail.result
+        if (showFollowSheet) {
+            FollowActivitySheet(
+                courseName = detail.name,
+                initial = suggestedActivity,
+                onDismiss = { showFollowSheet = false },
+                onStart = { type ->
+                    showFollowSheet = false
+                    onRememberActivity(type)
+                    onFollow(detail.id, type)
+                }
+            )
+        }
         // 전체 화면 지도 (다이얼로그 창이라 스크롤과 무관하게 화면을 덮음)
         if (showFullscreenMap) {
             CourseMapFullscreen(
@@ -554,6 +578,94 @@ private fun CourseMapFullscreen(name: String, route: List<LatLonPoint>, onClose:
                     )
                 }
             }
+        }
+    }
+}
+
+/**
+ * '어떤 활동으로 따라갈까요?' 시트.
+ * 작은 활동 아이콘 5개(길게 누르면 이름 말풍선) 중 하나를 고르고 '이 활동으로 출발'을 누르면 시작.
+ * 선택한 활동은 기록의 활동 종류가 되고, 다음에는 기본값으로 기억됩니다.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun FollowActivitySheet(
+    courseName: String,
+    initial: TransportType,
+    onDismiss: () -> Unit,
+    onStart: (TransportType) -> Unit
+) {
+    var selected by rememberSaveable { mutableStateOf(initial.name) }
+    val type = TransportType.entries.firstOrNull { it.name == selected } ?: TransportType.WALK
+
+    ModalBottomSheet(onDismissRequest = onDismiss) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 20.dp, vertical = 4.dp)
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Column(Modifier.weight(1f)) {
+                    Text(
+                        courseName,
+                        style = MaterialTheme.typography.titleMedium,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    Text(
+                        "어떤 활동으로 따라갈까요?",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                kr.co.nuni.gildam.ui.illustration.GildamTooltip("닫기") {
+                    IconButton(onClick = onDismiss) {
+                        Icon(Icons.Outlined.Close, contentDescription = "닫기", modifier = Modifier.size(20.dp))
+                    }
+                }
+            }
+            Spacer(Modifier.height(14.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(6.dp, Alignment.CenterHorizontally)
+            ) {
+                TransportType.entries.forEach { t ->
+                    val isSel = t == type
+                    kr.co.nuni.gildam.ui.illustration.GildamTooltip(t.labelKo) {
+                        Box(
+                            modifier = Modifier
+                                .size(52.dp)
+                                .clip(RoundedCornerShape(16.dp))
+                                .background(
+                                    if (isSel) MaterialTheme.colorScheme.primaryContainer
+                                    else MaterialTheme.colorScheme.surfaceVariant
+                                )
+                                .then(
+                                    if (isSel) Modifier.border(1.5.dp, MaterialTheme.colorScheme.primary, RoundedCornerShape(16.dp))
+                                    else Modifier
+                                )
+                                .clickable { selected = t.name }
+                                .semantics {
+                                    contentDescription = t.labelKo
+                                    role = Role.RadioButton
+                                    this.selected = isSel
+                                },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            kr.co.nuni.gildam.ui.illustration.TransportSticker(t, selected = isSel, size = 28.dp)
+                        }
+                    }
+                }
+            }
+            Spacer(Modifier.height(16.dp))
+            Button(
+                onClick = { onStart(type) },
+                shape = RoundedCornerShape(14.dp),
+                modifier = Modifier.fillMaxWidth().height(52.dp)
+            ) {
+                Text("이 활동으로 출발", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+            }
+            Spacer(Modifier.height(20.dp))
         }
     }
 }

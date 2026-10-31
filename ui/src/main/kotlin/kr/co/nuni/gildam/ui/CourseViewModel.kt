@@ -27,6 +27,7 @@ import kotlinx.coroutines.withContext
 import kr.co.nuni.gildam.data.course.CourseEntity
 import kr.co.nuni.gildam.data.course.CourseFollower
 import kr.co.nuni.gildam.data.course.CourseRepository
+import kr.co.nuni.gildam.data.course.FollowActivityGuess
 import kr.co.nuni.gildam.data.course.FollowEta
 import kr.co.nuni.gildam.data.course.HikingTimeEstimator
 import kr.co.nuni.gildam.data.gpxcompare.GpxPoint
@@ -112,6 +113,21 @@ class CourseViewModel @Inject constructor(
         val boundActivityId: String? = null
     )
     private val _follow = MutableStateFlow<Following?>(null)
+
+    /**
+     * '따라 걷기' 활동 기본값: 마지막으로 고른 활동이 있으면 그 값, 없으면 코스 모양으로 추정.
+     * (코스 상세의 활동 선택 시트가 처음 열릴 때 씀)
+     */
+    fun suggestedFollowActivity(id: String): Flow<TransportType> = courses.observeCourse(id).map { c ->
+        val saved = followPrefs.lastActivity()?.let { n -> TransportType.entries.firstOrNull { it.name == n } }
+        if (saved != null || c == null) return@map saved ?: TransportType.WALK
+        val pts = c.points()
+        val r = withContext(Dispatchers.Default) { GpxRuggedness.analyze(c.name, pts) }
+        FollowActivityGuess.guess(r)
+    }
+
+    /** 사용자가 고른 따라 걷기 활동을 기억 (다음에 기본값으로) */
+    fun rememberFollowActivity(type: TransportType) = followPrefs.setLastActivity(type.name)
 
     fun startFollow(id: String) {
         viewModelScope.launch {

@@ -195,13 +195,22 @@ class GildamViewModel @Inject constructor(
         }
     }
 
+    /**
+     * '새 기록' 이동 수단 선택. 화면(칩)과 시작 버튼이 저장소 반영을 기다리지 않도록
+     * 메모리에도 즉시 반영하고(다음 기록 시작에 바로 사용), 저장은 뒤에서 합니다.
+     */
+    private var pendingTransportForNew: TransportType? = null
+
     fun selectTransportForNewRecording(type: TransportType) {
+        pendingTransportForNew = type
         viewModelScope.launch { recordingPrefs.setLastTransport(type.name) }
     }
 
     fun startRecording() {
+        // 방금 고른 활동(코스 따라 걷기 시트 등)이 있으면 그것으로, 없으면 화면에 보이는 이동 수단으로
+        val transport = pendingTransportForNew ?: selectedTransportForNewRecording.value
+        pendingTransportForNew = null
         val nowStr = LocalDateTime.now().format(DateTimeFormatter.ofPattern("M월 d일 HH:mm"))
-        val transport = selectedTransportForNewRecording.value
         val defaultTitle = "$nowStr ${transport.labelKo} 길이야기"
         recordingController.startRecordingService(transport, defaultTitle)
     }

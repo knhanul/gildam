@@ -82,8 +82,17 @@ class FollowPrefs @Inject constructor(@ApplicationContext context: Context) {
      */
     fun clearNow(): Boolean = prefs.edit().remove(KEY).commit()
 
+    // ---- 마지막으로 고른 '따라 걷기 활동' (이 기기에만 저장) ----
+    /** 마지막으로 고른 활동 이름(WALK/RUN/…). 없으면 null → 코스 보고 기본값 추정 */
+    fun lastActivity(): String? = prefs.getString(KEY_LAST_ACTIVITY, null)
+
+    fun setLastActivity(typeName: String) {
+        prefs.edit().putString(KEY_LAST_ACTIVITY, typeName).apply()
+    }
+
     companion object {
         private const val KEY = "following_course"
+        private const val KEY_LAST_ACTIVITY = "last_follow_activity"
     }
 }
 
