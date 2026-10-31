@@ -306,17 +306,19 @@ fun LiveRecordingScreen(
                         .padding(horizontal = 20.dp, vertical = 18.dp)
                 ) {
                     // 이동 수단 태그 선택 (걷기 / 달리기 / 등산 / 자전거 / 자동차)
-                    Row(
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState())
-                    ) {
-                        TransportType.entries.forEach { type ->
-                            val selected = (if (liveState.isRecording) liveState.transportType else selectedTransport) == type
-                            TransportChip(type, selected, enabled = !liveState.isRecording) { onSelectTransport(type) }
+                    // 기록 중에는 지도를 크게 보려고 활동 아이콘을 숨깁니다.
+                    if (!liveState.isRecording) {
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState())
+                        ) {
+                            TransportType.entries.forEach { type ->
+                                TransportChip(type, selected = selectedTransport == type, enabled = true) { onSelectTransport(type) }
+                            }
                         }
-                    }
 
-                    Spacer(modifier = Modifier.height(12.dp))
+                        Spacer(modifier = Modifier.height(12.dp))
+                    }
 
                     // 지도 아래 계기판: 지도 위 강조 지표를 뺀 나머지 (큰 값 2개 + 작은 값들, '표시 안 함'이면 5개 전부)
                     val heroMetrics = GaugeMetric.heroesFor(overlayMetric)
