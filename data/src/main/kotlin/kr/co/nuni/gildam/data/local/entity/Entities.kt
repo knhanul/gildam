@@ -204,3 +204,29 @@ data class PhotoEntity(
     @ColumnInfo(name = "backup_state")
     val backupState: PhotoBackupState = PhotoBackupState.LOCAL_ONLY
 )
+
+/**
+ * 기록이 일어난 지역 이름(기기 Geocoder 로 좌표를 거꾸로 찾아 저장).
+ * region_name 이 null 이면 '지역 정보 없음' — 한 번 시도했지만 이름을 못 얻은 기록이라
+ * 다시 시도하지 않도록 행은 남겨 둡니다.
+ */
+@Entity(
+    tableName = "activity_regions",
+    foreignKeys = [
+        ForeignKey(
+            entity = ActivityEntity::class,
+            parentColumns = ["id"],
+            childColumns = ["activity_id"],
+            onDelete = ForeignKey.CASCADE
+        )
+    ]
+)
+data class ActivityRegionEntity(
+    @PrimaryKey
+    @ColumnInfo(name = "activity_id")
+    val activityId: String,
+    @ColumnInfo(name = "region_name")
+    val regionName: String? = null,
+    @ColumnInfo(name = "resolved_at")
+    val resolvedAtEpochMs: Long = System.currentTimeMillis()
+)

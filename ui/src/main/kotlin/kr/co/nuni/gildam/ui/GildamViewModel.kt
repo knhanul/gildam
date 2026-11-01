@@ -168,6 +168,33 @@ class GildamViewModel @Inject constructor(
         }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
+    // ---- 기록 지역 (지역별 묶어 보기) ----
+
+    /** activity_id → 지역 이름 (null 이면 '지역 정보 없음') */
+    val regions: StateFlow<Map<String, String?>> = repository.observeActivityRegions()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyMap())
+
+    private var regionResolveJob: kotlinx.coroutines.Job? = null
+
+    /**
+     * 목록 화면이 뜰 때 지역 이름을 뒤에서 채웁니다(UI 를 막지 않음).
+     * 한 번에 8건씩, 채울 기록이 남아 있으면 이어서 조용히 돕니다.
+     */
+    fun ensureRegionsResolved() {
+        if (regionResolveJob?.isActive == true) return
+        regionResolveJob = viewModelScope.launch {
+            while (true) {
+                val filled = try {
+                    repository.resolveMissingRegions(limit = 8)
+                } catch (t: Throwable) {
+                    android.util.Log.w("GildamViewModel", "지역 이름 채우기 실패", t)
+                    0
+                }
+                if (filled < 8) break
+            }
+        }
+    }
+
     init {
         refreshThumbnailCacheSize()
         seedSampleDataIfEmpty()

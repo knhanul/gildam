@@ -8,10 +8,12 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import kr.co.nuni.gildam.data.list.RecordGroupMode
 import kr.co.nuni.gildam.data.model.GaugeMetric
 import kr.co.nuni.gildam.data.model.TransportType
 import kr.co.nuni.gildam.data.prefs.AppearancePrefs
 import kr.co.nuni.gildam.data.prefs.GaugePrefs
+import kr.co.nuni.gildam.ui.list.RecordLayout
 import kr.co.nuni.gildam.ui.theme.DarkModePref
 import kr.co.nuni.gildam.ui.theme.GildamPalette
 import javax.inject.Inject
@@ -34,6 +36,18 @@ class AppearanceViewModel @Inject constructor(
         .map { n -> MapCameraMode.entries.firstOrNull { it.name == n } ?: MapCameraMode.DEFAULT }
         .stateIn(viewModelScope, SharingStarted.Eagerly, MapCameraMode.DEFAULT)
     fun setRecordMapMode(m: MapCameraMode) { viewModelScope.launch { prefs.setRecordMapMode(m.name) } }
+
+    /** 기록 보관함: 카드 보기 / 리스트 보기 (기본 카드) */
+    val recordLayout: StateFlow<RecordLayout> = prefs.recordListLayout
+        .map { n -> RecordLayout.fromName(n) }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, RecordLayout.CARD)
+    fun setRecordLayout(layout: RecordLayout) { viewModelScope.launch { prefs.setRecordListLayout(layout.name) } }
+
+    /** 기록 보관함: 최근순 / 월별 / 지역별 (기본 최근순) */
+    val recordGroupMode: StateFlow<RecordGroupMode> = prefs.recordGroupMode
+        .map { n -> RecordGroupMode.fromName(n) }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, RecordGroupMode.RECENT)
+    fun setRecordGroupMode(mode: RecordGroupMode) { viewModelScope.launch { prefs.setRecordGroupMode(mode.name) } }
 
     /** 활동 구분별 '지도 위 계기판' 선택 (저장값 없으면 그 활동의 기본값) */
     val gaugeSelections: StateFlow<Map<TransportType, GaugeMetric>> = gaugePrefs.selections

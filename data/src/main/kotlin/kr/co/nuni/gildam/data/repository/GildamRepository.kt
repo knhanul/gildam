@@ -2,15 +2,19 @@ package kr.co.nuni.gildam.data.repository
 
 import android.net.Uri
 import android.os.Build
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.map
 import kr.co.nuni.gildam.data.local.dao.GildamDao
 import kr.co.nuni.gildam.data.local.entity.ActivityDetailBundle
 import kr.co.nuni.gildam.data.local.entity.ActivityEntity
+import kr.co.nuni.gildam.data.local.entity.ActivityRegionEntity
 import kr.co.nuni.gildam.data.local.entity.PhotoEntity
 import kr.co.nuni.gildam.data.local.entity.TrackPointEntity
 import kr.co.nuni.gildam.data.local.entity.WaypointEntity
 import kr.co.nuni.gildam.data.media.LocalPhotoManager
 import kr.co.nuni.gildam.data.merge.RecordMerger
+import kr.co.nuni.gildam.data.region.RegionResolver
 import kr.co.nuni.gildam.data.model.ActivityStatus
 import kr.co.nuni.gildam.data.model.PhotoBackupState
 import kr.co.nuni.gildam.data.model.SyncState
@@ -24,7 +28,8 @@ import javax.inject.Singleton
 @Singleton
 class GildamRepository @Inject constructor(
     private val dao: GildamDao,
-    private val localPhotoManager: LocalPhotoManager
+    private val localPhotoManager: LocalPhotoManager,
+    private val regionResolver: RegionResolver
 ) {
     fun observeAllActivities(): Flow<List<ActivityEntity>> = dao.observeAllActivities()
 
@@ -294,6 +299,46 @@ class GildamRepository @Inject constructor(
             dao.getActivityById(id)?.let { dao.upsertActivity(RecordEditPolicy.markDeleted(it, now)) }
         }
         return newId
+    }
+
+    // ---- 지역 이름 (지역별 묶어 보기) ----
+
+    /** activity_id → 지역 이름(null 이면 '지역 정보 없음') */
+    fun observeActivityRegions(): Flow<Map<String, String?>> =
+        dao.observeActivityRegions().map { list -> list.associate { it.activityId to it.regionName } }
+
+    /**
+     * 지역 이름이 아직 없는 완료 기록 몇 건의 이름을 기기 Geocoder 로 찾아 저장합니다.
+     * - 첫 경로 점(없으면 첫 길 메모)의 좌표를 씁니다.
+     * - 이름을 못 찾아도 region_name = null 로 저장해 같은 기록을 계속 다시 찾지 않습니다.
+     * - 기록 사이 200ms 쉬어 기기를 혹사하지 않습니다.
+     * @return 이번에 새로 채운 기록 수
+     */
+    suspend fun resolveMissingRegions(limit: Int = 8): Int {
+        val targets = dao.getActivitiesMissingRegion(limit)
+        if (targets.isEmpty()) return 0
+        var resolved = 0
+        for (activity in targets) {
+            val point = dao.getFirstTrackPoint(activity.id)
+            val lat = point?.latitude
+            val lon = point?.longitude
+            val name = if (lat != null && lon != null) {
+                regionResolver.resolve(lat, lon)
+            } else {
+                // 경로 점이 없으면 첫 길 메모 자리로 대신합니다
+                dao.getWaypointsForActivity(activity.id).firstOrNull()?.let { regionResolver.resolve(it.latitude, it.longitude) }
+            }
+            dao.upsertActivityRegion(
+                ActivityRegionEntity(
+                    activityId = activity.id,
+                    regionName = name,
+                    resolvedAtEpochMs = System.currentTimeMillis()
+                )
+            )
+            resolved += 1
+            delay(200L)
+        }
+        return resolved
     }
 
     suspend fun ensureDemoSampleIfEmpty() {

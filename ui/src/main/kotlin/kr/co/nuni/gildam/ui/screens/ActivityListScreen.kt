@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
@@ -32,6 +33,8 @@ import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.automirrored.outlined.CallMerge
+import androidx.compose.material.icons.automirrored.outlined.ViewList
+import androidx.compose.material.icons.outlined.ViewAgenda
 import androidx.compose.material.icons.outlined.RadioButtonUnchecked
 import androidx.compose.material.icons.outlined.Clear
 import androidx.compose.material.icons.outlined.Close
@@ -84,7 +87,10 @@ import kr.co.nuni.gildam.ui.illustration.GildamTooltip
 import kr.co.nuni.gildam.ui.illustration.TransportSticker
 import kr.co.nuni.gildam.ui.illustration.brandGradient
 import kr.co.nuni.gildam.ui.illustration.onBrand
+import kr.co.nuni.gildam.ui.list.RecordLayout
 import kr.co.nuni.gildam.data.local.entity.ActivityEntity
+import kr.co.nuni.gildam.data.list.RecordGroupMode
+import kr.co.nuni.gildam.data.list.RecordGrouper
 import kr.co.nuni.gildam.data.merge.RecordMerger
 import kr.co.nuni.gildam.data.model.ActivityStatus
 import kr.co.nuni.gildam.data.model.SyncState
@@ -94,7 +100,7 @@ import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 fun ActivityListScreen(
     activities: List<ActivityEntity>,
@@ -113,7 +119,15 @@ fun ActivityListScreen(
     onDeleteActivity: (String) -> Unit = {},
     onUploadActivity: (String) -> Unit = {},
     /** 고른 기록들을 하나로 합치기 (합치는 동안 결과를 기다림). 성공하면 true */
-    onMergeActivities: suspend (List<String>, String) -> Boolean = { _, _ -> false }
+    onMergeActivities: suspend (List<String>, String) -> Boolean = { _, _ -> false },
+    /** 카드 보기 / 리스트(목록) 보기 */
+    recordLayout: RecordLayout = RecordLayout.CARD,
+    onSelectRecordLayout: (RecordLayout) -> Unit = {},
+    /** 최근순 / 월별 / 지역별 묶어 보기 */
+    recordGroupMode: RecordGroupMode = RecordGroupMode.RECENT,
+    onSelectRecordGroup: (RecordGroupMode) -> Unit = {},
+    /** activity_id → 지역 이름 (없으면 '지역 확인 중', null 이면 '지역 정보 없음') */
+    regions: Map<String, String?> = emptyMap()
 ) {
     // 찾기: 기본은 가려져 있고 앱바 돋보기 아이콘으로 펼침/접음
     var searchExpanded by rememberSaveable { mutableStateOf(false) }
@@ -365,6 +379,14 @@ fun ActivityListScreen(
                 }
             }
 
+            // 보기 방식 한 줄: 왼쪽은 묶어 보기 칩(최근순/월별/지역별), 오른쪽 끝은 카드↔리스트 전환 아이콘
+            RecordViewOptionsRow(
+                recordGroupMode = recordGroupMode,
+                onSelectRecordGroup = onSelectRecordGroup,
+                recordLayout = recordLayout,
+                onSelectRecordLayout = onSelectRecordLayout
+            )
+
             Spacer(modifier = Modifier.height(6.dp))
 
             if (merging) {
@@ -379,29 +401,56 @@ fun ActivityListScreen(
             if (activities.isEmpty()) {
                 BoxEmptyListState(onStartClick = onNavigateBackToRecorder)
             } else {
+                // 검색·이동수단 필터가 끝난 목록을 그대로 묶습니다 (필터 → 그룹)
+                val groups = remember(activities, regions, recordGroupMode) {
+                    RecordGrouper.group(activities, regions, recordGroupMode)
+                }
                 LazyColumn(
                     verticalArrangement = Arrangement.spacedBy(8.dp),
                     contentPadding = PaddingValues(bottom = 84.dp)
                 ) {
-                    items(activities, key = { it.id }) { item ->
-                        ActivitySummaryCard(
-                            activity = item,
-                            onClick = {
+                    groups.forEach { group ->
+                        if (group.title.isNotEmpty()) {
+                            stickyHeader(key = "group:${group.key}") {
+                                RecordGroupHeader(title = group.title, count = group.activities.size)
+                            }
+                        }
+                        items(group.activities, key = { it.id }) { item ->
+                            val onRowClick: () -> Unit = {
                                 if (merging) toggleMerge(item) else onSelectActivity(item.id)
-                            },
-                            isLoggedIn = isLoggedIn,
-                            mergeSelected = if (merging) (item.id in mergeSelected) else null,
-                            onLongClick = {
+                            }
+                            val onRowLongClick: () -> Unit = {
                                 if (!merging && item.status == ActivityStatus.COMPLETED) {
                                     haptics.performHapticFeedback(HapticFeedbackType.LongPress)
                                     merging = true
                                     toggleMerge(item)
                                 }
-                            },
-                            onEdit = { editingId = item.id },
-                            onDelete = { deletingId = item.id },
-                            onUpload = { onUploadActivity(item.id) }
-                        )
+                            }
+                            val selection = if (merging) (item.id in mergeSelected) else null
+                            if (recordLayout == RecordLayout.LIST) {
+                                ActivityCompactRow(
+                                    activity = item,
+                                    onClick = onRowClick,
+                                    isLoggedIn = isLoggedIn,
+                                    mergeSelected = selection,
+                                    onLongClick = onRowLongClick,
+                                    onEdit = { editingId = item.id },
+                                    onDelete = { deletingId = item.id },
+                                    onUpload = { onUploadActivity(item.id) }
+                                )
+                            } else {
+                                ActivitySummaryCard(
+                                    activity = item,
+                                    onClick = onRowClick,
+                                    isLoggedIn = isLoggedIn,
+                                    mergeSelected = selection,
+                                    onLongClick = onRowLongClick,
+                                    onEdit = { editingId = item.id },
+                                    onDelete = { deletingId = item.id },
+                                    onUpload = { onUploadActivity(item.id) }
+                                )
+                            }
+                        }
                     }
                 }
             }
@@ -511,6 +560,189 @@ internal fun ActivitySummaryCard(
             }
         }
     }
+}
+
+/**
+ * 목록 위 얇은 한 줄: 묶어 보기 칩 3개(최근순/월별/지역별) + 오른쪽 끝 카드↔리스트 전환 아이콘.
+ * 높이를 낮게 잡아 목록이 최대한 넓게 보이도록 합니다.
+ */
+@Composable
+internal fun RecordViewOptionsRow(
+    recordGroupMode: RecordGroupMode,
+    onSelectRecordGroup: (RecordGroupMode) -> Unit,
+    recordLayout: RecordLayout,
+    onSelectRecordLayout: (RecordLayout) -> Unit
+) {
+    val cs = MaterialTheme.colorScheme
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(top = 4.dp, bottom = 2.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            RecordGroupMode.entries.forEach { mode ->
+                val groupSelected = recordGroupMode == mode
+                Box(
+                    modifier = Modifier
+                        .height(26.dp)
+                        .clip(RoundedCornerShape(50))
+                        .then(
+                            if (groupSelected) {
+                                Modifier
+                                    .background(brandGradient())
+                                    .border(1.5.dp, cs.primary, RoundedCornerShape(50))
+                            } else {
+                                Modifier
+                                    .background(cs.surfaceVariant)
+                                    .border(1.dp, cs.outlineVariant, RoundedCornerShape(50))
+                            }
+                        )
+                        .clickable { onSelectRecordGroup(mode) }
+                        .padding(horizontal = 10.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = mode.labelKo,
+                        style = MaterialTheme.typography.labelSmall,
+                        fontWeight = if (groupSelected) FontWeight.Bold else FontWeight.Medium,
+                        color = if (groupSelected) onBrand() else cs.onSurfaceVariant
+                    )
+                }
+            }
+        }
+        // 지금 보기 방식을 누르면 '반대쪽'으로 바뀌므로 아이콘·설명은 바뀔 쪽을 가리킵니다
+        val toLayout = if (recordLayout == RecordLayout.CARD) RecordLayout.LIST else RecordLayout.CARD
+        GildamTooltip(toLayout.labelKo) {
+            IconButton(
+                onClick = { onSelectRecordLayout(toLayout) },
+                modifier = Modifier.size(30.dp)
+            ) {
+                Icon(
+                    if (recordLayout == RecordLayout.CARD) Icons.AutoMirrored.Outlined.ViewList
+                    else Icons.Outlined.ViewAgenda,
+                    contentDescription = toLayout.labelKo,
+                    tint = cs.onSurfaceVariant,
+                    modifier = Modifier.size(18.dp)
+                )
+            }
+        }
+    }
+}
+
+/** 묶음 헤더: '2026년 11월' / '서울 종로구' 처럼 작은 글씨 + 그 묶음의 기록 수 */
+@Composable
+internal fun RecordGroupHeader(title: String, count: Int) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(MaterialTheme.colorScheme.background)
+            .padding(start = 4.dp, end = 4.dp, top = 6.dp, bottom = 2.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+        Text(
+            text = title,
+            style = MaterialTheme.typography.labelMedium,
+            fontWeight = FontWeight.SemiBold,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        Text(
+            text = "${count}개",
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+    }
+}
+
+/**
+ * 리스트(목록) 보기 한 줄: 제목 + 거리·시간 + 클라우드 상태 + 수정/삭제/올리기.
+ * 카드와 동작은 같습니다 — 길게 누르면 합치기 선택 모드, 합치기 모드에서는 액션 버튼 숨김.
+ */
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+internal fun ActivityCompactRow(
+    activity: ActivityEntity,
+    onClick: () -> Unit,
+    isLoggedIn: Boolean = false,
+    /** 합칠 기록 고르기 모드면 선택 여부, 아니면 null */
+    mergeSelected: Boolean? = null,
+    onLongClick: () -> Unit = {},
+    onEdit: () -> Unit = {},
+    onDelete: () -> Unit = {},
+    onUpload: () -> Unit = {}
+) {
+    val cs = MaterialTheme.colorScheme
+    val stats = String.format(
+        "%.2f km · %s",
+        activity.distanceMeters / 1000.0,
+        formatCompactDuration(activity.totalDurationMs)
+    )
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .heightIn(min = 56.dp)
+            .clip(RoundedCornerShape(12.dp))
+            .background(if (mergeSelected == true) cs.primaryContainer else cs.surfaceVariant)
+            .combinedClickable(onClick = onClick, onLongClick = onLongClick)
+            .padding(horizontal = 10.dp, vertical = 6.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        if (mergeSelected != null) {
+            Icon(
+                imageVector = if (mergeSelected) Icons.Filled.CheckCircle else Icons.Outlined.RadioButtonUnchecked,
+                contentDescription = if (mergeSelected) "합칠 기록으로 고름" else "합칠 기록으로 고르지 않음",
+                tint = if (mergeSelected) cs.primary else cs.onSurfaceVariant,
+                modifier = Modifier.size(18.dp)
+            )
+            Spacer(modifier = Modifier.width(6.dp))
+        }
+        TransportSticker(type = activity.transportType, selected = true, size = 20.dp)
+        Spacer(modifier = Modifier.width(8.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = activity.title,
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            Text(
+                text = stats,
+                style = MaterialTheme.typography.labelSmall,
+                color = cs.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
+        Spacer(modifier = Modifier.width(4.dp))
+        Icon(
+            imageVector = if (activity.syncState == SyncState.SYNCED) Icons.Outlined.CloudDone else Icons.Outlined.CloudQueue,
+            contentDescription = activity.syncState.labelKo,
+            tint = cs.onSurfaceVariant,
+            modifier = Modifier.size(14.dp)
+        )
+        if (mergeSelected == null) {
+            RecordActionButtons(
+                activity, isLoggedIn,
+                onEdit = onEdit, onDelete = onDelete, onUpload = onUpload
+            )
+        }
+    }
+}
+
+/** 한 줄 목록에 들어갈 짧은 시간 표기: 1시간 미만 "38:12", 그 이상 "2:05:30" */
+internal fun formatCompactDuration(durationMs: Long): String {
+    val totalSec = (durationMs / 1000L).coerceAtLeast(0L)
+    val h = totalSec / 3600
+    val m = (totalSec % 3600) / 60
+    val s = totalSec % 60
+    return if (h > 0) String.format("%d:%02d:%02d", h, m, s)
+    else String.format("%02d:%02d", m, s)
 }
 
 @Composable

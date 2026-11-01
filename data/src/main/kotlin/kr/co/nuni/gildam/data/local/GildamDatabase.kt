@@ -9,6 +9,7 @@ import androidx.room.TypeConverter
 import androidx.room.TypeConverters
 import kr.co.nuni.gildam.data.local.dao.GildamDao
 import kr.co.nuni.gildam.data.local.entity.ActivityEntity
+import kr.co.nuni.gildam.data.local.entity.ActivityRegionEntity
 import kr.co.nuni.gildam.data.local.entity.PhotoEntity
 import kr.co.nuni.gildam.data.local.entity.TrackPointEntity
 import kr.co.nuni.gildam.data.local.entity.WaypointEntity
@@ -45,10 +46,11 @@ class GildamTypeConverters {
         TrackPointEntity::class,
         WaypointEntity::class,
         PhotoEntity::class,
-        CourseEntity::class
+        CourseEntity::class,
+        ActivityRegionEntity::class
     ],
-    version = 2,
-    autoMigrations = [AutoMigration(from = 1, to = 2)],
+    version = 3,
+    autoMigrations = [AutoMigration(from = 1, to = 2), AutoMigration(from = 2, to = 3)],
     exportSchema = true
 )
 @TypeConverters(GildamTypeConverters::class)

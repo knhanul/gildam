@@ -64,6 +64,8 @@ fun GildamAppRoot(
     val darkMode by appearanceViewModel.darkMode.collectAsState()
     val recordMapMode by appearanceViewModel.recordMapMode.collectAsState()
     val gaugeSelections by appearanceViewModel.gaugeSelections.collectAsState()
+    val recordLayout by appearanceViewModel.recordLayout.collectAsState()
+    val recordGroupMode by appearanceViewModel.recordGroupMode.collectAsState()
     val systemDark = androidx.compose.foundation.isSystemInDarkTheme()
     val isDark = when (darkMode) {
         kr.co.nuni.gildam.ui.theme.DarkModePref.SYSTEM -> systemDark
@@ -95,6 +97,7 @@ fun GildamAppRoot(
     val graceMs by viewModel.graceMs.collectAsState()
     val unfinishedRecording by viewModel.unfinishedRecording.collectAsState()
     val thumbnailCacheBytes by viewModel.thumbnailCacheSizeBytes.collectAsState()
+    val activityRegions by viewModel.regions.collectAsState()
 
     var pendingResumeUnfinished by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
 
@@ -265,6 +268,8 @@ fun GildamAppRoot(
             }
 
             composable<ActivityListRoute> {
+                // 목록 화면에 들어올 때마다 지역 이름을 뒤에서 채웁니다 (화면은 기다리지 않음)
+                LaunchedEffect(Unit) { viewModel.ensureRegionsResolved() }
                 ActivityListScreen(
                     activities = activities,
                     selectedTransportFilter = selectedTransportFilter,
@@ -279,7 +284,12 @@ fun GildamAppRoot(
                     onEditActivity = viewModel::editActivity,
                     onDeleteActivity = viewModel::deleteActivity,
                     onUploadActivity = viewModel::uploadActivityToCloud,
-                    onMergeActivities = { ids, title -> viewModel.mergeActivities(ids, title) != null }
+                    onMergeActivities = { ids, title -> viewModel.mergeActivities(ids, title) != null },
+                    recordLayout = recordLayout,
+                    onSelectRecordLayout = appearanceViewModel::setRecordLayout,
+                    recordGroupMode = recordGroupMode,
+                    onSelectRecordGroup = appearanceViewModel::setRecordGroupMode,
+                    regions = activityRegions
                 )
             }
 
