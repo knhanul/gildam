@@ -9,7 +9,10 @@ enum class MapCameraMode(val labelKo: String) {
     FOLLOW("내 위치 따라가기 (북쪽 위)"),
     HEADING("주행 방향을 위쪽으로"),
     OVERVIEW("전체 경로");
-    companion object { val DEFAULT = FOLLOW }
+    companion object {
+        /** 기본은 '주행 방향 위'. ('북쪽 위' 보기는 앱에서 감춤) */
+        val DEFAULT = HEADING
+    }
 }
 
 data class GeoBounds(val minLat: Double, val minLon: Double, val maxLat: Double, val maxLon: Double) {
