@@ -53,7 +53,9 @@ private data class MapMarkers(
     val showArrow: Boolean,
     val bearing: Double,
     val onCourseProgress: LatLonPoint?,
-    val offCourse: Boolean
+    val offCourse: Boolean,
+    /** 고도 그래프에서 고른 코스 지점 (점으로 표시) */
+    val selectedCourse: LatLonPoint? = null
 )
 
 data class MapWaypointMarker(
@@ -104,7 +106,11 @@ fun GildamMapLibreView(
     /** 코스를 벗어난 상태면 현재 위치 점을 경고색으로 */
     offCourse: Boolean = false,
     /** 따라갈 코스가 있으면 지도 아래쪽에 코스 앞부분이 더 보이게 (현재 위치 68%) */
-    followingCourse: Boolean = false
+    followingCourse: Boolean = false,
+    /** 고도 그래프와 연결: 코스에서 고른 지점까지 거리(km). 점으로 표시 */
+    selectedCourseKm: Double? = null,
+    /** 코스 선을 탭하면 그 지점의 시작점부터 거리(km). 코스가 없으면 호출 안 됨 */
+    onCourseTap: ((Double) -> Unit)? = null
 ) {
     val isPreview = LocalInspectionMode.current
     val themeRoute = MaterialTheme.colorScheme.primary
@@ -121,6 +127,7 @@ fun GildamMapLibreView(
             isDarkTheme = isDarkTheme,
             showDirectionArrow = showDirectionArrow,
             offCourse = offCourse,
+            selectedCourse = selectedCourseKm?.let { km -> MapRouteGeometry.pointAtKm(coursePoints, km) },
             modifier = modifier
         )
         }
@@ -145,6 +152,9 @@ fun GildamMapLibreView(
     val loadedStyleKey = remember { arrayOfNulls<String>(1) }
     val markerStyleKey = remember { arrayOfNulls<String>(1) }
     // 카메라 상태: [마지막 맞춤 경계, 마지막 맞춤 시각, 제스처 리스너 등록 여부]
+    // 탭 → 코스 거리: 리스너는 한 번만 달기 때문에 콜백·코스 점은 항상 최신 값을 봄
+    val tapCallback = androidx.compose.runtime.rememberUpdatedState(onCourseTap)
+    val coursePointsNow = androidx.compose.runtime.rememberUpdatedState(coursePoints)
     val camState = remember { object { var initialized = false; var lastFit: GeoBounds? = null; var lastFitMs = 0L; var lastFollowMs = 0L; var listener = false; var lastMode: MapCameraMode? = null; var lastKey = 0 } }
     val gestureCallback = androidx.compose.runtime.rememberUpdatedState(onUserGesture)
 
@@ -195,6 +205,15 @@ fun GildamMapLibreView(
                         camState.listener = true
                         map.addOnCameraMoveStartedListener { reason ->
                             if (reason == org.maplibre.android.maps.MapLibreMap.OnCameraMoveStartedListener.REASON_API_GESTURE) gestureCallback.value()
+                        }
+                        map.addOnMapClickListener { latLng ->
+                            // 탭 지점에서 가장 가까운 코스 위 지점 (허용 거리 안일 때만)
+                            val cb = tapCallback.value ?: return@addOnMapClickListener false
+                            val d = MapRouteGeometry.nearestCourseDistanceKm(
+                                coursePointsNow.value, latLng.latitude, latLng.longitude, MapRouteGeometry.TAP_TOLERANCE_M
+                            ) ?: return@addOnMapClickListener false
+                            cb(d)
+                            true
                         }
                     }
                     if (camState.lastMode != cameraMode || camState.lastKey != recenterKey) { camState.lastMode = cameraMode; camState.lastKey = recenterKey; camState.lastFit = null; camState.lastFollowMs = 0L }
@@ -303,7 +322,8 @@ fun GildamMapLibreView(
                         showArrow = showDirectionArrow && routeOpacity > 0.9f,
                         bearing = MapCameraPlanner.resolveBearing(bearingDeg, trackPoints, currentLocation),
                         onCourseProgress = courseSplit?.let { if (it.walked.isNotEmpty()) currentLocation else null },
-                        offCourse = offCourse
+                        offCourse = offCourse,
+                        selectedCourse = selectedCourseKm?.let { km -> MapRouteGeometry.pointAtKm(coursePoints, km) }
                     )
                     val existingStyle = map.style
                     if (existingStyle == null || loadedStyleKey[0] != styleUrl) {
@@ -393,7 +413,8 @@ private fun PreviewFallbackMapCanvas(
     overlayTopPx: Int = 0,
     overlayBottomPx: Int = 0,
     showDirectionArrow: Boolean = false,
-    offCourse: Boolean = false
+    offCourse: Boolean = false,
+    selectedCourse: LatLonPoint? = null
 ) {
     val bgColor = if (isDarkTheme) androidx.compose.ui.graphics.Color(0xFF141816)
     else androidx.compose.ui.graphics.Color(0xFFEAE4D8)
@@ -449,6 +470,12 @@ private fun PreviewFallbackMapCanvas(
             }
             if (trackPoints.size >= 2) {
                 drawPath(line(trackPoints), routeColor, style = Stroke(width = 10f, cap = StrokeCap.Round, join = StrokeJoin.Round))
+            }
+            // 고도 그래프에서 고른 코스 지점
+            selectedCourse?.let { sel ->
+                val o = pt(sel)
+                drawCircle(androidx.compose.ui.graphics.Color.White, 12f, o)
+                drawCircle(routeColor, 12f, o, style = Stroke(6f))
             }
             // 출발 점(초록 원): 내 기록의 첫 점 (코스만 있는 지도는 코스 시작·끝 점을 따로 그림)
             trackPoints.firstOrNull()?.let { st ->
@@ -533,7 +560,7 @@ private fun buildArrowGeoJson(p: LatLonPoint?, bearingDeg: Double): String {
 /** 점들을 바뀔 때만 다시 그리기 위한 키 (위치·상태 요약) */
 private fun markersKey(m: MapMarkers): String {
     fun p(x: LatLonPoint?) = x?.let { "%.6f,%.6f".format(java.util.Locale.ROOT, it.latitude, it.longitude) } ?: "-"
-    return "${p(m.start)}|${p(m.current)}|${m.showArrow}|${(m.bearing * 2).toInt()}|${p(m.onCourseProgress)}|${m.offCourse}"
+    return "${p(m.start)}|${p(m.current)}|${m.showArrow}|${(m.bearing * 2).toInt()}|${p(m.onCourseProgress)}|${m.offCourse}|${p(m.selectedCourse)}"
 }
 
 /** 출발 점 · 코스 진행 점 · 현재 점 · 방향 화살표 레이어를 스타일 위에 올립니다 (선보다 위) */
@@ -544,6 +571,16 @@ private fun addMarkerLayers(
     markers: MapMarkers
 ) {
     val white = Color.WHITE
+    // 고도 그래프와 연결된 선택 지점: 흰 바탕 + 굵은 테두리 원
+    style.addSource(GeoJsonSource(SELECTED_SOURCE_ID, buildPointGeoJson(markers.selectedCourse)))
+    style.addLayer(
+        CircleLayer(SELECTED_LAYER_ID, SELECTED_SOURCE_ID).withProperties(
+            PropertyFactory.circleColor(white),
+            PropertyFactory.circleRadius(7f),
+            PropertyFactory.circleStrokeColor(routeColor),
+            PropertyFactory.circleStrokeWidth(3.5f)
+        )
+    )
     style.addSource(GeoJsonSource(START_SOURCE_ID, buildPointGeoJson(markers.start)))
     style.addLayer(
         CircleLayer(START_LAYER_ID, START_SOURCE_ID).withProperties(
@@ -590,6 +627,7 @@ private fun updateMarkerSources(style: Style, markers: MapMarkers) {
     style.getSourceAs<GeoJsonSource>(PROGRESS_SOURCE_ID)?.setGeoJson(buildPointGeoJson(markers.onCourseProgress))
     style.getSourceAs<GeoJsonSource>(CURRENT_SOURCE_ID)?.setGeoJson(buildPointGeoJson(markers.current))
     style.getSourceAs<GeoJsonSource>(ARROW_SOURCE_ID)?.setGeoJson(buildArrowGeoJson(markers.current.takeIf { markers.showArrow }, markers.bearing))
+    style.getSourceAs<GeoJsonSource>(SELECTED_SOURCE_ID)?.setGeoJson(buildPointGeoJson(markers.selectedCourse))
 }
 
 private fun buildLineStringGeoJson(points: List<LatLonPoint>): String {
@@ -622,6 +660,8 @@ private const val ARROW_SOURCE_ID = "gildam-arrow-source"
 private const val ARROW_LAYER_ID = "gildam-arrow-layer"
 private const val PROGRESS_SOURCE_ID = "gildam-progress-source"
 private const val PROGRESS_LAYER_ID = "gildam-progress-layer"
+private const val SELECTED_SOURCE_ID = "gildam-selected-source"
+private const val SELECTED_LAYER_ID = "gildam-selected-layer"
 
 /** 출발 점 색 (숲색 계열 초록) */
 private val START_COLOR = Color.parseColor("#2E7D4F")

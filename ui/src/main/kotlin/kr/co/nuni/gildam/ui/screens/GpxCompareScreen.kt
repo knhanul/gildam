@@ -18,7 +18,10 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.outlined.Close
@@ -54,6 +57,7 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.TextStyle
+import kr.co.nuni.gildam.data.course.ElevationChartHit
 import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.rememberTextMeasurer
@@ -313,8 +317,18 @@ internal fun SectionCard(title: String, subtitle: String?, content: @Composable 
     }
 }
 
+/**
+ * 고도 프로파일 그래프.
+ * [selectedDistanceKm] 을 주면 그 지점에 세로선·점을 그리고 거리·고도를 보여 줍니다.
+ * [onSelectDistanceKm] 을 주면 그래프를 탭/드래그해 지점을 고를 수 있습니다 (코스 상세 지도와 연결).
+ * 둘 다 없으면(예: GPX 비교) 예전과 똑같이 동작합니다.
+ */
 @Composable
-internal fun ElevationChart(loaded: List<GpxCompareEntry.Loaded>) {
+internal fun ElevationChart(
+    loaded: List<GpxCompareEntry.Loaded>,
+    selectedDistanceKm: Double? = null,
+    onSelectDistanceKm: ((Double) -> Unit)? = null
+) {
     val measurer = rememberTextMeasurer()
     val labelColor = MaterialTheme.colorScheme.onSurfaceVariant
     val gridColor = MaterialTheme.colorScheme.outlineVariant
@@ -329,7 +343,19 @@ internal fun ElevationChart(loaded: List<GpxCompareEntry.Loaded>) {
     val yHi = max(yLo + eStep, ceil(maxE / eStep) * eStep)
     val kStep = niceStep(maxKm.coerceAtLeast(0.5) / 4)
     val labelStyle = TextStyle(fontSize = 10.sp, color = labelColor)
-    Canvas(Modifier.fillMaxWidth().height(200.dp)) {
+    // 탭·드래그로 고른 지점 → 거리(km). 그래프 여백(40dp)은 픽셀 밀도에 맞춰 계산
+    val leftPxDp = 40.dp
+    Canvas(
+        Modifier.fillMaxWidth().height(200.dp)
+            .tapAndDrag(
+                enabled = onSelectDistanceKm != null,
+                onPosition = { px ->
+                    val left = leftPxDp.toPx()
+                    val plotW = size.width - left - 6.dp.toPx()
+                    onSelectDistanceKm?.invoke(ElevationChartHit.distanceKmForTap(px, left, plotW, maxKm))
+                }
+            )
+    ) {
         val left = 40.dp.toPx(); val bottom = 20.dp.toPx(); val top = 6.dp.toPx(); val right = 6.dp.toPx()
         val w = size.width - left - right; val h = size.height - top - bottom
         fun x(km: Double) = left + (km / maxKm * w).toFloat()
@@ -354,6 +380,33 @@ internal fun ElevationChart(loaded: List<GpxCompareEntry.Loaded>) {
             }
             drawPath(path, if (loaded.size == 1) single else cc[i % 4], style = Stroke(width = 2.5.dp.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round))
         }
+        // 선택 지점: 세로 점선 + 점 (지도에서 고른 지점 또는 그래프에서 고른 지점)
+        val selKm = selectedDistanceKm?.coerceIn(0.0, maxKm)
+        if (selKm != null) {
+            val px = x(selKm)
+            drawLine(single.copy(alpha = 0.55f), Offset(px, top), Offset(px, top + h), 1.5.dp.toPx(),
+                pathEffect = PathEffect.dashPathEffect(floatArrayOf(5f, 5f)))
+            val selEle = ElevationChartHit.elevationAt(withEle.first().value.result.profile, selKm)
+            if (selEle != null) {
+                val py = y(selEle)
+                drawCircle(androidx.compose.ui.graphics.Color.White, 7.dp.toPx(), Offset(px, py))
+                drawCircle(single, 7.dp.toPx(), Offset(px, py), style = Stroke(3.dp.toPx()))
+            }
+        }
+    }
+    // 고른 지점의 거리·고도 (지도와 연결된 경우에만)
+    val selKmShown = selectedDistanceKm?.coerceIn(0.0, maxKm)
+    if (selKmShown != null) {
+        val selEle = ElevationChartHit.elevationAt(withEle.first().value.result.profile, selKmShown)
+        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 4.dp)) {
+            Box(Modifier.size(8.dp).clip(CircleShape).background(single))
+            Spacer(Modifier.width(6.dp))
+            Text(
+                "%.2f km · %s".format(selKmShown, selEle?.let { "%.0f m".format(it) } ?: "–"),
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
     }
     Spacer(Modifier.height(8.dp))
     Legend(loaded)
@@ -362,6 +415,27 @@ internal fun ElevationChart(loaded: List<GpxCompareEntry.Loaded>) {
         Text("고도 정보가 없는 파일은 그래프에서 빠졌어요.", style = MaterialTheme.typography.labelSmall, color = Color(0xFFB0611A))
     }
 }
+
+/**
+ * 탭과 드래그를 함께 받아 x 좌표만 넘깁니다 (그래프에서 지점 고르기).
+ * 누르는 즉시 한 번, 누른 채 좌우로 움직이면 계속 갱신되어 '드래그로 훑어보기'가 됩니다.
+ */
+private fun Modifier.tapAndDrag(
+    enabled: Boolean,
+    onPosition: androidx.compose.ui.input.pointer.PointerInputScope.(Float) -> Unit
+): Modifier =
+    if (!enabled) this
+    else pointerInput(enabled) {
+        awaitEachGesture {
+            val down = awaitFirstDown(requireUnconsumed = false)
+            onPosition(down.position.x)
+            var change = awaitPointerEvent().changes.firstOrNull()
+            while (change != null && change.pressed) {
+                onPosition(change.position.x)
+                change = awaitPointerEvent().changes.firstOrNull()
+            }
+        }
+    }
 
 @Composable
 private fun Legend(loaded: List<GpxCompareEntry.Loaded>) {

@@ -359,6 +359,8 @@ fun CourseDetailScreen(
 ) {
     var showFullscreenMap by rememberSaveable { mutableStateOf(false) }
     var showFollowSheet by rememberSaveable { mutableStateOf(false) }
+    // 지도 ↔ 고도 그래프 연결: 고른 코스 지점 거리(km). null 이면 선택 없음
+    var selectedKm by rememberSaveable(detail?.id) { mutableStateOf<Double?>(null) }
     Scaffold(
         topBar = {
             TopAppBar(
@@ -400,6 +402,8 @@ fun CourseDetailScreen(
             CourseMapFullscreen(
                 name = detail.name,
                 route = detail.route,
+                selectedKm = selectedKm,
+                onSelectKm = { selectedKm = it },
                 onClose = { showFullscreenMap = false }
             )
         }
@@ -410,6 +414,9 @@ fun CourseDetailScreen(
             Box(Modifier.fillMaxWidth().height(220.dp).clip(RoundedCornerShape(22.dp))) {
                 GildamMapLibreView(
                     trackPoints = emptyList(), currentLocation = null, coursePoints = detail.route, fitToTrack = true,
+                    selectedCourseKm = selectedKm,
+                    // 코스 선을 누르면 그 지점을 고도 그래프에 표시 (선에서 120m 안쪽 탭만)
+                    onCourseTap = { km -> selectedKm = km },
                     modifier = Modifier.fillMaxSize()
                 )
                 // 전체 화면으로 보기 (작은 아이콘 + 말풍선 안내)
@@ -444,7 +451,17 @@ fun CourseDetailScreen(
                 StatTile("최고 고도", r.maxElevationM?.let { "%.0f m".format(it) } ?: "–", Modifier.weight(1f))
             }
             if (r.hasElevation) {
-                SectionCard("고도 프로파일", "가로: 거리(km) · 세로: 고도(m)") { ElevationChart(listOf(GpxCompareEntry.Loaded(detail.id, r))) }
+                SectionCard(
+                    "고도 프로파일",
+                    if (selectedKm != null) "고른 지점은 지도에도 표시돼요 · 탭하거나 드래그해 보세요"
+                    else "가로: 거리(km) · 세로: 고도(m) · 탭하면 지도에 표시"
+                ) {
+                    ElevationChart(
+                        loaded = listOf(GpxCompareEntry.Loaded(detail.id, r)),
+                        selectedDistanceKm = selectedKm,
+                        onSelectDistanceKm = { km -> selectedKm = km }
+                    )
+                }
             } else {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(Icons.Outlined.WarningAmber, null, tint = WarningAmber, modifier = Modifier.size(18.dp)); Spacer(Modifier.width(6.dp))
@@ -515,7 +532,13 @@ private fun FollowStat(label: String, value: String, fg: Color) = Column {
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun CourseMapFullscreen(name: String, route: List<LatLonPoint>, onClose: () -> Unit) {
+private fun CourseMapFullscreen(
+    name: String,
+    route: List<LatLonPoint>,
+    selectedKm: Double?,
+    onSelectKm: (Double) -> Unit,
+    onClose: () -> Unit
+) {
     androidx.activity.compose.BackHandler(onBack = onClose)
     androidx.compose.ui.window.Dialog(
         onDismissRequest = onClose,
@@ -532,6 +555,9 @@ private fun CourseMapFullscreen(name: String, route: List<LatLonPoint>, onClose:
                     coursePoints = route,
                     fitToTrack = true,
                     fullscreenGestures = true,
+                    // 전체 화면에서도 같은 선택 지점을 보여 주고, 여기서 탭해 고를 수도 있음
+                    selectedCourseKm = selectedKm,
+                    onCourseTap = onSelectKm,
                     modifier = Modifier.fillMaxSize()
                 )
                 // 코스 이름 + 닫기 (지도 위 작은 오버레이)
