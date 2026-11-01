@@ -378,7 +378,8 @@ fun CourseDetailScreen(
                     subtitle = "예상 " + HikingTimeEstimator.formatKo(detail.etaSec) + " · 남은 거리와 도착 시간을 알려드려요",
                     type = suggestedActivity,
                     onClick = { showFollowSheet = true },
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)
+                    // 기기마다 다른 시스템 내비게이션 바(제스처·3버튼) 높이만큼 띄워 버튼이 가려지지 않게 함
+                    modifier = Modifier.navigationBarsPadding().padding(horizontal = 16.dp, vertical = 12.dp)
                 )
             }
         }
