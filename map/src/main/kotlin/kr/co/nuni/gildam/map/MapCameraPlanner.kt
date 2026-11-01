@@ -6,7 +6,7 @@ import kotlin.math.min
 
 /** 기록 중 지도 카메라 모드 */
 enum class MapCameraMode(val labelKo: String) {
-    FOLLOW("나침반 (북쪽 위)"),
+    FOLLOW("현재 경로 보기 (북쪽 위)"),
     HEADING("주행 방향을 위로"),
     OVERVIEW("전체 경로");
     companion object {

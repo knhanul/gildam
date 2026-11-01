@@ -57,10 +57,10 @@ fun MapCameraControls(
         Spacer(Modifier.width(6.dp))
         Surface(shape = RoundedCornerShape(50), color = MaterialTheme.colorScheme.surface.copy(alpha = 0.95f), shadowElevation = 6.dp) {
             Row(Modifier.padding(horizontal = 2.dp)) {
-                // 순서: 전체 경로 → 나침반(북쪽 위) → 주행 방향 위. 나침반과 주행 방향은 나란히 둡니다.
+                // 전체 경로 보기 ↔ 현재 경로 보기(나침반·북쪽 위) → 그 옆에 주행 방향 위
                 Seg(Icons.Outlined.Route, "전체 경로 보기", mode == MapCameraMode.OVERVIEW && !paused) { onSelect(MapCameraMode.OVERVIEW) }
                 if (allowNorthUp) {
-                    Seg(Icons.Outlined.Explore, "나침반 (북쪽 위)", mode == MapCameraMode.FOLLOW && !paused) { onSelect(MapCameraMode.FOLLOW) }
+                    Seg(Icons.Outlined.Explore, "현재 경로 보기 (북쪽 위)", mode == MapCameraMode.FOLLOW && !paused) { onSelect(MapCameraMode.FOLLOW) }
                 }
                 Seg(Icons.Outlined.Navigation, "주행 방향을 위로", mode == MapCameraMode.HEADING && !paused) { onSelect(MapCameraMode.HEADING) }
             }
