@@ -278,7 +278,8 @@ fun GildamAppRoot(
                     isLoggedIn = sessionState.isLoggedIn,
                     onEditActivity = viewModel::editActivity,
                     onDeleteActivity = viewModel::deleteActivity,
-                    onUploadActivity = viewModel::uploadActivityToCloud
+                    onUploadActivity = viewModel::uploadActivityToCloud,
+                    onMergeActivities = { ids, title -> viewModel.mergeActivities(ids, title) != null }
                 )
             }
 

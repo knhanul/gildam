@@ -10,6 +10,7 @@ import kr.co.nuni.gildam.data.local.entity.PhotoEntity
 import kr.co.nuni.gildam.data.local.entity.TrackPointEntity
 import kr.co.nuni.gildam.data.local.entity.WaypointEntity
 import kr.co.nuni.gildam.data.media.LocalPhotoManager
+import kr.co.nuni.gildam.data.merge.RecordMerger
 import kr.co.nuni.gildam.data.model.ActivityStatus
 import kr.co.nuni.gildam.data.model.PhotoBackupState
 import kr.co.nuni.gildam.data.model.SyncState
@@ -258,6 +259,41 @@ class GildamRepository @Inject constructor(
         val queued = RecordEditPolicy.requestUpload(existing) ?: return false
         dao.setActivitySyncStateOnly(activityId, queued.syncState)
         return true
+    }
+
+    /**
+     * 여러 길기록을 하나로 합칩니다.
+     * - 경로 점·길 메모(사진 참조)는 새 기록으로 옮기고, 원본 기록은 지웁니다(서버에 올린 기록은 삭제 대기열).
+     * - 사진 파일은 기기에 그대로 두고 참조만 새 기록 쪽으로 옮깁니다.
+     * @return 새 기록 id, 실패하면 null
+     */
+    suspend fun mergeActivities(activityIds: List<String>, title: String? = null): String? {
+        val now = System.currentTimeMillis()
+        val sources = activityIds.mapNotNull { dao.getActivityById(it) }
+            .filter { it.deletedAtEpochMs == null }
+            .sortedBy { it.startedAtEpochMs }
+        RecordMerger.validate(sources)?.let { return null }
+
+        val pointsByActivity = sources.associate { it.id to dao.getTrackPoints(it.id) }
+        val newId = UUID.randomUUID().toString()
+        val finalTitle = title?.let { RecordEditPolicy.cleanTitle(it) } ?: RecordMerger.defaultTitle(sources)
+        val merged = RecordMerger.merge(sources, pointsByActivity, newId, finalTitle, now)
+
+        // 길 메모는 id 를 유지한 채 활동 id 만 새 기록으로 바꿉니다 (사진 참조가 그대로 살아 있음)
+        val movedWaypoints = sources.flatMap { source ->
+            dao.getAllWaypointsForActivity(source.id)
+                .filter { it.deletedAtEpochMs == null }
+                .map { it.copy(activityId = newId, syncState = merged.activity.syncState) }
+        }
+
+        dao.saveMergedActivity(merged.activity, merged.points, movedWaypoints)
+
+        // 원본 기록 정리: 기기에만 있던 기록은 바로 지우고, 서버에 올린 적 있는 기록은 삭제 대기열에 넣습니다
+        merged.localDeleteIds.forEach { dao.hardDeleteActivity(it) }
+        merged.serverDeleteIds.forEach { id ->
+            dao.getActivityById(id)?.let { dao.upsertActivity(RecordEditPolicy.markDeleted(it, now)) }
+        }
+        return newId
     }
 
     suspend fun ensureDemoSampleIfEmpty() {

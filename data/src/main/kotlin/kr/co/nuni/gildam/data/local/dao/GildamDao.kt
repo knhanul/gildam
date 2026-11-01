@@ -140,6 +140,18 @@ interface GildamDao {
     @Query("DELETE FROM activities WHERE id = :activityId")
     suspend fun hardDeleteActivity(activityId: String)
 
+    /** 합친 기록 저장: 새 기록 + 경로 점 + 옮겨 온 길 메모를 한 트랜잭션으로 씀 */
+    @Transaction
+    suspend fun saveMergedActivity(
+        activity: ActivityEntity,
+        points: List<TrackPointEntity>,
+        movedWaypoints: List<WaypointEntity>
+    ) {
+        upsertActivity(activity)
+        if (points.isNotEmpty()) points.chunked(5000).forEach { insertTrackPointsBatch(it) }
+        movedWaypoints.forEach { upsertWaypoint(it) }
+    }
+
     /** 서버 트랙 한 건을 로컬에 통째로 반영 (트랙포인트 교체, 웨이포인트 병합) */
     @Transaction
     suspend fun replaceActivityFromServer(activity: ActivityEntity, points: List<TrackPointEntity>, waypoints: List<WaypointEntity>) {

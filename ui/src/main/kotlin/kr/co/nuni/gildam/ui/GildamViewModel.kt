@@ -354,6 +354,13 @@ class GildamViewModel @Inject constructor(
         }
     }
 
+    /** 여러 길기록을 하나로 합치기. 합치면 새 기록 id, 실패하면 null (UI 는 결과만 받아 안내) */
+    suspend fun mergeActivities(ids: List<String>, title: String): String? {
+        val newId = repository.mergeActivities(ids, title)
+        if (newId != null) GildamSyncWorker.enqueueImmediateSync(appContext)
+        return newId
+    }
+
     /** 로그인한 사용자로 이 기록을 클라우드에 올리기 */
     fun uploadActivityToCloud(activityId: String) {
         if (!tokenStore.sessionFlow.value.isLoggedIn) return

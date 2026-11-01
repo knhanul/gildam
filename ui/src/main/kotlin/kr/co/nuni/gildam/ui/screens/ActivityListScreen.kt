@@ -1,8 +1,11 @@
 package kr.co.nuni.gildam.ui.screens
 
+import android.widget.Toast
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -26,7 +29,10 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
+import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.outlined.Add
+import androidx.compose.material.icons.automirrored.outlined.CallMerge
+import androidx.compose.material.icons.outlined.RadioButtonUnchecked
 import androidx.compose.material.icons.outlined.Clear
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.CloudDone
@@ -34,10 +40,12 @@ import androidx.compose.material.icons.outlined.CloudQueue
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.outlined.Terrain
+import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExtendedFloatingActionButton
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -54,9 +62,13 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
@@ -65,6 +77,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.unit.sp
 import kr.co.nuni.gildam.ui.R
 import kr.co.nuni.gildam.ui.illustration.GildamTooltip
@@ -72,8 +85,11 @@ import kr.co.nuni.gildam.ui.illustration.TransportSticker
 import kr.co.nuni.gildam.ui.illustration.brandGradient
 import kr.co.nuni.gildam.ui.illustration.onBrand
 import kr.co.nuni.gildam.data.local.entity.ActivityEntity
+import kr.co.nuni.gildam.data.merge.RecordMerger
+import kr.co.nuni.gildam.data.model.ActivityStatus
 import kr.co.nuni.gildam.data.model.SyncState
 import kr.co.nuni.gildam.data.model.TransportType
+import kotlinx.coroutines.launch
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -95,7 +111,9 @@ fun ActivityListScreen(
     isLoggedIn: Boolean = false,
     onEditActivity: (id: String, title: String, type: TransportType) -> Unit = { _, _, _ -> },
     onDeleteActivity: (String) -> Unit = {},
-    onUploadActivity: (String) -> Unit = {}
+    onUploadActivity: (String) -> Unit = {},
+    /** 고른 기록들을 하나로 합치기 (합치는 동안 결과를 기다림). 성공하면 true */
+    onMergeActivities: suspend (List<String>, String) -> Boolean = { _, _ -> false }
 ) {
     // 찾기: 기본은 가려져 있고 앱바 돋보기 아이콘으로 펼침/접음
     var searchExpanded by rememberSaveable { mutableStateOf(false) }
@@ -108,6 +126,59 @@ fun ActivityListScreen(
     // 수정 시트 / 삭제 확인 대화상자
     var editingId by remember { mutableStateOf<String?>(null) }
     var deletingId by remember { mutableStateOf<String?>(null) }
+
+    // 합치기: 카드를 길게 누르면 여러 개 고르는 모드로 들어갑니다
+    var merging by rememberSaveable { mutableStateOf(false) }
+    var mergeSelectedCsv by rememberSaveable { mutableStateOf("") }
+    var showMergeConfirm by rememberSaveable { mutableStateOf(false) }
+    var mergeRunning by remember { mutableStateOf(false) }
+    val mergeSelected = remember(mergeSelectedCsv) {
+        mergeSelectedCsv.split(',').filter { it.isNotEmpty() }
+    }
+    val haptics = LocalHapticFeedback.current
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+
+    fun toggleMerge(item: ActivityEntity) {
+        // 기록 중이거나 끝나지 않은 기록은 합칠 수 없으니 고를 때부터 막습니다
+        if (item.status != ActivityStatus.COMPLETED) {
+            Toast.makeText(context, "끝난 기록만 합칠 수 있어요", Toast.LENGTH_SHORT).show()
+            return
+        }
+        val next = if (item.id in mergeSelected) mergeSelected - item.id
+        else if (mergeSelected.size < RecordMerger.MAX_COUNT) mergeSelected + item.id
+        else mergeSelected
+        mergeSelectedCsv = next.joinToString(",")
+    }
+    fun exitMerging() { merging = false; mergeSelectedCsv = ""; showMergeConfirm = false }
+
+    if (showMergeConfirm) {
+        val sources = activities.filter { it.id in mergeSelected }
+        Dialog(
+            onDismissRequest = { if (!mergeRunning) showMergeConfirm = false }
+        ) {
+            MergeRecordsContent(
+                sources = sources,
+                defaultTitle = RecordMerger.defaultTitle(sources),
+                merging = mergeRunning,
+                onCancel = { showMergeConfirm = false },
+                onConfirm = { title ->
+                    mergeRunning = true
+                    scope.launch {
+                        val ok = onMergeActivities(sources.map { it.id }, title)
+                        mergeRunning = false
+                        showMergeConfirm = false
+                        if (ok) {
+                            exitMerging()
+                            Toast.makeText(context, "기록 ${sources.size}개를 하나로 합쳤어요", Toast.LENGTH_SHORT).show()
+                        } else {
+                            Toast.makeText(context, "합치지 못했어요. 끝난 기록을 두 개 이상 골라 주세요", Toast.LENGTH_LONG).show()
+                        }
+                    }
+                }
+            )
+        }
+    }
     RecordEditHost(
         editing = activities.firstOrNull { it.id == editingId },
         deleting = activities.firstOrNull { it.id == deletingId },
@@ -156,13 +227,34 @@ fun ActivityListScreen(
                     )
                     Spacer(modifier = Modifier.width(7.dp))
                     Text(
-                        text = "길담 보관함",
+                        text = if (merging) "합칠 기록 고르기" else "길담 보관함",
                         style = MaterialTheme.typography.titleLarge,
                         fontWeight = FontWeight.SemiBold
                     )
                 }
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    IconButton(
+                    if (merging) {
+                        TextButton(onClick = { exitMerging() }) { Text("취소") }
+                        Button(
+                            onClick = { showMergeConfirm = true },
+                            enabled = mergeSelected.size >= RecordMerger.MIN_COUNT
+                        ) {
+                            Text("합치기" + if (mergeSelected.isEmpty()) "" else " (${mergeSelected.size})")
+                        }
+                    }
+                    if (!merging) GildamTooltip("기록 여러 개 합치기") {
+                        IconButton(
+                            onClick = {
+                                merging = true
+                                searchExpanded = false
+                                onSearchQueryChange("")
+                            },
+                            modifier = Modifier.size(34.dp)
+                        ) {
+                            Icon(Icons.AutoMirrored.Outlined.CallMerge, contentDescription = "기록 여러 개 합치기", modifier = Modifier.size(20.dp))
+                        }
+                    }
+                    if (!merging) IconButton(
                         onClick = {
                             searchExpanded = !searchExpanded
                             if (!searchExpanded) onSearchQueryChange("")
@@ -275,6 +367,15 @@ fun ActivityListScreen(
 
             Spacer(modifier = Modifier.height(6.dp))
 
+            if (merging) {
+                Text(
+                    "끝난 기록을 두 개 이상 골라 주세요. 고른 기록은 하나로 합쳐지고 원본은 사라져요.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(start = 4.dp, bottom = 6.dp)
+                )
+            }
+
             if (activities.isEmpty()) {
                 BoxEmptyListState(onStartClick = onNavigateBackToRecorder)
             } else {
@@ -285,8 +386,18 @@ fun ActivityListScreen(
                     items(activities, key = { it.id }) { item ->
                         ActivitySummaryCard(
                             activity = item,
-                            onClick = { onSelectActivity(item.id) },
+                            onClick = {
+                                if (merging) toggleMerge(item) else onSelectActivity(item.id)
+                            },
                             isLoggedIn = isLoggedIn,
+                            mergeSelected = if (merging) (item.id in mergeSelected) else null,
+                            onLongClick = {
+                                if (!merging && item.status == ActivityStatus.COMPLETED) {
+                                    haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                                    merging = true
+                                    toggleMerge(item)
+                                }
+                            },
                             onEdit = { editingId = item.id },
                             onDelete = { deletingId = item.id },
                             onUpload = { onUploadActivity(item.id) }
@@ -298,11 +409,15 @@ fun ActivityListScreen(
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 internal fun ActivitySummaryCard(
     activity: ActivityEntity,
     onClick: () -> Unit,
     isLoggedIn: Boolean = false,
+    /** 합칠 기록 고르기 모드면 선택 여부, 아니면 null */
+    mergeSelected: Boolean? = null,
+    onLongClick: () -> Unit = {},
     onEdit: () -> Unit = {},
     onDelete: () -> Unit = {},
     onUpload: () -> Unit = {}
@@ -314,17 +429,27 @@ internal fun ActivitySummaryCard(
     Card(
         shape = RoundedCornerShape(12.dp),
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceVariant
+            containerColor = if (mergeSelected == true) MaterialTheme.colorScheme.primaryContainer
+            else MaterialTheme.colorScheme.surfaceVariant
         ),
         modifier = Modifier
             .fillMaxWidth()
-            .clickable(onClick = onClick)
+            .combinedClickable(onClick = onClick, onLongClick = onLongClick)
     ) {
         Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 9.dp)) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically
             ) {
+                if (mergeSelected != null) {
+                    Icon(
+                        imageVector = if (mergeSelected) Icons.Filled.CheckCircle else Icons.Outlined.RadioButtonUnchecked,
+                        contentDescription = if (mergeSelected) "합칠 기록으로 고름" else "합칠 기록으로 고르지 않음",
+                        tint = if (mergeSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(20.dp)
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                }
                 TransportSticker(
                     type = activity.transportType,
                     selected = true,
@@ -377,10 +502,12 @@ internal fun ActivitySummaryCard(
                         color = MaterialTheme.colorScheme.onSurface
                     )
                 }
-                RecordActionButtons(
-                    activity, isLoggedIn,
-                    onEdit = onEdit, onDelete = onDelete, onUpload = onUpload
-                )
+                if (mergeSelected == null) {
+                    RecordActionButtons(
+                        activity, isLoggedIn,
+                        onEdit = onEdit, onDelete = onDelete, onUpload = onUpload
+                    )
+                }
             }
         }
     }

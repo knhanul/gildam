@@ -1,5 +1,6 @@
 plugins {
     alias(libs.plugins.android.library)
+    id("app.cash.paparazzi") version "1.3.5"
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.kotlin.serialization)
@@ -57,4 +58,6 @@ dependencies {
 
     implementation(libs.hilt.android)
     ksp(libs.hilt.compiler)
+
+    testImplementation(libs.junit)
 }
