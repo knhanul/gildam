@@ -135,14 +135,14 @@ fun LiveRecordingScreen(
 
     // 현재 시간 계기판만 1초마다 다시 그리도록, 시각 상태는 읽는 곳에서만 구독합니다.
     val clockTick = rememberClockTick(fixedClockMs)
-    // 코스 따라 걷기 중에는 북쪽 고정을 쓰지 않음 (코스 방향 위 = HEADING 고정)
+    // '북쪽 위' 보기는 없앴습니다: 따라가기는 항상 주행 방향이 위쪽(HEADING)입니다.
     val followingCourse = follow != null
     var cameraMode by rememberSaveable(defaultCameraMode) {
-        mutableStateOf(if (followingCourse && defaultCameraMode == MapCameraMode.FOLLOW) MapCameraMode.HEADING else defaultCameraMode)
+        mutableStateOf(if (defaultCameraMode == MapCameraMode.FOLLOW) MapCameraMode.HEADING else defaultCameraMode)
     }
-    // 따라 걷기가 시작되면(설정 기본값이 북쪽 위여도) 자동으로 코스 방향 위로 바꿈
-    LaunchedEffect(followingCourse) {
-        if (followingCourse && cameraMode == MapCameraMode.FOLLOW) cameraMode = MapCameraMode.HEADING
+    // 예전에 저장된 '북쪽 위' 설정이 남아 있어도 주행 방향 위로 맞춤
+    LaunchedEffect(Unit) {
+        if (cameraMode == MapCameraMode.FOLLOW) cameraMode = MapCameraMode.HEADING
     }
     var cameraPaused by remember { mutableStateOf(false) }
     var recenterKey by remember { mutableStateOf(0) }
@@ -271,7 +271,7 @@ fun LiveRecordingScreen(
             MapCameraControls(
                 mode = cameraMode,
                 paused = cameraPaused,
-                allowNorthUp = !followingCourse,
+                allowNorthUp = false,
                 onSelect = {
                     cameraMode = it
                     cameraPaused = false

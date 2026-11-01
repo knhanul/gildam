@@ -47,8 +47,8 @@ fun MapCameraControls(
     onSelect: (MapCameraMode) -> Unit,
     onRecenter: () -> Unit,
     modifier: Modifier = Modifier,
-    /** 코스 따라 걷기 중에는 '북쪽 고정' 선택지를 숨김 (코스 방향 위 고정) */
-    allowNorthUp: Boolean = true
+    /** '북쪽 위' 선택지를 보일지. 기본은 숨김(주행 방향 위 · 전체 경로만 노출) */
+    allowNorthUp: Boolean = false
 ) {
     Row(modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End, verticalAlignment = Alignment.CenterVertically) {
         AnimatedVisibility(paused, enter = fadeIn() + scaleIn(), exit = fadeOut() + scaleOut()) {
@@ -57,11 +57,12 @@ fun MapCameraControls(
         Spacer(Modifier.width(6.dp))
         Surface(shape = RoundedCornerShape(50), color = MaterialTheme.colorScheme.surface.copy(alpha = 0.95f), shadowElevation = 6.dp) {
             Row(Modifier.padding(horizontal = 2.dp)) {
+                // 순서: 전체 경로 → 내 위치 따라가기(주행 방향 위). '북쪽 위'는 기본으로 숨김
+                Seg(Icons.Outlined.Route, "전체 경로 보기", mode == MapCameraMode.OVERVIEW && !paused) { onSelect(MapCameraMode.OVERVIEW) }
+                Seg(Icons.Outlined.Navigation, "내 위치 따라가기", mode == MapCameraMode.HEADING && !paused) { onSelect(MapCameraMode.HEADING) }
                 if (allowNorthUp) {
                     Seg(Icons.Outlined.MyLocation, "내 위치 따라가기 (북쪽 위)", mode == MapCameraMode.FOLLOW && !paused) { onSelect(MapCameraMode.FOLLOW) }
                 }
-                Seg(Icons.Outlined.Navigation, "주행 방향을 위쪽으로", mode == MapCameraMode.HEADING && !paused) { onSelect(MapCameraMode.HEADING) }
-                Seg(Icons.Outlined.Route, "전체 경로 보기", mode == MapCameraMode.OVERVIEW && !paused) { onSelect(MapCameraMode.OVERVIEW) }
             }
         }
     }
