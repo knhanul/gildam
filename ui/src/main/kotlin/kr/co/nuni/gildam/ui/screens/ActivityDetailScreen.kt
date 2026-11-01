@@ -81,8 +81,31 @@ fun ActivityDetailScreen(
     isLoggedIn: Boolean = false,
     onEditActivity: (id: String, title: String, type: TransportType) -> Unit = { _, _, _ -> },
     onDeleteActivity: (String) -> Unit = {},
-    onUploadActivity: (String) -> Unit = {}
+    onUploadActivity: (String) -> Unit = {},
+    /** 기기 사진에서 이 기록과 같은 시간·자리의 사진 찾기 (사진은 기기에만) */
+    recordPhotos: kr.co.nuni.gildam.ui.GildamViewModel.RecordPhotosState =
+        kr.co.nuni.gildam.ui.GildamViewModel.RecordPhotosState(),
+    onFindRecordPhotos: () -> Unit = {}
 ) {
+    // 사진 접근 권한 요청. Android 14+ 는 전체/일부(선택한 사진만) 중 고를 수 있게 두 권한을 함께 요청.
+    // 결과와 상관없이 다시 찾아 봄 — 허용된 범위의 사진만 보이고, 거절되면 안내 줄이 그대로 남습니다.
+    val photoPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestMultiplePermissions()
+    ) { onFindRecordPhotos() }
+    val requestPhotoAccess = {
+        val permissions = when {
+            android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.UPSIDE_DOWN_CAKE -> arrayOf(
+                android.Manifest.permission.READ_MEDIA_IMAGES,
+                "android.permission.READ_MEDIA_VISUAL_USER_SELECTED"
+            )
+            android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU -> arrayOf(
+                android.Manifest.permission.READ_MEDIA_IMAGES
+            )
+            else -> arrayOf(android.Manifest.permission.READ_EXTERNAL_STORAGE)
+        }
+        runCatching { photoPermissionLauncher.launch(permissions) }
+        Unit
+    }
     var showEdit by remember { mutableStateOf(false) }
     var showDelete by remember { mutableStateOf(false) }
     RecordEditHost(
@@ -108,6 +131,14 @@ fun ActivityDetailScreen(
         if (bundle != null) {
             onVerifyPhotos(bundle)
         }
+    }
+    // 기록·경로가 준비되면 기기 사진 후보를 찾음 (권한 없으면 안내 상태로).
+    // 경로 점이 없는 기록(0개)은 시간만으로 맞추므로 바로 찾습니다.
+    val photoSearchKey = bundle?.activity?.id to trackPoints.size
+    LaunchedEffect(photoSearchKey) {
+        val a = bundle?.activity ?: return@LaunchedEffect
+        val routeReady = trackPoints.isNotEmpty() || a.distanceMeters <= 0.0
+        if (routeReady) onFindRecordPhotos()
     }
 
     Scaffold(
@@ -259,6 +290,15 @@ fun ActivityDetailScreen(
                         }
                     }
                 }
+
+                // 이 기록과 같은 시간·자리에 찍힌 기기 사진 (사진은 기기에만, URI 만 참조)
+                RecordPhotoSection(
+                    loading = recordPhotos.loading,
+                    permissionDenied = recordPhotos.permissionDenied,
+                    photos = recordPhotos.photos,
+                    truncated = recordPhotos.truncated,
+                    onRequestPermission = requestPhotoAccess
+                )
 
                 Spacer(modifier = Modifier.height(12.dp))
 

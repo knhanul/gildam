@@ -31,6 +31,8 @@ import kr.co.nuni.gildam.data.local.entity.TrackPointEntity
 import kr.co.nuni.gildam.data.media.LocalPhotoManager
 import kr.co.nuni.gildam.data.model.TransportType
 import kr.co.nuni.gildam.data.prefs.RecordingPrefs
+import kr.co.nuni.gildam.data.photo.DevicePhotoFinder
+import kr.co.nuni.gildam.data.photo.MatchedPhoto
 import kr.co.nuni.gildam.data.prefs.ProfilePrefs
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.flatMapLatest
@@ -57,7 +59,8 @@ class GildamViewModel @Inject constructor(
     private val recordingPrefs: RecordingPrefs,
     private val syncStatusObserver: SyncStatusObserver,
     private val syncCursorStore: SyncCursorStore,
-    private val profilePrefs: ProfilePrefs
+    private val profilePrefs: ProfilePrefs,
+    private val devicePhotoFinder: DevicePhotoFinder
 ) : ViewModel() {
 
     /** 로그인 후 GET /v1/me 의 track_count (모르면 null) */
@@ -269,6 +272,47 @@ class GildamViewModel @Inject constructor(
             repository.observeActivityDetail(activityId),
             repository.observeTrackPoints(activityId)
         ) { detail, points -> detail to points }
+
+    // ---- 기록 상세: 같은 날 같은 자리에서 찍은 기기 사진 (사진은 기기에만, URI 만 참조) ----
+    /** 사진 찾기 상태: 권한 없음 / 찾는 중 / 결과 */
+    data class RecordPhotosState(
+        val loading: Boolean = false,
+        val permissionDenied: Boolean = false,
+        val photos: List<MatchedPhoto> = emptyList(),
+        val truncated: Boolean = false,
+        val searched: Boolean = false
+    )
+
+    private val _recordPhotos = MutableStateFlow(RecordPhotosState())
+    val recordPhotos: StateFlow<RecordPhotosState> = _recordPhotos.asStateFlow()
+    /** 지금 사진을 찾은 기록 id (다른 기록을 열면 결과를 비움) */
+    private var recordPhotosActivityId: String? = null
+    /** 진행 중인 찾기 작업 (같은 기록은 중복 실행 안 함) */
+    private var recordPhotosJob: kotlinx.coroutines.Job? = null
+
+    /** 기록 상세를 열 때/새로고침할 때 사진 후보를 찾습니다 (IO, 권한 없으면 안내용 상태만) */
+    fun findRecordPhotos(activity: ActivityEntity, points: List<TrackPointEntity>) {
+        // 다른 기록으로 바뀌면 이전 결과는 바로 지움 (엉뚱한 사진이 잠깐 보이지 않게)
+        if (recordPhotosActivityId != activity.id) {
+            recordPhotosJob?.cancel()
+            recordPhotosActivityId = activity.id
+            _recordPhotos.value = RecordPhotosState()
+        }
+        if (recordPhotosJob?.isActive == true) return
+        val endMs = activity.endedAtEpochMs ?: (points.lastOrNull()?.recordedAtEpochMs ?: activity.startedAtEpochMs)
+        val route = points.map { Triple(it.latitude, it.longitude, it.recordedAtEpochMs) }
+        recordPhotosJob = viewModelScope.launch {
+            _recordPhotos.value = RecordPhotosState(loading = true)
+            val result = devicePhotoFinder.findForRecord(activity.startedAtEpochMs, endMs, route)
+            _recordPhotos.value = RecordPhotosState(
+                loading = false,
+                permissionDenied = result.permissionDenied,
+                photos = result.photos,
+                truncated = result.truncated,
+                searched = true
+            )
+        }
+    }
 
     fun verifyPhotosOnDetailOpen(bundle: ActivityDetailBundle) {
         viewModelScope.launch {

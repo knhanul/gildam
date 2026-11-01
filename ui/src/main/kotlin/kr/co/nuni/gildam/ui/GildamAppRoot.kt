@@ -288,6 +288,7 @@ fun GildamAppRoot(
                     viewModel.observeActivityDetailWithTrack(route.activityId)
                 }.collectAsState(initial = null to emptyList())
                 val (detailBundle, trackPoints) = detailWithTrack
+                val recordPhotos by viewModel.recordPhotos.collectAsState()
 
                 ActivityDetailScreen(
                     bundle = detailBundle,
@@ -301,7 +302,9 @@ fun GildamAppRoot(
                     isLoggedIn = sessionState.isLoggedIn,
                     onEditActivity = viewModel::editActivity,
                     onDeleteActivity = viewModel::deleteActivity,
-                    onUploadActivity = viewModel::uploadActivityToCloud
+                    onUploadActivity = viewModel::uploadActivityToCloud,
+                    recordPhotos = recordPhotos,
+                    onFindRecordPhotos = { detailBundle?.activity?.let { viewModel.findRecordPhotos(it, trackPoints) } }
                 )
             }
 
