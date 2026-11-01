@@ -25,6 +25,7 @@ import androidx.compose.material.icons.outlined.BrokenImage
 import androidx.compose.material.icons.outlined.DevicesOther
 import androidx.compose.material.icons.outlined.IosShare
 import androidx.compose.material.icons.outlined.Lock
+import androidx.compose.material.icons.outlined.OpenInFull
 import androidx.compose.material.icons.outlined.Schedule
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -108,6 +109,8 @@ fun ActivityDetailScreen(
     }
     var showEdit by remember { mutableStateOf(false) }
     var showDelete by remember { mutableStateOf(false) }
+    // 기록 지도 전체 화면 (사진 핀 포함)
+    var showFullscreenMap by remember { mutableStateOf(false) }
     RecordEditHost(
         editing = bundle?.activity?.takeIf { showEdit },
         deleting = bundle?.activity?.takeIf { showDelete },
@@ -242,12 +245,29 @@ fun ActivityDetailScreen(
                         }
                     }
                 } else {
-                    GildamMapLibreView(
-                        trackPoints = latLonList,
-                        currentLocation = null,
-                        fitToTrack = true,
-                        modifier = mapModifier
-                    )
+                    Box(mapModifier) {
+                        GildamMapLibreView(
+                            trackPoints = latLonList,
+                            currentLocation = null,
+                            fitToTrack = true,
+                            modifier = Modifier.fillMaxSize()
+                        )
+                        // 전체 화면으로 보기 (작은 아이콘 + 말풍선 안내)
+                        kr.co.nuni.gildam.ui.illustration.TooltipIconButton(
+                            Icons.Outlined.OpenInFull, "지도 전체 화면", { showFullscreenMap = true },
+                            style = kr.co.nuni.gildam.ui.illustration.IconButtonStyle.TONAL,
+                            visualSize = 34.dp, iconSize = 18.dp,
+                            modifier = Modifier.align(Alignment.TopEnd).padding(6.dp)
+                        )
+                    }
+                    if (showFullscreenMap) {
+                        RecordMapFullscreen(
+                            title = activity.title,
+                            route = latLonList,
+                            photos = recordPhotos.photos,
+                            onClose = { showFullscreenMap = false }
+                        )
+                    }
                 }
 
                 // 핵심 통계 요약 바

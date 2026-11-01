@@ -61,4 +61,17 @@ class RecordPhotoMatcherTest {
         assertEquals(start - RecordPhotoMatcher.GRACE_MS, from)
         assertEquals(end + RecordPhotoMatcher.GRACE_MS, to)
     }
+
+    @Test fun matchedPhotosCarryMapPinCoordinates() {
+        val gps = PhotoCandidate("content://p1", start + 600_000L, 37.50005, 127.0033)
+        val noGps = PhotoCandidate("content://nogps", start + 900_000L, null, null)
+        val m = RecordPhotoMatcher.match(start, end, route, listOf(gps, noGps))
+        // GPS 사진: 사진이 찍힌 실제 좌표
+        assertEquals(37.50005, m[0].pointLat!!, 1e-9)
+        assertEquals(127.0033, m[0].pointLon!!, 1e-9)
+        // GPS 없는 사진: 가장 가까운 시각의 경로 점 (지도 핀을 놓을 수 있게)
+        assertTrue(m[1].timeOnly)
+        assertEquals(37.50, m[1].pointLat!!, 1e-9)
+        assertTrue(m[1].pointLon!! > 127.00)
+    }
 }

@@ -21,7 +21,10 @@ data class MatchedPhoto(
     /** 가장 가까운 경로 점까지 거리(m). 위치 정보가 없으면 null */
     val offsetM: Double?,
     /** 위치 정보가 없어 시간만으로 붙였는지 */
-    val timeOnly: Boolean
+    val timeOnly: Boolean,
+    /** 지도 핀을 놓을 좌표: 사진 GPS 가 있으면 그 지점, 없으면 가장 가까운 시각의 경로 점 */
+    val pointLat: Double? = null,
+    val pointLon: Double? = null
 )
 
 /**
@@ -76,11 +79,18 @@ object RecordPhotoMatcher {
                     } ?: return@mapNotNull null
                     val d = haversineM(c.latitude, c.longitude, nearest.latitude, nearest.longitude)
                     if (d > MAX_DISTANCE_M) null
-                    else MatchedPhoto(c.uri, c.takenAtMs, nearest.alongM, d, timeOnly = false)
+                    else MatchedPhoto(
+                        c.uri, c.takenAtMs, nearest.alongM, d, timeOnly = false,
+                        // 사진 자리에 그대로 찍고, 경로에서 너무 멀지 않으니 지도에는 실제 사진 좌표를 씀
+                        pointLat = c.latitude, pointLon = c.longitude
+                    )
                 } else {
                     // GPS 없음: 시간만으로 붙임 (경로가 있으면 '가장 가까운 시각의 점'을 참고 위치로)
                     val near = usableRoute.minByOrNull { kotlin.math.abs(it.recordedAtMs - c.takenAtMs) }
-                    MatchedPhoto(c.uri, c.takenAtMs, near?.alongM, null, timeOnly = true)
+                    MatchedPhoto(
+                        c.uri, c.takenAtMs, near?.alongM, null, timeOnly = true,
+                        pointLat = near?.latitude, pointLon = near?.longitude
+                    )
                 }
             }
             .sortedBy { it.takenAtMs }

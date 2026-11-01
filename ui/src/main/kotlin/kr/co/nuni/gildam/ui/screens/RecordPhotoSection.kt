@@ -216,9 +216,9 @@ private fun PhotoThumb(p: MatchedPhoto, onClick: () -> Unit) {
     }
 }
 
-/** 전체 화면 사진 보기: 촬영 시각·경로 위 위치, 작은 X */
+/** 전체 화면 사진 보기: 촬영 시각·경로 위 위치, 작은 X (기록 사진 목록·지도 핀 공용) */
 @Composable
-private fun PhotoViewerDialog(p: MatchedPhoto, onClose: () -> Unit) {
+internal fun PhotoViewerDialog(p: MatchedPhoto, onClose: () -> Unit) {
     Dialog(onDismissRequest = onClose, properties = DialogProperties(usePlatformDefaultWidth = false)) {
         Surface(color = Color.Black.copy(alpha = 0.94f), modifier = Modifier.fillMaxSize()) {
             Box(Modifier.fillMaxSize()) {

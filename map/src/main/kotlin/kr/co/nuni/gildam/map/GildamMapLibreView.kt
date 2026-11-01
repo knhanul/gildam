@@ -58,6 +58,16 @@ private data class MapMarkers(
     val selectedCourse: LatLonPoint? = null
 )
 
+/** 지도 위 사진 핀 (기록에 붙은 기기 사진). 사진은 기기에만 있고 URI 만 참조합니다. */
+data class MapPhotoMarker(
+    val id: String,
+    val latitude: Double,
+    val longitude: Double,
+    val uri: String,
+    /** 위치 정보가 없어 시간만으로 맞춘 사진 (핀 테두리를 점선 느낌의 옅은 색으로) */
+    val timeOnly: Boolean = false
+)
+
 data class MapWaypointMarker(
     val id: String,
     val latitude: Double,
@@ -110,7 +120,11 @@ fun GildamMapLibreView(
     /** 고도 그래프와 연결: 코스에서 고른 지점까지 거리(km). 점으로 표시 */
     selectedCourseKm: Double? = null,
     /** 코스 선을 탭하면 그 지점의 시작점부터 거리(km). 코스가 없으면 호출 안 됨 */
-    onCourseTap: ((Double) -> Unit)? = null
+    onCourseTap: ((Double) -> Unit)? = null,
+    /** 기록에 붙은 사진들을 지도 위 작은 원형 핀으로 표시 (사진 자리 또는 가장 가까운 경로 점) */
+    photoMarkers: List<MapPhotoMarker> = emptyList(),
+    /** 사진 핀을 누르면 그 사진 id */
+    onPhotoMarkerTap: ((String) -> Unit)? = null
 ) {
     val isPreview = LocalInspectionMode.current
     val themeRoute = MaterialTheme.colorScheme.primary
@@ -151,10 +165,13 @@ fun GildamMapLibreView(
     }
     val loadedStyleKey = remember { arrayOfNulls<String>(1) }
     val markerStyleKey = remember { arrayOfNulls<String>(1) }
+    val photoKey = remember { arrayOfNulls<String>(1) }
     // 카메라 상태: [마지막 맞춤 경계, 마지막 맞춤 시각, 제스처 리스너 등록 여부]
     // 탭 → 코스 거리: 리스너는 한 번만 달기 때문에 콜백·코스 점은 항상 최신 값을 봄
     val tapCallback = androidx.compose.runtime.rememberUpdatedState(onCourseTap)
     val coursePointsNow = androidx.compose.runtime.rememberUpdatedState(coursePoints)
+    val photoMarkersNow = androidx.compose.runtime.rememberUpdatedState(photoMarkers)
+    val photoTapCallback = androidx.compose.runtime.rememberUpdatedState(onPhotoMarkerTap)
     val camState = remember { object { var initialized = false; var lastFit: GeoBounds? = null; var lastFitMs = 0L; var lastFollowMs = 0L; var listener = false; var lastMode: MapCameraMode? = null; var lastKey = 0 } }
     val gestureCallback = androidx.compose.runtime.rememberUpdatedState(onUserGesture)
 
@@ -207,7 +224,13 @@ fun GildamMapLibreView(
                             if (reason == org.maplibre.android.maps.MapLibreMap.OnCameraMoveStartedListener.REASON_API_GESTURE) gestureCallback.value()
                         }
                         map.addOnMapClickListener { latLng ->
-                            // 탭 지점에서 가장 가까운 코스 위 지점 (허용 거리 안일 때만)
+                            // 1) 사진 핀을 눌렀으면 그 사진 열기 (핀 반경 안)
+                            val photoCb = photoTapCallback.value
+                            if (photoCb != null) {
+                                val hit = nearestPhotoMarker(photoMarkersNow.value, map, latLng)
+                                if (hit != null) { photoCb(hit); return@addOnMapClickListener true }
+                            }
+                            // 2) 아니면 코스 위 지점 (허용 거리 안일 때만)
                             val cb = tapCallback.value ?: return@addOnMapClickListener false
                             val d = MapRouteGeometry.nearestCourseDistanceKm(
                                 coursePointsNow.value, latLng.latitude, latLng.longitude, MapRouteGeometry.TAP_TOLERANCE_M
@@ -363,7 +386,15 @@ fun GildamMapLibreView(
                                 routeColor = 0xFF000000.toInt() or (0xFFFFFF and themeRoute.toArgb()),
                                 markers = markers
                             )
+                            addPhotoPinLayers(
+                                style,
+                                context = view.context,
+                                pins = photoMarkers,
+                                ringColor = 0xFF000000.toInt() or (0xFFFFFF and themeRoute.toArgb()),
+                                mutedRingColor = 0xFF8A8A8A.toInt()
+                            )
                             markerStyleKey[0] = markersKey(markers)
+                            photoKey[0] = photoMarkersKey(photoMarkers)
                         }
                     } else {
                         existingStyle.getSourceAs<GeoJsonSource>(ROUTE_SOURCE_ID)?.setGeoJson(geoJson)
@@ -377,6 +408,29 @@ fun GildamMapLibreView(
                         if (markerStyleKey[0] != key) {
                             markerStyleKey[0] = key
                             updateMarkerSources(existingStyle, markers)
+                        }
+                        // 사진 핀도 사진 목록이 바뀔 때만 다시 만듦 (아이콘 등록 포함)
+                        val pKey = photoMarkersKey(photoMarkers)
+                        if (photoKey[0] != pKey) {
+                            photoKey[0] = pKey
+                            if (existingStyle.getSourceAs<GeoJsonSource>(PHOTO_SOURCE_ID) == null) {
+                                addPhotoPinLayers(
+                                    existingStyle,
+                                    context = view.context,
+                                    pins = photoMarkers,
+                                    ringColor = 0xFF000000.toInt() or (0xFFFFFF and themeRoute.toArgb()),
+                                    mutedRingColor = 0xFF8A8A8A.toInt()
+                                )
+                            } else {
+                                // 새로 생긴 사진의 썸네일 아이콘을 추가하고 핀 위치만 갱신
+                                addPhotoPinImages(
+                                    existingStyle, view.context, photoMarkers,
+                                    ringColor = 0xFF000000.toInt() or (0xFFFFFF and themeRoute.toArgb()),
+                                    mutedRingColor = 0xFF8A8A8A.toInt()
+                                )
+                                existingStyle.getSourceAs<GeoJsonSource>(PHOTO_SOURCE_ID)
+                                    ?.setGeoJson(buildPhotoPinsGeoJson(photoMarkers))
+                            }
                         }
                     }
                 }
@@ -531,6 +585,88 @@ internal fun splitIntoSegments(points: List<LatLonPoint>): List<List<LatLonPoint
 
 private val EMPTY_FEATURE_COLLECTION = """{"type":"FeatureCollection","features":[]}"""
 
+/** 지도에 동시에 그리는 사진 핀 최대 수 */
+private const val MAX_PHOTO_PINS = 40
+
+/** 사진 핀 목록이 바뀌었는지 비교하는 키 */
+private fun photoMarkersKey(pins: List<MapPhotoMarker>): String =
+    pins.joinToString("|") {
+        "%s,%.6f,%.6f,%s".format(java.util.Locale.ROOT, it.id, it.latitude, it.longitude, it.timeOnly)
+    }
+
+private fun buildPhotoPinsGeoJson(pins: List<MapPhotoMarker>): String {
+    if (pins.isEmpty()) return EMPTY_FEATURE_COLLECTION
+    val features = pins.joinToString(",") { p ->
+        val img = "gildam-photo-pin-${p.id}"
+        """{"type":"Feature","properties":{"photoId":"${p.id}","pin":"$img"},"geometry":{"type":"Point","coordinates":[${p.longitude},${p.latitude}]}}"""
+    }
+    return """{"type":"FeatureCollection","features":[$features]}"""
+}
+
+/**
+ * 사진 핀 레이어. 40dp 원형 썸네일 이미지를 Style.addImage 로 등록해 SymbolLayer 로 그립니다.
+ * 사진은 기기에서만 읽어 메모리 캐시(최대 40장)로 쓰고, 파일 복사·전송은 없습니다.
+ */
+private fun addPhotoPinLayers(
+    style: Style,
+    context: android.content.Context,
+    pins: List<MapPhotoMarker>,
+    ringColor: Int,
+    mutedRingColor: Int
+) {
+    val density = context.resources.displayMetrics.density
+    val sizePx = (40 * density).toInt()
+    addPhotoPinImages(style, context, pins, ringColor, mutedRingColor)
+    style.addSource(GeoJsonSource(PHOTO_SOURCE_ID, buildPhotoPinsGeoJson(pins)))
+    style.addLayer(
+        SymbolLayer(PHOTO_LAYER_ID, PHOTO_SOURCE_ID).withProperties(
+            PropertyFactory.iconImage(Expression.get("pin")),
+            PropertyFactory.iconSize(1f),
+            PropertyFactory.iconAllowOverlap(true),
+            PropertyFactory.iconIgnorePlacement(true)
+        )
+    )
+}
+
+/** 핀마다 자기 사진 썸네일을 스타일에 등록 (없는 것만, 최대 40장, 메모리 캐시) */
+private fun addPhotoPinImages(
+    style: Style,
+    context: android.content.Context,
+    pins: List<MapPhotoMarker>,
+    ringColor: Int,
+    mutedRingColor: Int
+) {
+    val density = context.resources.displayMetrics.density
+    val sizePx = (40 * density).toInt()
+    pins.take(MAX_PHOTO_PINS).forEach { p ->
+        val name = "gildam-photo-pin-${p.id}"
+        if (style.getImage(name) != null) return@forEach
+        runCatching {
+            style.addImage(name, PhotoPinCache.load(context, p.uri, sizePx, if (p.timeOnly) mutedRingColor else ringColor))
+        }
+    }
+}
+
+/** 탭 좌표에서 가장 가까운 사진 핀 (핀 크기만큼 여유) */
+private fun nearestPhotoMarker(
+    pins: List<MapPhotoMarker>,
+    map: org.maplibre.android.maps.MapLibreMap,
+    latLng: LatLng
+): String? {
+    if (pins.isEmpty()) return null
+    val tolerancePx = 26.0
+    val tap = map.projection.toScreenLocation(latLng)
+    var bestId: String? = null
+    var best = tolerancePx
+    pins.forEach { p ->
+        val s = map.projection.toScreenLocation(LatLng(p.latitude, p.longitude))
+        val d = kotlin.math.hypot((s.x - tap.x).toDouble(), (s.y - tap.y).toDouble())
+        if (d <= best) { best = d; bestId = p.id }
+    }
+    return bestId
+}
+
+
 private fun buildPointGeoJson(p: LatLonPoint?): String =
     if (p == null) EMPTY_FEATURE_COLLECTION
     else """{"type":"Feature","geometry":{"type":"Point","coordinates":[${p.longitude},${p.latitude}]}}"""
@@ -658,6 +794,8 @@ private const val CURRENT_SOURCE_ID = "gildam-current-source"
 private const val CURRENT_LAYER_ID = "gildam-current-layer"
 private const val ARROW_SOURCE_ID = "gildam-arrow-source"
 private const val ARROW_LAYER_ID = "gildam-arrow-layer"
+private const val PHOTO_SOURCE_ID = "gildam-photo-source"
+private const val PHOTO_LAYER_ID = "gildam-photo-layer"
 private const val PROGRESS_SOURCE_ID = "gildam-progress-source"
 private const val PROGRESS_LAYER_ID = "gildam-progress-layer"
 private const val SELECTED_SOURCE_ID = "gildam-selected-source"
