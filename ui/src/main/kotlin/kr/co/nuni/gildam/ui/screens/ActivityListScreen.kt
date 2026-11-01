@@ -33,8 +33,8 @@ import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.automirrored.outlined.CallMerge
-import androidx.compose.material.icons.automirrored.outlined.ViewList
-import androidx.compose.material.icons.outlined.ViewAgenda
+import androidx.compose.material.icons.outlined.ArrowDropDown
+import androidx.compose.material.icons.outlined.Check
 import androidx.compose.material.icons.outlined.RadioButtonUnchecked
 import androidx.compose.material.icons.outlined.Clear
 import androidx.compose.material.icons.outlined.Close
@@ -46,6 +46,8 @@ import androidx.compose.material.icons.outlined.Terrain
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.TextButton
@@ -87,7 +89,6 @@ import kr.co.nuni.gildam.ui.illustration.GildamTooltip
 import kr.co.nuni.gildam.ui.illustration.TransportSticker
 import kr.co.nuni.gildam.ui.illustration.brandGradient
 import kr.co.nuni.gildam.ui.illustration.onBrand
-import kr.co.nuni.gildam.ui.list.RecordLayout
 import kr.co.nuni.gildam.data.local.entity.ActivityEntity
 import kr.co.nuni.gildam.data.list.RecordGroupMode
 import kr.co.nuni.gildam.data.list.RecordGrouper
@@ -120,9 +121,6 @@ fun ActivityListScreen(
     onUploadActivity: (String) -> Unit = {},
     /** 고른 기록들을 하나로 합치기 (합치는 동안 결과를 기다림). 성공하면 true */
     onMergeActivities: suspend (List<String>, String) -> Boolean = { _, _ -> false },
-    /** 카드 보기 / 리스트(목록) 보기 */
-    recordLayout: RecordLayout = RecordLayout.CARD,
-    onSelectRecordLayout: (RecordLayout) -> Unit = {},
     /** 최근순 / 월별 / 지역별 묶어 보기 */
     recordGroupMode: RecordGroupMode = RecordGroupMode.RECENT,
     onSelectRecordGroup: (RecordGroupMode) -> Unit = {},
@@ -316,75 +314,12 @@ fun ActivityListScreen(
                 }
             }
 
-            // 활동 필터: 전체 + 기록 버튼의 활동 아이콘 5개
-            val cs = MaterialTheme.colorScheme
-            val allSelected = selectedTransportFilter == null
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .horizontalScroll(rememberScrollState())
-                    .padding(vertical = 2.dp)
-            ) {
-                Box(
-                    modifier = Modifier
-                        .height(34.dp)
-                        .clip(RoundedCornerShape(50))
-                        .then(
-                            if (allSelected) {
-                                Modifier
-                                    .background(brandGradient())
-                                    .border(1.5.dp, cs.primary, RoundedCornerShape(50))
-                            } else {
-                                Modifier
-                                    .background(cs.surfaceVariant)
-                                    .border(1.dp, cs.outlineVariant, RoundedCornerShape(50))
-                            }
-                        )
-                        .clickable { onSelectTransportFilter(null) }
-                        .padding(horizontal = 12.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = "전체",
-                        style = MaterialTheme.typography.labelMedium,
-                        fontWeight = if (allSelected) FontWeight.Bold else FontWeight.Medium,
-                        color = if (allSelected) onBrand() else cs.onSurfaceVariant
-                    )
-                }
-
-                TransportType.entries.forEach { type ->
-                    val selected = selectedTransportFilter == type
-                    GildamTooltip(type.labelKo) {
-                        Box(
-                            modifier = Modifier
-                                .size(34.dp)
-                                .clip(CircleShape)
-                                .then(
-                                    if (selected) {
-                                        Modifier.border(2.dp, cs.primary, CircleShape)
-                                    } else {
-                                        Modifier.border(1.dp, cs.outlineVariant, CircleShape)
-                                    }
-                                )
-                                .clickable {
-                                    onSelectTransportFilter(if (selected) null else type)
-                                },
-                            contentAlignment = Alignment.Center
-                        ) {
-                            TransportSticker(type = type, selected = selected, size = 34.dp)
-                        }
-                    }
-                }
-            }
-
-            // 보기 방식 한 줄: 왼쪽은 묶어 보기 칩(최근순/월별/지역별), 오른쪽 끝은 카드↔리스트 전환 아이콘
-            RecordViewOptionsRow(
+            // 활동 필터(전체 + 활동 아이콘 5개)와 묶어 보기(최근순·월별·지역별)를 한 줄에
+            RecordFilterRow(
+                selectedTransportFilter = selectedTransportFilter,
+                onSelectTransportFilter = onSelectTransportFilter,
                 recordGroupMode = recordGroupMode,
-                onSelectRecordGroup = onSelectRecordGroup,
-                recordLayout = recordLayout,
-                onSelectRecordLayout = onSelectRecordLayout
+                onSelectRecordGroup = onSelectRecordGroup
             )
 
             Spacer(modifier = Modifier.height(6.dp))
@@ -426,30 +361,16 @@ fun ActivityListScreen(
                                     toggleMerge(item)
                                 }
                             }
-                            val selection = if (merging) (item.id in mergeSelected) else null
-                            if (recordLayout == RecordLayout.LIST) {
-                                ActivityCompactRow(
-                                    activity = item,
-                                    onClick = onRowClick,
-                                    isLoggedIn = isLoggedIn,
-                                    mergeSelected = selection,
-                                    onLongClick = onRowLongClick,
-                                    onEdit = { editingId = item.id },
-                                    onDelete = { deletingId = item.id },
-                                    onUpload = { onUploadActivity(item.id) }
-                                )
-                            } else {
-                                ActivitySummaryCard(
-                                    activity = item,
-                                    onClick = onRowClick,
-                                    isLoggedIn = isLoggedIn,
-                                    mergeSelected = selection,
-                                    onLongClick = onRowLongClick,
-                                    onEdit = { editingId = item.id },
-                                    onDelete = { deletingId = item.id },
-                                    onUpload = { onUploadActivity(item.id) }
-                                )
-                            }
+                            ActivityCompactRow(
+                                activity = item,
+                                onClick = onRowClick,
+                                isLoggedIn = isLoggedIn,
+                                mergeSelected = if (merging) (item.id in mergeSelected) else null,
+                                onLongClick = onRowLongClick,
+                                onEdit = { editingId = item.id },
+                                onDelete = { deletingId = item.id },
+                                onUpload = { onUploadActivity(item.id) }
+                            )
                         }
                     }
                 }
@@ -458,179 +379,162 @@ fun ActivityListScreen(
     }
 }
 
-@OptIn(ExperimentalFoundationApi::class)
+/**
+ * 활동 필터(전체 + 활동 아이콘 5개)와 묶어 보기(최근순·월별·지역별)를 한 줄에 둡니다.
+ * - 왼쪽: 지금처럼 가로로 밀어 보는 활동 칩 (좁은 화면에서도 잘리지 않음)
+ * - 오른쪽 끝: 지금 묶어 보는 방식만 보이는 작은 버튼 → 누르면 세 가지가 담긴 메뉴가 열립니다
+ */
 @Composable
-internal fun ActivitySummaryCard(
-    activity: ActivityEntity,
-    onClick: () -> Unit,
-    isLoggedIn: Boolean = false,
-    /** 합칠 기록 고르기 모드면 선택 여부, 아니면 null */
-    mergeSelected: Boolean? = null,
-    onLongClick: () -> Unit = {},
-    onEdit: () -> Unit = {},
-    onDelete: () -> Unit = {},
-    onUpload: () -> Unit = {}
+internal fun RecordFilterRow(
+    selectedTransportFilter: TransportType?,
+    onSelectTransportFilter: (TransportType?) -> Unit,
+    recordGroupMode: RecordGroupMode,
+    onSelectRecordGroup: (RecordGroupMode) -> Unit
 ) {
-    val dateStr = DateTimeFormatter.ofPattern("yy.MM.dd (E) HH:mm")
-        .withZone(ZoneId.systemDefault())
-        .format(Instant.ofEpochMilli(activity.startedAtEpochMs))
-
-    Card(
-        shape = RoundedCornerShape(12.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = if (mergeSelected == true) MaterialTheme.colorScheme.primaryContainer
-            else MaterialTheme.colorScheme.surfaceVariant
-        ),
+    val cs = MaterialTheme.colorScheme
+    val allSelected = selectedTransportFilter == null
+    Row(
         modifier = Modifier
             .fillMaxWidth()
-            .combinedClickable(onClick = onClick, onLongClick = onLongClick)
+            .padding(vertical = 2.dp),
+        verticalAlignment = Alignment.CenterVertically
     ) {
-        Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 9.dp)) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                if (mergeSelected != null) {
-                    Icon(
-                        imageVector = if (mergeSelected) Icons.Filled.CheckCircle else Icons.Outlined.RadioButtonUnchecked,
-                        contentDescription = if (mergeSelected) "합칠 기록으로 고름" else "합칠 기록으로 고르지 않음",
-                        tint = if (mergeSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.size(20.dp)
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier
+                .weight(1f)
+                .horizontalScroll(rememberScrollState())
+        ) {
+            Box(
+                modifier = Modifier
+                    .height(34.dp)
+                    .clip(RoundedCornerShape(50))
+                    .then(
+                        if (allSelected) {
+                            Modifier
+                                .background(brandGradient())
+                                .border(1.5.dp, cs.primary, RoundedCornerShape(50))
+                        } else {
+                            Modifier
+                                .background(cs.surfaceVariant)
+                                .border(1.dp, cs.outlineVariant, RoundedCornerShape(50))
+                        }
                     )
-                    Spacer(modifier = Modifier.width(6.dp))
-                }
-                TransportSticker(
-                    type = activity.transportType,
-                    selected = true,
-                    size = 22.dp
-                )
-                Spacer(modifier = Modifier.width(8.dp))
+                    .clickable { onSelectTransportFilter(null) }
+                    .padding(horizontal = 12.dp),
+                contentAlignment = Alignment.Center
+            ) {
                 Text(
-                    text = activity.title,
-                    style = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.SemiBold,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.weight(1f)
+                    text = "전체",
+                    style = MaterialTheme.typography.labelMedium,
+                    fontWeight = if (allSelected) FontWeight.Bold else FontWeight.Medium,
+                    color = if (allSelected) onBrand() else cs.onSurfaceVariant
                 )
-                Spacer(modifier = Modifier.width(6.dp))
-                Icon(
-                    imageVector = if (activity.syncState == SyncState.SYNCED) {
-                        Icons.Outlined.CloudDone
+            }
+
+            TransportType.entries.forEach { type ->
+                val selected = selectedTransportFilter == type
+                GildamTooltip(type.labelKo) {
+                    Box(
+                        modifier = Modifier
+                            .size(34.dp)
+                            .clip(CircleShape)
+                            .then(
+                                if (selected) {
+                                    Modifier.border(2.dp, cs.primary, CircleShape)
+                                } else {
+                                    Modifier.border(1.dp, cs.outlineVariant, CircleShape)
+                                }
+                            )
+                            .clickable {
+                                onSelectTransportFilter(if (selected) null else type)
+                            },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        TransportSticker(type = type, selected = selected, size = 34.dp)
+                    }
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.width(8.dp))
+        RecordGroupModeMenu(recordGroupMode = recordGroupMode, onSelectRecordGroup = onSelectRecordGroup)
+    }
+}
+
+/** 지금 묶어 보는 방식만 보이는 작은 버튼 + 세 가지 선택 메뉴 */
+@Composable
+internal fun RecordGroupModeMenu(
+    recordGroupMode: RecordGroupMode,
+    onSelectRecordGroup: (RecordGroupMode) -> Unit
+) {
+    val cs = MaterialTheme.colorScheme
+    var expanded by remember { mutableStateOf(false) }
+    val active = recordGroupMode != RecordGroupMode.RECENT
+    Box {
+        Row(
+            modifier = Modifier
+                .height(30.dp)
+                .clip(RoundedCornerShape(50))
+                .then(
+                    if (active) {
+                        Modifier
+                            .background(brandGradient())
+                            .border(1.5.dp, cs.primary, RoundedCornerShape(50))
                     } else {
-                        Icons.Outlined.CloudQueue
-                    },
-                    contentDescription = activity.syncState.labelKo,
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.size(14.dp)
+                        Modifier
+                            .background(cs.surfaceVariant)
+                            .border(1.dp, cs.outlineVariant, RoundedCornerShape(50))
+                    }
                 )
-            }
-
-            Spacer(modifier = Modifier.height(4.dp))
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                // 승희님 최신 카드: 날짜·거리·시간(왼쪽) + 수정/삭제/올리기 아이콘 버튼(오른쪽)
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = dateStr,
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Text(
-                        text = String.format(
-                            "%.2f km · %s",
-                            activity.distanceMeters / 1000.0,
-                            formatDurationHms(activity.totalDurationMs)
-                        ),
-                        style = MaterialTheme.typography.labelMedium,
-                        fontWeight = FontWeight.SemiBold,
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
+                .clickable { expanded = true }
+                .padding(start = 10.dp, end = 4.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = recordGroupMode.labelKo,
+                style = MaterialTheme.typography.labelMedium,
+                fontWeight = if (active) FontWeight.Bold else FontWeight.Medium,
+                color = if (active) onBrand() else cs.onSurfaceVariant
+            )
+            Icon(
+                Icons.Outlined.ArrowDropDown,
+                contentDescription = "묶어 보기 방식 고르기",
+                tint = if (active) onBrand() else cs.onSurfaceVariant,
+                modifier = Modifier.size(18.dp)
+            )
+        }
+        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+            RecordGroupMenuItems(
+                recordGroupMode = recordGroupMode,
+                onSelect = { mode ->
+                    expanded = false
+                    onSelectRecordGroup(mode)
                 }
-                if (mergeSelected == null) {
-                    RecordActionButtons(
-                        activity, isLoggedIn,
-                        onEdit = onEdit, onDelete = onDelete, onUpload = onUpload
-                    )
-                }
-            }
+            )
         }
     }
 }
 
-/**
- * 목록 위 얇은 한 줄: 묶어 보기 칩 3개(최근순/월별/지역별) + 오른쪽 끝 카드↔리스트 전환 아이콘.
- * 높이를 낮게 잡아 목록이 최대한 넓게 보이도록 합니다.
- */
+/** 묶어 보기 메뉴의 세 줄 (지금 고른 방식에만 체크 표시) */
 @Composable
-internal fun RecordViewOptionsRow(
+internal fun RecordGroupMenuItems(
     recordGroupMode: RecordGroupMode,
-    onSelectRecordGroup: (RecordGroupMode) -> Unit,
-    recordLayout: RecordLayout,
-    onSelectRecordLayout: (RecordLayout) -> Unit
+    onSelect: (RecordGroupMode) -> Unit
 ) {
-    val cs = MaterialTheme.colorScheme
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(top = 4.dp, bottom = 2.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.SpaceBetween
-    ) {
-        Row(
-            horizontalArrangement = Arrangement.spacedBy(6.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            RecordGroupMode.entries.forEach { mode ->
-                val groupSelected = recordGroupMode == mode
-                Box(
-                    modifier = Modifier
-                        .height(26.dp)
-                        .clip(RoundedCornerShape(50))
-                        .then(
-                            if (groupSelected) {
-                                Modifier
-                                    .background(brandGradient())
-                                    .border(1.5.dp, cs.primary, RoundedCornerShape(50))
-                            } else {
-                                Modifier
-                                    .background(cs.surfaceVariant)
-                                    .border(1.dp, cs.outlineVariant, RoundedCornerShape(50))
-                            }
-                        )
-                        .clickable { onSelectRecordGroup(mode) }
-                        .padding(horizontal = 10.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = mode.labelKo,
-                        style = MaterialTheme.typography.labelSmall,
-                        fontWeight = if (groupSelected) FontWeight.Bold else FontWeight.Medium,
-                        color = if (groupSelected) onBrand() else cs.onSurfaceVariant
-                    )
+    RecordGroupMode.entries.forEach { mode ->
+        DropdownMenuItem(
+            text = { Text(mode.labelKo, style = MaterialTheme.typography.bodyMedium) },
+            leadingIcon = {
+                if (mode == recordGroupMode) {
+                    Icon(Icons.Outlined.Check, contentDescription = null, modifier = Modifier.size(18.dp))
+                } else {
+                    Spacer(modifier = Modifier.size(18.dp))
                 }
-            }
-        }
-        // 지금 보기 방식을 누르면 '반대쪽'으로 바뀌므로 아이콘·설명은 바뀔 쪽을 가리킵니다
-        val toLayout = if (recordLayout == RecordLayout.CARD) RecordLayout.LIST else RecordLayout.CARD
-        GildamTooltip(toLayout.labelKo) {
-            IconButton(
-                onClick = { onSelectRecordLayout(toLayout) },
-                modifier = Modifier.size(30.dp)
-            ) {
-                Icon(
-                    if (recordLayout == RecordLayout.CARD) Icons.AutoMirrored.Outlined.ViewList
-                    else Icons.Outlined.ViewAgenda,
-                    contentDescription = toLayout.labelKo,
-                    tint = cs.onSurfaceVariant,
-                    modifier = Modifier.size(18.dp)
-                )
-            }
-        }
+            },
+            onClick = { onSelect(mode) }
+        )
     }
 }
 

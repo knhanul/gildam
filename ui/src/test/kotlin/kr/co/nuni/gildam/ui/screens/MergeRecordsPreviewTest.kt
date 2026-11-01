@@ -53,7 +53,7 @@ class MergeRecordsPreviewTest {
                 Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text("합칠 기록 고르기 · 2개", style = MaterialTheme.typography.titleMedium)
                     items.forEachIndexed { i, a ->
-                        ActivitySummaryCard(
+                        ActivityCompactRow(
                             activity = a,
                             onClick = {},
                             mergeSelected = if (i < 2) true else false

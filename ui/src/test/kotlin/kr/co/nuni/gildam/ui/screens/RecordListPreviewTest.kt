@@ -3,10 +3,15 @@ package kr.co.nuni.gildam.ui.screens
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -19,7 +24,6 @@ import kr.co.nuni.gildam.data.list.RecordGroupMode
 import kr.co.nuni.gildam.data.local.entity.ActivityEntity
 import kr.co.nuni.gildam.data.model.ActivityStatus
 import kr.co.nuni.gildam.data.model.TransportType
-import kr.co.nuni.gildam.ui.list.RecordLayout
 import kr.co.nuni.gildam.ui.theme.GildamTheme
 import org.junit.Rule
 import org.junit.Test
@@ -87,38 +91,90 @@ class RecordListPreviewTest {
         mode: RecordGroupMode
     ): List<RecordGroup> = RecordGrouper.group(items, regions, mode, zone)
 
-    /** 실제 화면과 같은 상단 구성: 제목 + 보기 옵션 줄(칩 3개 + 카드↔리스트 아이콘) */
+    /** 실제 화면과 같은 상단 구성: 제목 + 활동 필터·묶어 보기가 함께 있는 한 줄 */
     @androidx.compose.runtime.Composable
-    private fun PreviewTopBar(groupMode: RecordGroupMode, layout: RecordLayout) {
+    private fun PreviewTopBar(groupMode: RecordGroupMode) {
         Column(Modifier.padding(horizontal = 16.dp).padding(top = 8.dp, bottom = 6.dp)) {
             Text("길담 보관함", style = MaterialTheme.typography.titleLarge)
-            RecordViewOptionsRow(
+            RecordFilterRow(
+                selectedTransportFilter = null,
+                onSelectTransportFilter = {},
                 recordGroupMode = groupMode,
-                onSelectRecordGroup = {},
-                recordLayout = layout,
-                onSelectRecordLayout = {}
+                onSelectRecordGroup = {}
             )
         }
     }
 
     @Test
-    fun listCardMonth() {
+    fun listMonthWithMenu() {
         val groups = groupList(cardItems, emptyMap(), RecordGroupMode.MONTH)
         paparazzi.snapshot {
             GildamTheme {
                 Column {
-                    PreviewTopBar(RecordGroupMode.MONTH, RecordLayout.CARD)
+                    PreviewTopBar(RecordGroupMode.MONTH)
                     LazyColumn(
                         modifier = Modifier.padding(horizontal = 16.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                        verticalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
                         groups.forEach { g ->
                             item { RecordGroupHeader(title = g.title, count = g.activities.size) }
                             items(g.activities, key = { it.id }) { a ->
-                                ActivitySummaryCard(activity = a, onClick = {})
+                                ActivityCompactRow(activity = a, onClick = {})
                             }
                         }
                     }
+                }
+            }
+        }
+    }
+
+    /** 좁은 폰(360dp)에서도 활동 칩과 묶어 보기 버튼이 한 줄에 겹치지 않는지 확인용 */
+    @Test
+    fun filterRowNarrow() {
+        paparazzi.snapshot {
+            GildamTheme {
+                Column(Modifier.width(360.dp).padding(horizontal = 16.dp, vertical = 12.dp)) {
+                    RecordFilterRow(
+                        selectedTransportFilter = TransportType.BIKE,
+                        onSelectTransportFilter = {},
+                        recordGroupMode = RecordGroupMode.REGION,
+                        onSelectRecordGroup = {}
+                    )
+                    Spacer(Modifier.padding(top = 4.dp))
+                    RecordFilterRow(
+                        selectedTransportFilter = null,
+                        onSelectTransportFilter = {},
+                        recordGroupMode = RecordGroupMode.RECENT,
+                        onSelectRecordGroup = {}
+                    )
+                }
+            }
+        }
+    }
+
+    /** 오른쪽 끝 작은 버튼을 눌렀을 때 열리는 선택 메뉴 */
+    @Test
+    fun listGroupMenuOpen() {
+        paparazzi.snapshot {
+            GildamTheme {
+                Column {
+                    PreviewTopBar(RecordGroupMode.REGION)
+                    Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp), horizontalArrangement = Arrangement.End) {
+                        Surface(
+                            shape = RoundedCornerShape(10.dp),
+                            shadowElevation = 6.dp,
+                            color = MaterialTheme.colorScheme.surface,
+                            modifier = Modifier.width(160.dp)
+                        ) {
+                            Column(Modifier.padding(vertical = 6.dp)) {
+                                RecordGroupMenuItems(
+                                    recordGroupMode = RecordGroupMode.REGION,
+                                    onSelect = {}
+                                )
+                            }
+                        }
+                    }
+                    Spacer(Modifier.padding(top = 6.dp))
                 }
             }
         }
@@ -130,7 +186,7 @@ class RecordListPreviewTest {
         paparazzi.snapshot {
             GildamTheme {
                 Column {
-                    PreviewTopBar(RecordGroupMode.REGION, RecordLayout.LIST)
+                    PreviewTopBar(RecordGroupMode.REGION)
                     LazyColumn(
                         modifier = Modifier.padding(horizontal = 16.dp),
                         verticalArrangement = Arrangement.spacedBy(6.dp)

@@ -64,7 +64,6 @@ fun GildamAppRoot(
     val darkMode by appearanceViewModel.darkMode.collectAsState()
     val recordMapMode by appearanceViewModel.recordMapMode.collectAsState()
     val gaugeSelections by appearanceViewModel.gaugeSelections.collectAsState()
-    val recordLayout by appearanceViewModel.recordLayout.collectAsState()
     val recordGroupMode by appearanceViewModel.recordGroupMode.collectAsState()
     val systemDark = androidx.compose.foundation.isSystemInDarkTheme()
     val isDark = when (darkMode) {
@@ -285,8 +284,6 @@ fun GildamAppRoot(
                     onDeleteActivity = viewModel::deleteActivity,
                     onUploadActivity = viewModel::uploadActivityToCloud,
                     onMergeActivities = { ids, title -> viewModel.mergeActivities(ids, title) != null },
-                    recordLayout = recordLayout,
-                    onSelectRecordLayout = appearanceViewModel::setRecordLayout,
                     recordGroupMode = recordGroupMode,
                     onSelectRecordGroup = appearanceViewModel::setRecordGroupMode,
                     regions = activityRegions

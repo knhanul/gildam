@@ -18,7 +18,6 @@ class AppearancePrefs @Inject constructor(@ApplicationContext private val contex
     private val paletteKey = stringPreferencesKey("palette")
     private val modeKey = stringPreferencesKey("dark_mode")
     private val mapModeKey = stringPreferencesKey("record_map_mode")
-    private val listLayoutKey = stringPreferencesKey("record_list_layout")
     private val groupModeKey = stringPreferencesKey("record_group_mode")
 
     val palette: Flow<String?> = context.appearanceStore.data.map { it[paletteKey] }
@@ -27,10 +26,6 @@ class AppearancePrefs @Inject constructor(@ApplicationContext private val contex
     /** 기록 중 지도 보기 기본값 (FOLLOW/OVERVIEW) */
     val recordMapMode: Flow<String?> = context.appearanceStore.data.map { it[mapModeKey] }
     suspend fun setRecordMapMode(name: String) { context.appearanceStore.edit { it[mapModeKey] = name } }
-
-    /** 기록 보관함 보기 방식 (CARD/LIST) */
-    val recordListLayout: Flow<String?> = context.appearanceStore.data.map { it[listLayoutKey] }
-    suspend fun setRecordListLayout(name: String) { context.appearanceStore.edit { it[listLayoutKey] = name } }
 
     /** 기록 보관함 묶어 보기 (RECENT/MONTH/REGION) */
     val recordGroupMode: Flow<String?> = context.appearanceStore.data.map { it[groupModeKey] }
