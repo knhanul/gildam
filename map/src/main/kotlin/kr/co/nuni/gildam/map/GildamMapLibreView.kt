@@ -16,6 +16,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
+import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
@@ -282,7 +284,7 @@ fun GildamMapLibreView(
                         }
                         autoCameraPaused -> Unit
                         cameraMode == MapCameraMode.OVERVIEW -> {
-                            val pad = MapCameraPlanner.overlayPadding(view.width, view.height, overlayTopPx, overlayBottomPx)
+                            val pad = MapCameraPlanner.overviewPadding(view.width, view.height, overlayTopPx, overlayBottomPx)
                             val fit = MapCameraPlanner.overviewFit(trackPoints, currentLocation, coursePoints, pad)
                             if (fit == null) {
                                 map.cameraPosition = CameraPosition.Builder().target(LatLng(target.latitude, target.longitude)).zoom(target.zoom).bearing(0.0).build()
@@ -490,7 +492,8 @@ private fun PreviewFallbackMapCanvas(
                 drawPath(path, routeColor, style = Stroke(width = 12f, cap = StrokeCap.Round, join = StrokeJoin.Round))
                 return@Canvas
             }
-            val pad = MapCameraPlanner.overlayPadding(size.width.toInt(), size.height.toInt(), overlayTopPx, overlayBottomPx)
+            val pad = if (followSpanM != null) MapCameraPlanner.overlayPadding(size.width.toInt(), size.height.toInt(), overlayTopPx, overlayBottomPx)
+                else MapCameraPlanner.overviewPadding(size.width.toInt(), size.height.toInt(), overlayTopPx, overlayBottomPx)
             val availW = size.width - pad.left - pad.right; val availH = size.height - pad.top - pad.bottom
             val center = currentLocation ?: trackPoints.lastOrNull()
             val sc: Float; val ox: Float; val oy: Float; val minLon: Double; val maxLat: Double; val kx: Double
@@ -500,7 +503,8 @@ private fun PreviewFallbackMapCanvas(
                 val spanDeg = followSpanM / 111_320.0
                 sc = (availW / spanDeg).toFloat()
                 minLon = center.longitude; maxLat = center.latitude
-                ox = pad.left + availW / 2; oy = pad.top + availH / 2
+                ox = pad.left + availW / 2
+                oy = pad.top + availH * MapCameraPlanner.followTargetFraction(coursePoints.isNotEmpty()).toFloat()
             } else {
                 val fit = MapCameraPlanner.expand(MapCameraPlanner.boundsOf(all + listOfNotNull(currentLocation))!!)
                 kx = kotlin.math.cos(Math.toRadians((fit.minLat + fit.maxLat) / 2))
@@ -534,8 +538,17 @@ private fun PreviewFallbackMapCanvas(
             // 출발 점(초록 원): 내 기록의 첫 점 (코스만 있는 지도는 코스 시작·끝 점을 따로 그림)
             trackPoints.firstOrNull()?.let { st ->
                 val o = pt(st)
-                drawCircle(androidx.compose.ui.graphics.Color.White, 11f, o)
-                drawCircle(androidx.compose.ui.graphics.Color(0xFF2E7D4F), 8f, o)
+                drawCircle(androidx.compose.ui.graphics.Color.White, 26f, o)
+                drawCircle(androidx.compose.ui.graphics.Color(0xFF2E7D4F), 21f, o)
+                drawIntoCanvas { c ->
+                    val paint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
+                        color = android.graphics.Color.WHITE
+                        textSize = 26f
+                        isFakeBoldText = true
+                        textAlign = android.graphics.Paint.Align.CENTER
+                    }
+                    c.nativeCanvas.drawText("S", o.x, o.y + 9f, paint)
+                }
             }
             (currentLocation ?: trackPoints.lastOrNull())?.let { c ->
                 if (trackPoints.isNotEmpty() || currentLocation != null) {
@@ -721,9 +734,20 @@ private fun addMarkerLayers(
     style.addLayer(
         CircleLayer(START_LAYER_ID, START_SOURCE_ID).withProperties(
             PropertyFactory.circleColor(startColor),
-            PropertyFactory.circleRadius(6f),
+            PropertyFactory.circleRadius(12f),
             PropertyFactory.circleStrokeColor(white),
-            PropertyFactory.circleStrokeWidth(2f)
+            PropertyFactory.circleStrokeWidth(3f)
+        )
+    )
+    // 출발점 'S' 글자 (스타일 글리프 사용, 다른 라벨에 가려지지 않게)
+    style.addLayer(
+        SymbolLayer(START_LABEL_LAYER_ID, START_SOURCE_ID).withProperties(
+            PropertyFactory.textField("S"),
+            PropertyFactory.textFont(arrayOf("Noto Sans Bold")),
+            PropertyFactory.textSize(14f),
+            PropertyFactory.textColor(white),
+            PropertyFactory.textAllowOverlap(true),
+            PropertyFactory.textIgnorePlacement(true)
         )
     )
 
@@ -790,6 +814,7 @@ private const val WALKED_SOURCE_ID = "gildam-course-walked-source"
 private const val WALKED_LAYER_ID = "gildam-course-walked-layer"
 private const val START_SOURCE_ID = "gildam-start-source"
 private const val START_LAYER_ID = "gildam-start-layer"
+private const val START_LABEL_LAYER_ID = "gildam-start-label-layer"
 private const val CURRENT_SOURCE_ID = "gildam-current-source"
 private const val CURRENT_LAYER_ID = "gildam-current-layer"
 private const val ARROW_SOURCE_ID = "gildam-arrow-source"

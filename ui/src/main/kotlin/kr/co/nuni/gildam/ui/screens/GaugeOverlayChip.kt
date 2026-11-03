@@ -31,6 +31,12 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Shadow
+import androidx.compose.ui.graphics.StrokeJoin
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.text.TextStyle
 import kr.co.nuni.gildam.data.model.GaugeMetric
 import kr.co.nuni.gildam.recording.LiveRecordingState
 import kr.co.nuni.gildam.ui.illustration.GildamTooltip
@@ -53,10 +59,9 @@ val GaugeMetric.icon: ImageVector
 fun GaugeMetric.tooltipLabel(): String = "지도 위 계기판 · ${labelKo}"
 
 /**
- * 지도 위(지도 하단)에 겹쳐 보이는 계기판 칩.
- * - 글자 없이 **숫자와 단위만** 크게 보여 줍니다. 이름은 길게 눌렀을 때 말풍선으로만 뜹니다.
- * - 밝은 지도·어두운 지도 어디에서도 보이도록 테마 표면색 + 테마 기본색 테두리 + 그림자를 함께 씁니다.
- * - 터치 영역은 48dp 이상이라 말풍선을 띄우기 쉽습니다.
+ * 지도 위(지도 하단)에 겹쳐 보이는 계기판 숫자.
+ * - 배경·테두리 없이 **숫자와 단위만** 크게 보여 지도를 덜 가립니다. 이름은 길게 눌렀을 때 말풍선으로만 뜹니다.
+ * - 밝은·어두운 지도 어디서나 읽히도록 흰 외곽선 + 옅은 그림자를 씁니다.
  */
 @Composable
 fun GaugeOverlayChip(
@@ -65,48 +70,49 @@ fun GaugeOverlayChip(
     clockTick: androidx.compose.runtime.State<Long>,
     modifier: Modifier = Modifier
 ) {
-    val cs = MaterialTheme.colorScheme
     val label = metric.tooltipLabel()
-    // 현재 시간일 때만 시각 상태를 구독합니다 (나머지 값은 시각과 무관).
     val value = gaugeValue(metric, live, clockTick.value)
     val spoken = "${metric.labelKo} $value${metric.unit?.let { " $it" } ?: ""}"
-    // 길게 누르면 어떤 값인지 말풍선으로 보여 줌 (이름 + 짧은 설명)
     GildamTooltip(label, detail = metric.descKo) {
-        Surface(
-            shape = RoundedCornerShape(50),
-            color = cs.surface.copy(alpha = 0.96f),
-            border = BorderStroke(1.5.dp, cs.primary.copy(alpha = 0.55f)),
-            shadowElevation = 8.dp,
-            modifier = modifier.semantics { contentDescription = spoken }
+        Row(
+            modifier = modifier
+                .semantics { contentDescription = spoken }
+                .padding(horizontal = 12.dp, vertical = 2.dp),
+            verticalAlignment = Alignment.Bottom
         ) {
-            Row(
-                modifier = Modifier.padding(start = 14.dp, end = 20.dp, top = 8.dp, bottom = 10.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Box(
-                    Modifier.size(30.dp).clip(CircleShape).background(brandGradient()),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(metric.icon, contentDescription = null, tint = onBrand(), modifier = Modifier.size(17.dp))
-                }
-                Spacer(Modifier.width(10.dp))
-                Text(
-                    text = value,
-                    style = TabularStatHeroStyle.copy(fontSize = 32.sp, lineHeight = 36.sp),
-                    color = cs.onSurface
+            OutlinedNumber(value, TabularStatHeroStyle.copy(fontSize = 46.sp, lineHeight = 50.sp))
+            metric.unit?.let { unit ->
+                Spacer(Modifier.width(5.dp))
+                OutlinedNumber(
+                    unit,
+                    TabularStatHeroStyle.copy(fontSize = 16.sp, lineHeight = 20.sp, fontWeight = FontWeight.Bold),
+                    strokeWidth = 5f,
+                    modifier = Modifier.padding(bottom = 7.dp)
                 )
-                metric.unit?.let { unit ->
-                    Spacer(Modifier.width(5.dp))
-                    Text(
-                        text = unit,
-                        style = MaterialTheme.typography.labelLarge,
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        color = cs.onSurfaceVariant,
-                        modifier = Modifier.align(Alignment.Bottom).padding(bottom = 4.dp)
-                    )
-                }
             }
         }
+    }
+}
+
+/** 진한 글자 + 흰 외곽선 + 옅은 그림자 (배경 없이 지도 위에서도 잘 보이게) */
+@Composable
+private fun OutlinedNumber(
+    text: String,
+    style: TextStyle,
+    strokeWidth: Float = 9f,
+    modifier: Modifier = Modifier
+) {
+    val ink = Color(0xFF16201B)
+    Box(modifier) {
+        Text(
+            text = text,
+            style = style.copy(
+                color = Color.White,
+                drawStyle = Stroke(width = strokeWidth, join = StrokeJoin.Round),
+                shadow = Shadow(Color.Black.copy(alpha = 0.28f), Offset(0f, 2f), blurRadius = 6f)
+            ),
+            maxLines = 1
+        )
+        Text(text = text, style = style.copy(color = ink), maxLines = 1)
     }
 }

@@ -140,6 +140,11 @@ fun LiveRecordingScreen(
     var cameraMode by rememberSaveable {
         mutableStateOf(defaultCameraMode)
     }
+    // 코스 따라 걷기 중에는 주행 방향 위만 (두 손가락 회전은 그대로)
+    var lastFollowMode by rememberSaveable {
+        mutableStateOf(if (defaultCameraMode.isFollow) defaultCameraMode else MapCameraMode.HEADING)
+    }
+    val effectiveMode = if (followingCourse && cameraMode == MapCameraMode.FOLLOW) MapCameraMode.HEADING else cameraMode
     var cameraPaused by remember { mutableStateOf(false) }
     var recenterKey by remember { mutableStateOf(0) }
     var topPx by remember { mutableStateOf(0) }
@@ -157,7 +162,7 @@ fun LiveRecordingScreen(
             currentLocation = displayLocation,
             modifier = Modifier.fillMaxSize(),
             coursePoints = follow?.route ?: emptyList(),
-            cameraMode = cameraMode,
+            cameraMode = effectiveMode,
             autoCameraPaused = cameraPaused,
             overlayTopPx = topPx,
             overlayBottomPx = bottomPx,
@@ -181,7 +186,8 @@ fun LiveRecordingScreen(
                 .padding(horizontal = 16.dp, vertical = 8.dp)
                 .onSizeChanged { topPx = it.height }
         ) {
-            Surface(
+            // 기록 중에는 상단 안내 띠를 없애고, 작은 상태 점 + 지도 버튼 한 줄만 둡니다.
+            if (!liveState.isRecording) Surface(
                 shape = RoundedCornerShape(24.dp),
                 color = MaterialTheme.colorScheme.surface.copy(alpha = 0.94f),
                 tonalElevation = 4.dp,
@@ -248,7 +254,7 @@ fun LiveRecordingScreen(
             }
 
             // GPS 신호 미약 경고 배너 (터널/실내)
-            AnimatedVisibility(visible = liveState.isGpsSignalWeak) {
+            AnimatedVisibility(visible = liveState.isGpsSignalWeak && !liveState.isRecording) {
                 Surface(
                     shape = RoundedCornerShape(12.dp),
                     color = WarningAmber.copy(alpha = 0.95f),
@@ -265,25 +271,32 @@ fun LiveRecordingScreen(
                 }
             }
             MapCameraControls(
-                mode = cameraMode,
+                mode = effectiveMode,
                 paused = cameraPaused,
                 onSelect = {
                     cameraMode = it
+                    if (it.isFollow) lastFollowMode = it
                     cameraPaused = false
                     recenterKey++
                     onSelectCameraMode(it)
                 },
                 onRecenter = { cameraPaused = false; recenterKey++ },
-                modifier = Modifier.padding(top = 10.dp)
+                allowNorthUp = !followingCourse,
+                mapBearingDeg = liveState.currentBearingDeg ?: 0f,
+                status = if (liveState.isRecording) RecordingStatus.of(liveState.isPaused, liveState.isGpsSignalWeak) else null,
+                followMode = lastFollowMode,
+                modifier = Modifier.padding(top = if (liveState.isRecording) 0.dp else 10.dp)
             )
         }
 
         // 3. 지도 하단 묶음: 지도 위에 겹치는 계기판 1개 + 하단 대시보드
         //    칩을 카드 바로 위에 붙여 같은 묶음으로 읽히게 하고, 지도 위 버튼과는 겹치지 않게 합니다.
         Column(
+            // 지도 위 숫자까지 포함한 높이를 카메라 여백으로 써서, 현재 위치가 숫자·계기판에 가리지 않게 합니다.
             modifier = Modifier
                 .align(Alignment.BottomCenter)
-                .fillMaxWidth(),
+                .fillMaxWidth()
+                .onSizeChanged { bottomPx = it.height },
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             // '표시 안 함'을 고른 활동은 지도 위에 큰 값을 띄우지 않습니다.
@@ -292,7 +305,7 @@ fun LiveRecordingScreen(
                     metric = overlayMetric,
                     live = liveState,
                     clockTick = clockTick,
-                    modifier = Modifier.padding(bottom = 10.dp)
+                    modifier = Modifier.padding(bottom = 6.dp)
                 )
             }
 
@@ -303,9 +316,7 @@ fun LiveRecordingScreen(
                 ),
                 elevation = CardDefaults.cardElevation(defaultElevation = 12.dp),
                 // 지도 위 칩은 지도 위에 떠 있으므로 카드 높이만 아래 여백으로 잡음
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .onSizeChanged { bottomPx = it.height }
+                modifier = Modifier.fillMaxWidth()
             ) {
                 Column(
                     modifier = Modifier
@@ -341,7 +352,6 @@ fun LiveRecordingScreen(
                                 metric = metric,
                                 live = liveState,
                                 clockTick = clockTick,
-                                valueStyle = TabularStatHeroStyle.copy(fontSize = 38.sp, lineHeight = 44.sp),
                                 modifier = Modifier.weight(1f)
                             )
                         }
@@ -495,7 +505,8 @@ private fun StatSubCard(
     clockTick: androidx.compose.runtime.State<Long>,
     modifier: Modifier = Modifier,
     valueStyle: androidx.compose.ui.text.TextStyle =
-        TabularStatMediumStyle.copy(fontSize = 24.sp, lineHeight = 29.sp)
+        // 아래 계기판 4개는 모두 같은 크기 (예전 작은 값 24sp 보다 약간 크게). 넘치면 한 줄에 맞게 줄임.
+        TabularStatHeroStyle.copy(fontSize = GAUGE_VALUE_SP.sp, lineHeight = (GAUGE_VALUE_SP + 6).sp)
 ) {
     Surface(
         shape = RoundedCornerShape(14.dp),
@@ -505,7 +516,7 @@ private fun StatSubCard(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 14.dp, vertical = 10.dp),
+                .padding(horizontal = 8.dp, vertical = 10.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Text(
@@ -522,7 +533,8 @@ private fun StatSubCard(
                 clockTick = clockTick,
                 style = valueStyle.copy(textAlign = TextAlign.Center),
                 color = MaterialTheme.colorScheme.onSurface,
-                maxLines = 1
+                maxLines = 1,
+                autoShrink = true
             )
         }
     }
@@ -658,11 +670,28 @@ internal fun GaugeValueText(
     clockTick: androidx.compose.runtime.State<Long>,
     style: androidx.compose.ui.text.TextStyle,
     color: androidx.compose.ui.graphics.Color,
-    maxLines: Int = Int.MAX_VALUE
+    maxLines: Int = Int.MAX_VALUE,
+    /** 한 줄에 안 들어가면 글자 크기를 조금씩 줄여 맞춤 */
+    autoShrink: Boolean = false
 ) {
     val text = gaugeValue(metric, live, clockTick.value)
-    Text(text = text, style = style, color = color, maxLines = maxLines)
+    if (!autoShrink) {
+        Text(text = text, style = style, color = color, maxLines = maxLines)
+        return
+    }
+    var scale by remember(text.length) { mutableStateOf(1f) }
+    Text(
+        text = text,
+        style = style.copy(fontSize = style.fontSize * scale, lineHeight = style.lineHeight * scale),
+        color = color,
+        maxLines = 1,
+        softWrap = false,
+        onTextLayout = { r -> if (r.hasVisualOverflow && scale > 0.6f) scale -= 0.05f }
+    )
 }
+
+/** 아래 계기판 숫자 크기(sp) */
+internal const val GAUGE_VALUE_SP = 28
 
 /** 다른 화면(기록 목록·상세)에서도 같은 표기를 쓰도록 한 곳으로 모음 */
 internal fun formatDurationHms(durationMs: Long): String = GaugeFormat.durationHms(durationMs)

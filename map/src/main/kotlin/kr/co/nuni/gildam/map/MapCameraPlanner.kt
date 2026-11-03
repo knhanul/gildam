@@ -7,11 +7,22 @@ import kotlin.math.min
 /** 기록 중 지도 카메라 모드 */
 enum class MapCameraMode(val labelKo: String) {
     FOLLOW("현재 경로 보기 (북쪽 위)"),
-    HEADING("주행 방향을 위로"),
-    OVERVIEW("전체 경로");
+    HEADING("현재 경로 보기 (주행 방향 위)"),
+    OVERVIEW("전체 경로 보기");
+
+    /** 현재 경로 보기(북쪽 위 또는 주행 방향 위)인지 */
+    val isFollow: Boolean get() = this == FOLLOW || this == HEADING
+
     companion object {
         /** 기본은 '주행 방향 위' */
         val DEFAULT = HEADING
+
+        /** 나침반 버튼: 북쪽 위 ↔ 주행 방향 위. 전체 경로 보기에서 누르면 현재 경로 보기(북쪽 위)로 */
+        fun toggleCompass(mode: MapCameraMode): MapCameraMode = when (mode) {
+            HEADING -> FOLLOW
+            FOLLOW -> HEADING
+            OVERVIEW -> FOLLOW
+        }
     }
 }
 
@@ -86,6 +97,22 @@ object MapCameraPlanner {
         return OverlayPadding(side, top, side, bottom)
     }
 
+    /** 전체 경로 보기: 경로가 지도 영역의 약 2/3 를 차지하도록 남는 공간의 1/6 씩을 상하좌우 여백으로 */
+    const val OVERVIEW_FILL_FRACTION = 2.0 / 3.0
+
+    /**
+     * 전체 경로 보기 패딩. 카드가 가리는 영역을 뺀 나머지 중 가운데 2/3 에 경로를 맞춰
+     * 출발점이 화면 구석에 붙지 않게 합니다.
+     */
+    fun overviewPadding(viewW: Int, viewH: Int, topCardsPx: Int, bottomCardPx: Int): OverlayPadding {
+        val base = overlayPadding(viewW, viewH, topCardsPx, bottomCardPx)
+        val margin = (1.0 - OVERVIEW_FILL_FRACTION) / 2.0
+        val availH = (viewH - base.top - base.bottom).coerceAtLeast(0)
+        val v = (availH * margin).toInt()
+        val side = (viewW * margin).toInt()
+        return OverlayPadding(base.left + side, base.top + v, base.right + side, base.bottom + v)
+    }
+
     fun overviewFit(track: List<LatLonPoint>, current: LatLonPoint?, course: List<LatLonPoint>, padding: OverlayPadding): OverviewFit? {
         val all = ArrayList<LatLonPoint>(track.size + course.size + 1).apply { addAll(track); current?.let(::add); addAll(course) }
         val b = boundsOf(all) ?: return null
@@ -103,12 +130,12 @@ object MapCameraPlanner {
         return wanted.latSpan < lastFit.latSpan * 0.5 && wanted.lonSpan < lastFit.lonSpan * 0.5
     }
 
-    // ---- 따라가기: 현재 위치를 화면 아래쪽(약 64%)에 두기 ----
+    // ---- 현재 경로 보기: 현재 위치를 지도 영역 아래에서 1/3 지점에 두기 (앞길 2/3) ----
 
-    /** 기본: 현재 위치가 지도 여백 안에서 위에서 64% 지점에 오게 (아래에 계기판·칩 자리) */
-    const val FOLLOW_TARGET_FRACTION = 0.64
-    /** 코스 따라 걷기: 코스 앞쪽도 조금 더 보이게 68% */
-    const val FOLLOW_TARGET_FRACTION_COURSE = 0.68
+    /** 기본: 현재 위치가 지도 여백 안에서 위에서 2/3 지점(아래에서 1/3)에 오게 */
+    const val FOLLOW_TARGET_FRACTION = 2.0 / 3.0
+    /** 코스 따라 걷기: 코스 앞쪽이 조금 더 보이게 70% */
+    const val FOLLOW_TARGET_FRACTION_COURSE = 0.70
 
     fun followTargetFraction(hasCourse: Boolean): Double =
         if (hasCourse) FOLLOW_TARGET_FRACTION_COURSE else FOLLOW_TARGET_FRACTION

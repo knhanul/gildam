@@ -178,13 +178,13 @@ class MapCameraPlannerTest {
     }
 
     @Test fun followTargetPutsCurrentLocationInLowerThird() {
-        // 화면 1000px, 위/아래 카드 100px 씩 → 가용 800px, 목표 64% = 512px (중심 400px 에서 112px 아래)
-        // 줌 15, 위도 37.5 에서 1px ≈ 3.78m → 약 423m 남쪽으로 밀어야 현재 위치가 아래로 내려옴
+        // 화면 1000px, 위/아래 카드 100px 씩 → 가용 800px, 목표 2/3 ≈ 533px (중심 400px 에서 133px 아래)
+        // 줌 15, 위도 37.5 에서 1px ≈ 3.78m → 약 505m 남쪽으로 밀어야 현재 위치가 아래로 내려옴
         val aim = MapCameraPlanner.followCameraTarget(
             latitude = 37.5, longitude = 127.0, bearingDeg = 0.0, zoom = 15.0,
             viewHeightPx = 1000, topPx = 100, bottomPx = 100
         )
-        assertEquals(37.5 + 423.0 / 111_320.0, aim.latitude, 0.0002)
+        assertEquals(37.5 + 505.0 / 111_320.0, aim.latitude, 0.0002)
         assertEquals(127.0, aim.longitude, 1e-6)
         // 목표가 현재 위치보다 북쪽에 있으므로 현재 위치는 화면 아래쪽에 그려짐
         assertTrue(aim.latitude > 37.5)
@@ -201,8 +201,8 @@ class MapCameraPlannerTest {
     }
 
     @Test fun courseFollowSitsALittleLowerThanPlainRecording() {
-        assertEquals(0.64, MapCameraPlanner.followTargetFraction(hasCourse = false), 1e-9)
-        assertEquals(0.68, MapCameraPlanner.followTargetFraction(hasCourse = true), 1e-9)
+        assertEquals(2.0 / 3.0, MapCameraPlanner.followTargetFraction(hasCourse = false), 1e-9)
+        assertEquals(0.70, MapCameraPlanner.followTargetFraction(hasCourse = true), 1e-9)
         val plain = MapCameraPlanner.followCameraTarget(37.5, 127.0, 0.0, 15.0, 1000, 100, 100, MapCameraPlanner.FOLLOW_TARGET_FRACTION)
         val course = MapCameraPlanner.followCameraTarget(37.5, 127.0, 0.0, 15.0, 1000, 100, 100, MapCameraPlanner.FOLLOW_TARGET_FRACTION_COURSE)
         assertTrue(course.latitude > plain.latitude)
@@ -230,5 +230,17 @@ class MapCameraPlannerTest {
         val split = MapRouteGeometry.splitCourseAt(course, p(37.55, 127.05))!!
         assertTrue(split.walked.isEmpty())
         assertEquals(course, split.remaining)
+    }
+
+    @Test fun overviewPaddingLeavesTrackInMiddleTwoThirds() {
+        val p = MapCameraPlanner.overviewPadding(1080, 2400, topCardsPx = 300, bottomCardPx = 900)
+        assertEquals(180, p.left); assertEquals(180, p.right)
+        assertEquals(300 + 200, p.top); assertEquals(900 + 200, p.bottom)
+    }
+
+    @Test fun compassToggleSwitchesNorthAndHeading() {
+        assertEquals(MapCameraMode.FOLLOW, MapCameraMode.toggleCompass(MapCameraMode.HEADING))
+        assertEquals(MapCameraMode.HEADING, MapCameraMode.toggleCompass(MapCameraMode.FOLLOW))
+        assertEquals(MapCameraMode.FOLLOW, MapCameraMode.toggleCompass(MapCameraMode.OVERVIEW))
     }
 }
