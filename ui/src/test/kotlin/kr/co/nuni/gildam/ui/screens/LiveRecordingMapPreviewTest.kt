@@ -46,7 +46,7 @@ class LiveRecordingMapPreviewTest {
     )
 
     @Composable
-    private fun Screen(mode: MapCameraMode, state: LiveRecordingState = live, tooltip: String? = null) {
+    private fun Screen(mode: MapCameraMode, state: LiveRecordingState = live, tooltip: String? = null, issues: List<RecordingIssue> = emptyList()) {
         CompositionLocalProvider(LocalTooltipPreviewLabel provides tooltip, androidx.compose.ui.platform.LocalInspectionMode provides true) {
             GildamTheme {
                 LiveRecordingScreen(
@@ -59,7 +59,24 @@ class LiveRecordingMapPreviewTest {
                     showTopNavIcons = false,
                     defaultCameraMode = mode,
                     overlayMetric = GaugeMetric.CURRENT_SPEED,
-                    fixedClockMs = 1_700_000_000_000L
+                    fixedClockMs = 1_700_000_000_000L,
+                    healthIssues = issues
+                )
+            }
+        }
+    }
+
+    @Test fun issueSingleShortText() = paparazzi.snapshot {
+        Screen(MapCameraMode.HEADING, issues = listOf(RecordingIssue.BATTERY_OPTIMIZATION))
+    }
+
+    @Test fun issueDetailSheet() = paparazzi.snapshot {
+        GildamTheme {
+            androidx.compose.material3.Surface {
+                RecordingIssuesDetail(
+                    listOf(RecordingIssue.LOCATION_OFF, RecordingIssue.BACKGROUND_LOCATION, RecordingIssue.GPS_WEAK,
+                        RecordingIssue.BATTERY_OPTIMIZATION, RecordingIssue.POWER_SAVER, RecordingIssue.NOTIFICATIONS_OFF),
+                    onOpenSettings = {}
                 )
             }
         }
@@ -85,7 +102,13 @@ class LiveRecordingMapNarrowPreviewTest {
         showSystemUi = false
     )
 
-    @Test fun narrow360Overview() = paparazzi.snapshot {
+    @Test fun narrow360Overview() = narrow(emptyList())
+
+    @Test fun narrow360MultipleIssues() = narrow(
+        listOf(RecordingIssue.BACKGROUND_LOCATION, RecordingIssue.BATTERY_OPTIMIZATION, RecordingIssue.POWER_SAVER)
+    )
+
+    private fun narrow(issues: List<RecordingIssue>) = paparazzi.snapshot {
         CompositionLocalProvider(androidx.compose.ui.platform.LocalInspectionMode provides true) { GildamTheme {
             LiveRecordingScreen(
                 liveState = LiveRecordingState(
@@ -105,7 +128,8 @@ class LiveRecordingMapNarrowPreviewTest {
                 showTopNavIcons = false,
                 defaultCameraMode = MapCameraMode.OVERVIEW,
                 overlayMetric = GaugeMetric.CLOCK,
-                fixedClockMs = 1_700_000_000_000L
+                fixedClockMs = 1_700_000_000_000L,
+                healthIssues = issues
             )
                 } }
     }

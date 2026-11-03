@@ -87,12 +87,22 @@ fun MapCameraControls(
     mapBearingDeg: Float = 0f,
     /** 기록 중이면 왼쪽에 상태 점 */
     status: RecordingStatus? = null,
+    /** 점검에서 찾은 문제들. 있으면 점이 주황/빨강 + 옆에 짧은 글 */
+    issues: List<RecordingIssue> = emptyList(),
+    /** 점·짧은 글을 누르면 자세히 보기 */
+    onOpenIssues: () -> Unit = {},
     /** 현재 경로 보기를 누를 때 고를 방향 (마지막으로 쓴 북쪽 위/주행 방향 위) */
     followMode: MapCameraMode = if (mode.isFollow) mode else MapCameraMode.HEADING
 ) {
     Row(modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-        if (status != null) RecordingStatusDot(status)
-        Spacer(Modifier.weight(1f))
+        // 점 + 짧은 글은 버튼 앞 남는 폭만 쓰고, 넘치면 '…' 로 잘라 버튼을 가리지 않음
+        Row(Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) {
+            if (issues.isNotEmpty()) {
+                IssueDotWithText(issues, onOpenIssues)
+            } else if (status != null) {
+                RecordingStatusDot(status)
+            }
+        }
         AnimatedVisibility(paused, enter = fadeIn() + scaleIn(), exit = fadeOut() + scaleOut()) {
             TooltipIconButton(Icons.Outlined.CenterFocusStrong, "다시 맞추기", onRecenter, style = IconButtonStyle.BRAND, visualSize = 40.dp, iconSize = 20.dp)
         }
@@ -213,5 +223,76 @@ private object StartAlignedBelowProvider : androidx.compose.ui.window.PopupPosit
         val x = anchorBounds.left.coerceIn(0, (windowSize.width - popupContentSize.width).coerceAtLeast(0))
         val y = anchorBounds.bottom + 12
         return androidx.compose.ui.unit.IntOffset(x, y)
+    }
+}
+
+/** 문제 상태 색: 심각(위치 꺼짐·권한 없음) 빨강, 나머지 주황 */
+fun List<RecordingIssue>.dotColor(): Color =
+    if (any { it.severe }) Color(0xFFD93A2B) else Color(0xFFE8831A)
+
+/** 문제 점 + 짧은 글 (예: '배터리 최적화 외 2'). 누르면 자세히 보기 */
+@Composable
+fun IssueDotWithText(issues: List<RecordingIssue>, onClick: () -> Unit, modifier: Modifier = Modifier) {
+    val cs = MaterialTheme.colorScheme
+    val color = issues.dotColor()
+    val summary = issues.shortSummary() ?: return
+    Surface(
+        shape = RoundedCornerShape(50),
+        color = cs.surface.copy(alpha = 0.95f),
+        shadowElevation = 4.dp,
+        modifier = modifier
+            .padding(end = 6.dp)
+            .clip(RoundedCornerShape(50))
+            .clickable(role = Role.Button, onClick = onClick)
+            .semantics { contentDescription = "기록 점검 필요: $summary. 눌러서 자세히 보기" }
+    ) {
+        Row(Modifier.padding(start = 7.dp, end = 10.dp, top = 6.dp, bottom = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+            Box(Modifier.size(14.dp).background(color, CircleShape))
+            Spacer(Modifier.width(6.dp))
+            Text(
+                summary,
+                style = MaterialTheme.typography.labelMedium,
+                fontWeight = FontWeight.SemiBold,
+                color = cs.onSurface,
+                maxLines = 1,
+                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+            )
+        }
+    }
+}
+
+/** 자세히 보기 내용: 문제마다 전체 설명 + '설정으로 가기' */
+@Composable
+fun RecordingIssuesDetail(issues: List<RecordingIssue>, onOpenSettings: (RecordingIssue) -> Unit, modifier: Modifier = Modifier) {
+    val cs = MaterialTheme.colorScheme
+    Column(modifier.padding(horizontal = 20.dp, vertical = 8.dp)) {
+        Text("기록 점검", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+        Spacer(Modifier.size(4.dp))
+        Text(
+            "아래 항목을 고치면 기록이 끊기지 않아요. 기록은 지금도 계속돼요.",
+            style = MaterialTheme.typography.bodySmall, color = cs.onSurfaceVariant
+        )
+        Spacer(Modifier.size(12.dp))
+        issues.forEach { issue ->
+            Surface(shape = RoundedCornerShape(16.dp), color = cs.surfaceVariant, modifier = Modifier.fillMaxWidth().padding(bottom = 10.dp)) {
+                Row(Modifier.padding(14.dp), verticalAlignment = Alignment.Top) {
+                    Box(Modifier.padding(top = 4.dp).size(12.dp).background(listOf(issue).dotColor(), CircleShape))
+                    Spacer(Modifier.width(10.dp))
+                    Column(Modifier.weight(1f)) {
+                        Text(issue.title, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+                        Spacer(Modifier.size(2.dp))
+                        Text(issue.message, style = MaterialTheme.typography.bodySmall, color = cs.onSurfaceVariant)
+                        if (issue.hasSettings) {
+                            Spacer(Modifier.size(8.dp))
+                            androidx.compose.material3.FilledTonalButton(
+                                onClick = { onOpenSettings(issue) },
+                                contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 14.dp, vertical = 4.dp)
+                            ) { Text("설정으로 가기", style = MaterialTheme.typography.labelMedium) }
+                        }
+                    }
+                }
+            }
+        }
+        Spacer(Modifier.size(12.dp))
     }
 }

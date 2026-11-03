@@ -121,8 +121,18 @@ fun LiveRecordingScreen(
     onResumeUnfinishedRecording: () -> Unit = {},
     onFinishUnfinishedRecording: () -> Unit = {},
     /** 테스트·미리보기에서 현재 시각을 고정할 때 사용. null 이면 1초마다 실제 시각으로 갱신 */
-    fixedClockMs: Long? = null
+    fixedClockMs: Long? = null,
+    /** 기록 점검 결과. null 이면 휴대폰 상태를 직접 점검 (테스트에서는 목록을 넘김) */
+    healthIssues: List<RecordingIssue>? = null
 ) {
+    val checkedIssues by rememberRecordingHealth()
+    val issues = remember(healthIssues, checkedIssues, liveState.isGpsSignalWeak, liveState.isRecording) {
+        val base = healthIssues ?: checkedIssues
+        val withGps = if (liveState.isRecording && liveState.isGpsSignalWeak && RecordingIssue.GPS_WEAK !in base) base + RecordingIssue.GPS_WEAK else base
+        withGps.sortedBy { it.ordinal }
+    }
+    var showIssues by remember { mutableStateOf(false) }
+    val context = androidx.compose.ui.platform.LocalContext.current
     // 기록 중 화면 켜 두기: 켜져 있고 기록 중(일시정지 포함)일 때만 이 화면에서 화면 꺼짐 방지, 벗어나거나 종료 시 해제
     val currentView = LocalView.current
     val shouldKeepScreenOn = keepScreenOn && (liveState.isRecording || liveState.isPaused)
@@ -283,7 +293,10 @@ fun LiveRecordingScreen(
                 onRecenter = { cameraPaused = false; recenterKey++ },
                 allowNorthUp = !followingCourse,
                 mapBearingDeg = liveState.currentBearingDeg ?: 0f,
-                status = if (liveState.isRecording) RecordingStatus.of(liveState.isPaused, liveState.isGpsSignalWeak) else null,
+                status = if (liveState.isRecording) RecordingStatus.of(liveState.isPaused, false) else null,
+                // 기록 시작 전에도 문제를 미리 보여 줌 (시작은 막지 않음)
+                issues = issues,
+                onOpenIssues = { showIssues = true },
                 followMode = lastFollowMode,
                 modifier = Modifier.padding(top = if (liveState.isRecording) 0.dp else 10.dp)
             )
@@ -423,6 +436,12 @@ fun LiveRecordingScreen(
                     }
                 }
             }
+        }
+    }
+
+    if (showIssues && issues.isNotEmpty()) {
+        ModalBottomSheet(onDismissRequest = { showIssues = false }) {
+            RecordingIssuesDetail(issues, onOpenSettings = { openIssueSettings(it, context) })
         }
     }
 
