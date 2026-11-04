@@ -350,11 +350,8 @@ fun GildamMapLibreView(
                         offCourse = offCourse,
                         selectedCourse = selectedCourseKm?.let { km -> MapRouteGeometry.pointAtKm(coursePoints, km) }
                     )
-                    val existingStyle = map.style
-                    if (existingStyle == null || loadedStyleKey[0] != styleUrl) {
-                        loadedStyleKey[0] = styleUrl
-                        map.setStyle(buildKoreanStyle(view.context, styleUrl)) { style ->
-                            applyKoreanLabelsAtRuntime(style)
+                    // 길담 레이어(코스·경로·점·사진 핀)를 스타일 위에 쌓기
+                    val addGildamLayers: (Style) -> Unit = { style ->
                             // 남은 코스(흐리게) → 지나온 코스 → 내 경로 → 점들 순서로 쌓기
                             style.addSource(GeoJsonSource(COURSE_SOURCE_ID, remainingCourseGeoJson))
                             style.addLayer(LineLayer(COURSE_LAYER_ID, COURSE_SOURCE_ID).withProperties(
@@ -397,8 +394,23 @@ fun GildamMapLibreView(
                             )
                             markerStyleKey[0] = markersKey(markers)
                             photoKey[0] = photoMarkersKey(photoMarkers)
+                    }
+                    val existingStyle = map.style
+                    val action = MapStyleLoadPlanner.decide(
+                        requestedUrl = loadedStyleKey[0],
+                        wantedUrl = styleUrl,
+                        styleLoaded = existingStyle?.isFullyLoaded == true,
+                        hasGildamLayers = existingStyle?.getLayer(ROUTE_LAYER_ID) != null
+                    )
+                    if (action == StyleAction.LOAD) {
+                        loadedStyleKey[0] = styleUrl
+                        map.setStyle(buildKoreanStyle(view.context, styleUrl)) { style ->
+                            applyKoreanLabelsAtRuntime(style)
+                            if (style.getLayer(ROUTE_LAYER_ID) == null) runCatching { addGildamLayers(style) }
                         }
-                    } else {
+                    } else if (action == StyleAction.ADD_LAYERS && existingStyle != null) {
+                        runCatching { addGildamLayers(existingStyle) }
+                    } else if (action == StyleAction.UPDATE && existingStyle != null) {
                         existingStyle.getSourceAs<GeoJsonSource>(ROUTE_SOURCE_ID)?.setGeoJson(geoJson)
                         existingStyle.getSourceAs<GeoJsonSource>(COURSE_SOURCE_ID)?.setGeoJson(remainingCourseGeoJson)
                         existingStyle.getSourceAs<GeoJsonSource>(WALKED_SOURCE_ID)?.setGeoJson(walkedCourseGeoJson)
