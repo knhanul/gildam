@@ -126,7 +126,9 @@ fun GildamMapLibreView(
     /** 기록에 붙은 사진들을 지도 위 작은 원형 핀으로 표시 (사진 자리 또는 가장 가까운 경로 점) */
     photoMarkers: List<MapPhotoMarker> = emptyList(),
     /** 사진 핀을 누르면 그 사진 id */
-    onPhotoMarkerTap: ((String) -> Unit)? = null
+    onPhotoMarkerTap: ((String) -> Unit)? = null,
+    /** 지도 회전각(도)이 바뀔 때 (나침반 바늘용) */
+    onMapBearingChanged: (Float) -> Unit = {}
 ) {
     val isPreview = LocalInspectionMode.current
     val themeRoute = MaterialTheme.colorScheme.primary
@@ -134,10 +136,18 @@ fun GildamMapLibreView(
     val themeBg = MaterialTheme.colorScheme.surfaceVariant
     if (isPreview) {
         androidx.compose.runtime.CompositionLocalProvider(LocalMapPreviewColors provides Triple(themeBg, themeRoute, themeCourse)) {
+        // 미리보기: 전체 경로 보기면 실제 지도처럼 경로를 세로로 돌려 그림
+        val previewBearing = if (cameraMode == MapCameraMode.OVERVIEW)
+            OverviewBearingPlanner.orient(
+                OverviewBearingPlanner.bestBearing(trackPoints + listOfNotNull(currentLocation) + coursePoints),
+                trackPoints.ifEmpty { coursePoints }
+            ) else 0.0
+        androidx.compose.runtime.SideEffect { onMapBearingChanged(previewBearing.toFloat()) }
+        val rot = previewRotator(trackPoints + listOfNotNull(currentLocation) + coursePoints, previewBearing)
         PreviewFallbackMapCanvas(
-            trackPoints = trackPoints,
-            coursePoints = coursePoints,
-            currentLocation = currentLocation,
+            trackPoints = trackPoints.map(rot),
+            coursePoints = coursePoints.map(rot),
+            currentLocation = currentLocation?.let(rot),
             followSpanM = if (cameraMode == MapCameraMode.FOLLOW || cameraMode == MapCameraMode.HEADING) 900.0 * Math.pow(2.0, 17.0 - MapCameraPlanner.followZoom(speedMps, distanceM)) else null,
             overlayTopPx = overlayTopPx, overlayBottomPx = overlayBottomPx,
             isDarkTheme = isDarkTheme,
@@ -174,7 +184,8 @@ fun GildamMapLibreView(
     val coursePointsNow = androidx.compose.runtime.rememberUpdatedState(coursePoints)
     val photoMarkersNow = androidx.compose.runtime.rememberUpdatedState(photoMarkers)
     val photoTapCallback = androidx.compose.runtime.rememberUpdatedState(onPhotoMarkerTap)
-    val camState = remember { object { var initialized = false; var lastFit: GeoBounds? = null; var lastFitMs = 0L; var lastFollowMs = 0L; var listener = false; var lastMode: MapCameraMode? = null; var lastKey = 0 } }
+    val bearingCallback = androidx.compose.runtime.rememberUpdatedState(onMapBearingChanged)
+    val camState = remember { object { var initialized = false; var lastFit: GeoBounds? = null; var lastFitMs = 0L; var lastFollowMs = 0L; var listener = false; var lastMode: MapCameraMode? = null; var lastKey = 0; var overviewBearing: Double? = null; var overviewOriented: Double? = null } }
     val gestureCallback = androidx.compose.runtime.rememberUpdatedState(onUserGesture)
 
     DisposableEffect(lifecycleOwner, mapView) {
@@ -222,6 +233,7 @@ fun GildamMapLibreView(
 
                     if (!camState.listener) {
                         camState.listener = true
+                        map.addOnCameraMoveListener { bearingCallback.value(map.cameraPosition.bearing.toFloat()) }
                         map.addOnCameraMoveStartedListener { reason ->
                             if (reason == org.maplibre.android.maps.MapLibreMap.OnCameraMoveStartedListener.REASON_API_GESTURE) gestureCallback.value()
                         }
@@ -241,7 +253,7 @@ fun GildamMapLibreView(
                             true
                         }
                     }
-                    if (camState.lastMode != cameraMode || camState.lastKey != recenterKey) { camState.lastMode = cameraMode; camState.lastKey = recenterKey; camState.lastFit = null; camState.lastFollowMs = 0L }
+                    if (camState.lastMode != cameraMode || camState.lastKey != recenterKey) { camState.lastMode = cameraMode; camState.lastKey = recenterKey; camState.lastFit = null; camState.lastFollowMs = 0L; camState.overviewBearing = null; camState.overviewOriented = null }
                     val now = android.os.SystemClock.elapsedRealtime()
                     if (target == null) {
                         // 보여 줄 것이 없을 때: 지도를 처음 만들 때만 한국 전체 보기, 그 뒤엔 직전 화면 유지
@@ -290,13 +302,27 @@ fun GildamMapLibreView(
                                 map.cameraPosition = CameraPosition.Builder().target(LatLng(target.latitude, target.longitude)).zoom(target.zoom).bearing(0.0).build()
                             } else if (MapCameraPlanner.needsRefit(camState.lastFit, fit.bounds, currentLocation, now, camState.lastFitMs)) {
                                 camState.lastFit = fit.bounds; camState.lastFitMs = now
-                                if (map.cameraPosition.bearing != 0.0) {
-                                    map.cameraPosition = CameraPosition.Builder(map.cameraPosition).bearing(0.0).build()
+                                // 경로가 세로 화면을 가장 잘 채우는 방향으로 한 번만 돌림 (크게 바뀔 때만 다시, 천천히)
+                                val pts = ArrayList<LatLonPoint>(trackPoints.size + coursePoints.size + 1).apply {
+                                    addAll(trackPoints); currentLocation?.let(::add); addAll(coursePoints)
                                 }
-                                val bb = org.maplibre.android.geometry.LatLngBounds.from(fit.bounds.maxLat, fit.bounds.maxLon, fit.bounds.minLat, fit.bounds.minLon)
-                                view.post {
+                                val axisNow = OverviewBearingPlanner.choose(camState.overviewBearing, OverviewBearingPlanner.bestBearing(pts))
+                                val rotated = axisNow != camState.overviewBearing
+                                camState.overviewBearing = axisNow
+                                // 방향(위/아래)은 축을 새로 정할 때만 정해서 갑자기 뒤집히지 않게
+                                if (rotated || camState.overviewOriented == null) camState.overviewOriented = OverviewBearingPlanner.orient(axisNow, trackPoints.ifEmpty { pts })
+                                val bearingNow = camState.overviewOriented ?: axisNow
+                                val cam = OverviewBearingPlanner.fitRotated(pts, bearingNow, view.width, view.height, pad, view.resources.displayMetrics.density)
+                                if (cam != null) view.post {
                                     runCatching {
-                                        map.animateCamera(org.maplibre.android.camera.CameraUpdateFactory.newLatLngBounds(bb, pad.left, pad.top, pad.right, pad.bottom), 900)
+                                        val pos = CameraPosition.Builder()
+                                            .target(LatLng(cam.latitude, cam.longitude))
+                                            .zoom(cam.zoom)
+                                            .bearing(cam.bearing)
+                                            .tilt(0.0)
+                                            .padding(pad.left.toDouble(), pad.top.toDouble(), pad.right.toDouble(), pad.bottom.toDouble())
+                                            .build()
+                                        map.animateCamera(org.maplibre.android.camera.CameraUpdateFactory.newCameraPosition(pos), if (rotated) 1600 else 900)
                                     }
                                 }
                             }
@@ -325,7 +351,6 @@ fun GildamMapLibreView(
                         }
                     }
                     }
-                    if (cameraMode == MapCameraMode.OVERVIEW) map.setPadding(0, 0, 0, 0)
 
                     val geoJson = buildLineStringGeoJson(trackPoints)
                     // 코스를 따라 걷는 중이면 '지나온 부분 / 남은 부분'으로 나눠 남은 쪽을 흐리게
@@ -861,5 +886,17 @@ private fun applyKoreanLabelsAtRuntime(style: Style) {
                 PropertyFactory.textField(Expression.coalesce(Expression.get("name:ko"), Expression.get("name")))
             )
         }
+    }
+}
+
+/** 미리보기용: 점들을 [bearing] 만큼 돌린 가짜 위경도로 (위쪽 = 그 방위) */
+private fun previewRotator(all: List<LatLonPoint>, bearing: Double): (LatLonPoint) -> LatLonPoint {
+    if (bearing == 0.0 || all.isEmpty()) return { it }
+    val lat0 = all.sumOf { it.latitude } / all.size
+    val lon0 = all.sumOf { it.longitude } / all.size
+    val k = kotlin.math.cos(Math.toRadians(lat0))
+    return { p ->
+        val (r, u) = OverviewBearingPlanner.rotate((p.longitude - lon0) * k * 111_320.0, (p.latitude - lat0) * 111_320.0, bearing)
+        p.copy(latitude = lat0 + u / 111_320.0, longitude = lon0 + r / (k * 111_320.0))
     }
 }

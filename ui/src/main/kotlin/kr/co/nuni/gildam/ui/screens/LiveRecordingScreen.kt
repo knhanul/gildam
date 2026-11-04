@@ -156,6 +156,8 @@ fun LiveRecordingScreen(
     }
     val effectiveMode = if (followingCourse && cameraMode == MapCameraMode.FOLLOW) MapCameraMode.HEADING else cameraMode
     var cameraPaused by remember { mutableStateOf(false) }
+    // 실제 지도 회전각 (나침반 바늘이 진짜 북쪽을 가리키게)
+    var mapBearing by remember { mutableStateOf(0f) }
     var recenterKey by remember { mutableStateOf(0) }
     var topPx by remember { mutableStateOf(0) }
     var bottomPx by remember { mutableStateOf(0) }
@@ -185,7 +187,8 @@ fun LiveRecordingScreen(
             // 기록 중에만 진행 방향 화살표, 끝난 뒤에는 출발·도착 점만
             showDirectionArrow = liveState.isRecording && !liveState.isPaused,
             offCourse = follow?.isOffCourse == true,
-            followingCourse = followingCourse
+            followingCourse = followingCourse,
+            onMapBearingChanged = { mapBearing = it }
         )
 
         // 2. 상단 상태 바 & 네비게이션 칩 (Edge-to-Edge statusBars 인셋 준수)
@@ -292,7 +295,7 @@ fun LiveRecordingScreen(
                 },
                 onRecenter = { cameraPaused = false; recenterKey++ },
                 allowNorthUp = !followingCourse,
-                mapBearingDeg = liveState.currentBearingDeg ?: 0f,
+                mapBearingDeg = mapBearing,
                 status = if (liveState.isRecording) RecordingStatus.of(liveState.isPaused, false) else null,
                 // 기록 시작 전에도 문제를 미리 보여 줌 (시작은 막지 않음)
                 issues = issues,

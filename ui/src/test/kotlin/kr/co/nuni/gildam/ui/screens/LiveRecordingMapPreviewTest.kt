@@ -45,6 +45,12 @@ class LiveRecordingMapPreviewTest {
         liveTrackPoints = track
     )
 
+    private val eastWest = (0 until 50).map { i -> LatLonPoint(37.5665 + 0.00006 * kotlin.math.sin(i / 5.0), 126.9780 + 0.00025 * i) }
+
+    @Test fun overviewEastWestRotated() = paparazzi.snapshot {
+        Screen(MapCameraMode.OVERVIEW, live.copy(liveTrackPoints = eastWest, currentLocation = eastWest.last()))
+    }
+
     @Composable
     private fun Screen(mode: MapCameraMode, state: LiveRecordingState = live, tooltip: String? = null, issues: List<RecordingIssue> = emptyList()) {
         CompositionLocalProvider(LocalTooltipPreviewLabel provides tooltip, androidx.compose.ui.platform.LocalInspectionMode provides true) {

@@ -118,8 +118,9 @@ fun MapCameraControls(
         if (allowNorthUp) {
             Spacer(Modifier.width(6.dp))
             CompassToggle(
-                northUp = mode == MapCameraMode.FOLLOW || (mode == MapCameraMode.OVERVIEW),
-                mapBearingDeg = if (mode == MapCameraMode.HEADING) mapBearingDeg else 0f,
+                // 전체 경로 보기는 경로에 맞춰 돌아갈 수 있으므로 바늘이 진짜 북쪽을 가리킴
+                northUp = mode == MapCameraMode.FOLLOW,
+                mapBearingDeg = if (mode == MapCameraMode.FOLLOW) 0f else mapBearingDeg,
                 onClick = { onSelect(MapCameraMode.toggleCompass(if (mode.isFollow) mode else followMode)) }
             )
         }
@@ -145,7 +146,7 @@ fun CompassToggle(northUp: Boolean, mapBearingDeg: Float, onClick: () -> Unit) {
             color = cs.surface.copy(alpha = 0.95f),
             shadowElevation = 6.dp,
             modifier = Modifier
-                .size(42.dp)
+                .size(50.dp)
                 .clip(CircleShape)
                 .clickable(role = Role.Button, onClick = onClick)
                 .semantics { contentDescription = label }
@@ -153,7 +154,7 @@ fun CompassToggle(northUp: Boolean, mapBearingDeg: Float, onClick: () -> Unit) {
             Box(contentAlignment = Alignment.Center) {
                 val north = Color(0xFFD8452E)
                 val south = cs.onSurfaceVariant.copy(alpha = 0.55f)
-                Canvas(Modifier.size(26.dp).rotate(if (northUp) 0f else -mapBearingDeg)) {
+                Canvas(Modifier.padding(top = if (northUp) 9.dp else 0.dp).size(if (northUp) 30.dp else 34.dp).rotate(if (northUp) 0f else -mapBearingDeg)) {
                     val cx = size.width / 2; val cy = size.height / 2; val w = size.width * 0.2f
                     val top = Path().apply { moveTo(cx, 0f); lineTo(cx + w, cy); lineTo(cx - w, cy); close() }
                     val bot = Path().apply { moveTo(cx, size.height); lineTo(cx + w, cy); lineTo(cx - w, cy); close() }
@@ -162,7 +163,7 @@ fun CompassToggle(northUp: Boolean, mapBearingDeg: Float, onClick: () -> Unit) {
                 }
                 if (northUp) {
                     Text(
-                        "N", fontSize = 9.sp, fontWeight = FontWeight.Black, color = north,
+                        "N", fontSize = 12.sp, fontWeight = FontWeight.Black, color = north,
                         modifier = Modifier.align(Alignment.TopCenter).padding(top = 0.dp)
                     )
                 }
