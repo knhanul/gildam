@@ -233,16 +233,16 @@ class MapCameraPlannerTest {
     }
 
     @Test fun overviewPaddingStartAtBottom() {
-        // 화면 2400px, 위 버튼 줄 300px, 아래 숫자+계기판 900px, 밀도 2.5 → 10dp=25px, 24dp=60px
+        // 화면 2400px, 위 버튼 줄 300px, 아래 숫자+계기판 900px, 밀도 2.5 → (10dp 간격 + S 반지름 15dp)=62px, 24dp=60px
         val p = MapCameraPlanner.overviewPadding(1080, 2400, topCardsPx = 300, bottomCardPx = 900, density = 2.5f, startAtTop = false)
         assertEquals(60, p.left); assertEquals(60, p.right)
-        assertEquals(900 + 25, p.bottom)        // S 는 숫자·계기판 위 10dp
+        assertEquals(900 + 62, p.bottom)        // S 가장자리가 숫자·계기판 위 10dp
         assertEquals(300 + 1200 / 6, p.top)     // 현재 위치 쪽 1/6
     }
 
     @Test fun overviewPaddingStartAtTop() {
         val p = MapCameraPlanner.overviewPadding(1080, 2400, topCardsPx = 300, bottomCardPx = 900, density = 2.5f, startAtTop = true)
-        assertEquals(300 + 25, p.top)           // S 는 버튼 줄 아래 10dp
+        assertEquals(300 + 62, p.top)           // S 가장자리가 버튼 줄 아래 10dp
         assertEquals(900 + 1200 / 6, p.bottom)  // 현재 위치 쪽 1/6
         assertEquals(60, p.left); assertEquals(60, p.right)
     }

@@ -581,16 +581,17 @@ private fun PreviewFallbackMapCanvas(
             // 출발 점(초록 원): 내 기록의 첫 점 (코스만 있는 지도는 코스 시작·끝 점을 따로 그림)
             trackPoints.firstOrNull()?.let { st ->
                 val o = pt(st)
-                drawCircle(androidx.compose.ui.graphics.Color.White, 26f, o)
-                drawCircle(androidx.compose.ui.graphics.Color(0xFF2E7D4F), 21f, o)
+                // 실제 지도와 같은 크기(dp): 흰 테두리 포함 반지름 15dp, 안쪽 12dp
+                drawCircle(androidx.compose.ui.graphics.Color.White, MapCameraPlanner.START_MARKER_RADIUS_DP * density, o)
+                drawCircle(androidx.compose.ui.graphics.Color(0xFF2E7D4F), (MapCameraPlanner.START_MARKER_RADIUS_DP - 3) * density, o)
                 drawIntoCanvas { c ->
                     val paint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
                         color = android.graphics.Color.WHITE
-                        textSize = 26f
+                        textSize = 14f * density
                         isFakeBoldText = true
                         textAlign = android.graphics.Paint.Align.CENTER
                     }
-                    c.nativeCanvas.drawText("S", o.x, o.y + 9f, paint)
+                    c.nativeCanvas.drawText("S", o.x, o.y + 5f * density, paint)
                 }
             }
             (currentLocation ?: trackPoints.lastOrNull())?.let { c ->

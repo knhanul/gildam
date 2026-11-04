@@ -101,18 +101,21 @@ object MapCameraPlanner {
     const val OVERVIEW_CURRENT_FRACTION = 1.0 / 6.0
     /** 출발점 S 쪽 여백(dp): 위 버튼 줄 또는 아래 숫자·계기판과의 간격 */
     const val OVERVIEW_START_GAP_DP = 10
+    /** 출발점 S 표시 반지름(dp): 원 12 + 흰 테두리 3 (지도·미리보기 공통) */
+    const val START_MARKER_RADIUS_DP = 15
     /** 좌우 여백(dp) */
     const val OVERVIEW_SIDE_DP = 24
 
     /**
      * 전체 경로 보기 패딩 (비대칭).
      * - 현재 위치 쪽(위든 아래든): 지도 영역의 1/6
-     * - 출발점 S 쪽: 아래면 숫자·계기판 묶음([bottomCardPx]) 위 10dp, 위면 버튼 줄([topCardsPx]) 아래 10dp
+     * - 출발점 S 쪽: S 가장자리가 아래면 숫자·계기판 묶음([bottomCardPx]) 위 10dp, 위면 버튼 줄([topCardsPx]) 아래 10dp
      * - 좌우: 24dp
      */
     fun overviewPadding(viewW: Int, viewH: Int, topCardsPx: Int, bottomCardPx: Int, density: Float, startAtTop: Boolean = false): OverlayPadding {
         val base = overlayPadding(viewW, viewH, topCardsPx, bottomCardPx)
-        val gap = (OVERVIEW_START_GAP_DP * density).toInt()
+        // S 의 중심이 아니라 가장자리부터 10dp 띄움
+        val gap = ((OVERVIEW_START_GAP_DP + START_MARKER_RADIUS_DP) * density).toInt()
         val side = min((OVERVIEW_SIDE_DP * density).toInt(), viewW / 6)
         val availH = (viewH - base.top - base.bottom).coerceAtLeast(0)
         val current = (availH * OVERVIEW_CURRENT_FRACTION).toInt()
