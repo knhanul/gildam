@@ -243,4 +243,13 @@ class MapCameraPlannerTest {
         assertEquals(MapCameraMode.HEADING, MapCameraMode.toggleCompass(MapCameraMode.FOLLOW))
         assertEquals(MapCameraMode.FOLLOW, MapCameraMode.toggleCompass(MapCameraMode.OVERVIEW))
     }
+
+    @Test fun followPaddingPutsUserOneThirdFromBottomOfMapArea() {
+        // 화면 2400px, 위 150px·아래(숫자+계기판) 900px → 지도 영역 1350px
+        val p = MapCameraPlanner.followPadding(2400, 150, 900, 2.0 / 3.0)
+        val centerY = (p.top + (2400 - p.bottom)) / 2.0
+        // 현재 위치 = 카메라 중심 = 150 + 1350*2/3 = 1050px (아래 계기판 시작 1500px 보다 위)
+        assertEquals(1050.0, centerY, 1.0)
+        assertTrue(centerY < 2400 - 900)
+    }
 }

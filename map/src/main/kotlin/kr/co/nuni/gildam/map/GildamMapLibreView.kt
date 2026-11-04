@@ -305,28 +305,20 @@ fun GildamMapLibreView(
                             if (now - camState.lastFollowMs >= 900) {
                                 camState.lastFollowMs = now
                                 val pad = MapCameraPlanner.overlayPadding(view.width, view.height, overlayTopPx, overlayBottomPx)
-                                map.setPadding(0, pad.top, 0, pad.bottom)
                                 val targetBearing = if (cameraMode == MapCameraMode.HEADING) {
                                     MapCameraPlanner.resolveBearing(bearingDeg, trackPoints, currentLocation)
                                 } else {
                                     0.0
                                 }
                                 val zoom = MapCameraPlanner.followZoom(speedMps, distanceM)
-                                // 현재 위치를 화면 아래쪽(약 64~68%)에 두어 앞뒤 길이 함께 보이게
-                                val aim = MapCameraPlanner.followCameraTarget(
-                                    latitude = target.latitude,
-                                    longitude = target.longitude,
-                                    bearingDeg = targetBearing,
-                                    zoom = zoom,
-                                    viewHeightPx = view.height,
-                                    topPx = pad.top,
-                                    bottomPx = pad.bottom,
-                                    fraction = MapCameraPlanner.followTargetFraction(followingCourse)
-                                )
+                                // 현재 위치를 지도 영역 아래에서 1/3 지점에 두기: 거리(m) 계산 대신 카메라 여백(px)으로 중심을 내림.
+                                // (예전 m 환산은 화면 밀도·512px 타일을 빼먹어 5배쯤 밀려 현재 위치가 아래 계기판 밑으로 숨었음)
+                                val fp = MapCameraPlanner.followPadding(view.height, pad.top, pad.bottom, MapCameraPlanner.followTargetFraction(followingCourse))
                                 val pos = CameraPosition.Builder()
-                                    .target(LatLng(aim.latitude, aim.longitude))
+                                    .target(LatLng(target.latitude, target.longitude))
                                     .zoom(zoom)
                                     .bearing(targetBearing)
+                                    .padding(0.0, fp.top.toDouble(), 0.0, fp.bottom.toDouble())
                                     .build()
                                 runCatching { map.animateCamera(org.maplibre.android.camera.CameraUpdateFactory.newCameraPosition(pos), 700) }
                             }

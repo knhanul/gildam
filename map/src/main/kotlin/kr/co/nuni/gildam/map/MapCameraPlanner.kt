@@ -140,6 +140,17 @@ object MapCameraPlanner {
     fun followTargetFraction(hasCourse: Boolean): Double =
         if (hasCourse) FOLLOW_TARGET_FRACTION_COURSE else FOLLOW_TARGET_FRACTION
 
+    /**
+     * 현재 경로 보기 카메라 여백(px). 지도 중심 = 여백 사이 가운데이므로, 위 여백을 늘려
+     * 현재 위치(카메라 중심)가 [topPx]~(높이-[bottomPx]) 영역에서 위에서 [fraction] 지점에 오게 합니다.
+     * 화면 밀도·타일 크기와 무관하고, 지도가 돌아가 있어도 그대로 맞습니다.
+     */
+    fun followPadding(viewHeightPx: Int, topPx: Int, bottomPx: Int, fraction: Double = FOLLOW_TARGET_FRACTION): OverlayPadding {
+        val availH = (viewHeightPx - topPx - bottomPx).coerceAtLeast(0)
+        val extra = ((2 * fraction.coerceIn(0.5, 0.95) - 1) * availH).toInt()
+        return OverlayPadding(0, topPx + extra, 0, bottomPx)
+    }
+
     /** 줌·위도 기준 1px 당 거리(m) */
     fun metersPerPixel(latitude: Double, zoom: Double): Double =
         156_543.03392 * kotlin.math.cos(Math.toRadians(latitude)) / Math.pow(2.0, zoom)
