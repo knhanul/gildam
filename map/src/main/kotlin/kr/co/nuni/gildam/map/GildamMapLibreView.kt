@@ -296,7 +296,7 @@ fun GildamMapLibreView(
                         }
                         autoCameraPaused -> Unit
                         cameraMode == MapCameraMode.OVERVIEW -> {
-                            val pad = MapCameraPlanner.overviewPadding(view.width, view.height, overlayTopPx, overlayBottomPx)
+                            val pad = MapCameraPlanner.overviewPadding(view.width, view.height, overlayTopPx, overlayBottomPx, view.resources.displayMetrics.density)
                             val fit = MapCameraPlanner.overviewFit(trackPoints, currentLocation, coursePoints, pad)
                             if (fit == null) {
                                 map.cameraPosition = CameraPosition.Builder().target(LatLng(target.latitude, target.longitude)).zoom(target.zoom).bearing(0.0).build()
@@ -522,7 +522,7 @@ private fun PreviewFallbackMapCanvas(
                 return@Canvas
             }
             val pad = if (followSpanM != null) MapCameraPlanner.overlayPadding(size.width.toInt(), size.height.toInt(), overlayTopPx, overlayBottomPx)
-                else MapCameraPlanner.overviewPadding(size.width.toInt(), size.height.toInt(), overlayTopPx, overlayBottomPx)
+                else MapCameraPlanner.overviewPadding(size.width.toInt(), size.height.toInt(), overlayTopPx, overlayBottomPx, density)
             val availW = size.width - pad.left - pad.right; val availH = size.height - pad.top - pad.bottom
             val center = currentLocation ?: trackPoints.lastOrNull()
             val sc: Float; val ox: Float; val oy: Float; val minLon: Double; val maxLat: Double; val kx: Double

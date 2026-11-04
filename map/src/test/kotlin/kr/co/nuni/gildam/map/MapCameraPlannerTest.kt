@@ -232,10 +232,12 @@ class MapCameraPlannerTest {
         assertEquals(course, split.remaining)
     }
 
-    @Test fun overviewPaddingLeavesTrackInMiddleTwoThirds() {
-        val p = MapCameraPlanner.overviewPadding(1080, 2400, topCardsPx = 300, bottomCardPx = 900)
-        assertEquals(180, p.left); assertEquals(180, p.right)
-        assertEquals(300 + 200, p.top); assertEquals(900 + 200, p.bottom)
+    @Test fun overviewPaddingIsAsymmetric() {
+        // 화면 2400px, 위 버튼 줄 300px, 아래 숫자+계기판 900px, 밀도 2.5 → 24dp = 60px
+        val p = MapCameraPlanner.overviewPadding(1080, 2400, topCardsPx = 300, bottomCardPx = 900, density = 2.5f)
+        assertEquals(60, p.left); assertEquals(60, p.right)
+        assertEquals(900 + 60, p.bottom)          // 출발점 S 는 숫자·계기판 위 24dp
+        assertEquals(300 + 1200 / 6, p.top)       // 현재 위치 쪽은 지도 영역 1/6 여유
     }
 
     @Test fun compassToggleSwitchesNorthAndHeading() {

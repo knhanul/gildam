@@ -97,20 +97,24 @@ object MapCameraPlanner {
         return OverlayPadding(side, top, side, bottom)
     }
 
-    /** 전체 경로 보기: 경로가 지도 영역의 약 2/3 를 차지하도록 남는 공간의 1/6 씩을 상하좌우 여백으로 */
-    const val OVERVIEW_FILL_FRACTION = 2.0 / 3.0
+    /** 전체 경로 보기 위쪽(현재 위치 쪽) 여백 = 지도 영역의 1/6 */
+    const val OVERVIEW_TOP_FRACTION = 1.0 / 6.0
+    /** 전체 경로 보기 아래(출발점 S 쪽)·좌우 여백(dp) */
+    const val OVERVIEW_EDGE_DP = 24
 
     /**
-     * 전체 경로 보기 패딩. 카드가 가리는 영역을 뺀 나머지 중 가운데 2/3 에 경로를 맞춰
-     * 출발점이 화면 구석에 붙지 않게 합니다.
+     * 전체 경로 보기 패딩 (비대칭).
+     * - 아래: 지도 위 큰 숫자·계기판 묶음([bottomCardPx], 숫자 윗면부터 잰 높이) 위로 24dp → 출발점 S 가 가리지 않음
+     * - 좌우: 24dp
+     * - 위: 상단 버튼 줄([topCardsPx]) 아래 + 지도 영역의 1/6 (현재 위치 쪽 여유)
      */
-    fun overviewPadding(viewW: Int, viewH: Int, topCardsPx: Int, bottomCardPx: Int): OverlayPadding {
+    fun overviewPadding(viewW: Int, viewH: Int, topCardsPx: Int, bottomCardPx: Int, density: Float): OverlayPadding {
         val base = overlayPadding(viewW, viewH, topCardsPx, bottomCardPx)
-        val margin = (1.0 - OVERVIEW_FILL_FRACTION) / 2.0
+        val edge = (OVERVIEW_EDGE_DP * density).toInt()
         val availH = (viewH - base.top - base.bottom).coerceAtLeast(0)
-        val v = (availH * margin).toInt()
-        val side = (viewW * margin).toInt()
-        return OverlayPadding(base.left + side, base.top + v, base.right + side, base.bottom + v)
+        val top = base.top + (availH * OVERVIEW_TOP_FRACTION).toInt()
+        val side = min(edge, viewW / 6)
+        return OverlayPadding(base.left + side, top, base.right + side, base.bottom + edge)
     }
 
     fun overviewFit(track: List<LatLonPoint>, current: LatLonPoint?, course: List<LatLonPoint>, padding: OverlayPadding): OverviewFit? {
