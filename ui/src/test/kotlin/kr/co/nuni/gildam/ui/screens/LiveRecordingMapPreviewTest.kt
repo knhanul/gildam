@@ -47,6 +47,12 @@ class LiveRecordingMapPreviewTest {
 
     private val eastWest = (0 until 50).map { i -> LatLonPoint(37.5665 + 0.00006 * kotlin.math.sin(i / 5.0), 126.9780 + 0.00025 * i) }
 
+    private val southward = (0 until 50).map { i -> LatLonPoint(37.5665 - 0.0002 * i, 126.9780 + 0.00004 * kotlin.math.sin(i / 6.0)) }
+
+    @Test fun overviewSouthwardStartAtTop() = paparazzi.snapshot {
+        Screen(MapCameraMode.OVERVIEW, live.copy(liveTrackPoints = southward, currentLocation = southward.last()))
+    }
+
     @Test fun overviewEastWestRotated() = paparazzi.snapshot {
         Screen(MapCameraMode.OVERVIEW, live.copy(liveTrackPoints = eastWest, currentLocation = eastWest.last()))
     }

@@ -68,4 +68,16 @@ class OverviewBearingPlannerTest {
         assertEquals(270.0, OverviewBearingPlanner.orient(90.0, eastward.reversed()), 1e-9)
         assertEquals(0.0, OverviewBearingPlanner.orient(0.0, line(-0.0005, 0.0)), 1e-9)
     }
+
+    @Test fun startSideAfterRotation() {
+        val south = line(-0.0005, 0.0) // 남쪽으로 → 회전 없음 → S 위
+        val b = OverviewBearingPlanner.orient(OverviewBearingPlanner.bestBearing(south), south)
+        assertEquals(0.0, b, 1e-9)
+        assertTrue(OverviewBearingPlanner.startIsAtTop(south.first(), south.last(), b))
+        val north = line(0.0005, 0.0)
+        assertTrue(!OverviewBearingPlanner.startIsAtTop(north.first(), north.last(), 0.0))
+        val east = line(0.0, 0.0005) // 동서 → 회전해서 S 아래
+        val be = OverviewBearingPlanner.orient(OverviewBearingPlanner.bestBearing(east), east)
+        assertTrue(!OverviewBearingPlanner.startIsAtTop(east.first(), east.last(), be))
+    }
 }

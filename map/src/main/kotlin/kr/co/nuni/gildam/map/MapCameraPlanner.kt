@@ -97,24 +97,27 @@ object MapCameraPlanner {
         return OverlayPadding(side, top, side, bottom)
     }
 
-    /** 전체 경로 보기 위쪽(현재 위치 쪽) 여백 = 지도 영역의 1/6 */
-    const val OVERVIEW_TOP_FRACTION = 1.0 / 6.0
-    /** 전체 경로 보기 아래(출발점 S 쪽)·좌우 여백(dp) */
-    const val OVERVIEW_EDGE_DP = 24
+    /** 전체 경로 보기: 현재 위치 쪽 여백 = 지도 영역의 1/6 */
+    const val OVERVIEW_CURRENT_FRACTION = 1.0 / 6.0
+    /** 출발점 S 쪽 여백(dp): 위 버튼 줄 또는 아래 숫자·계기판과의 간격 */
+    const val OVERVIEW_START_GAP_DP = 10
+    /** 좌우 여백(dp) */
+    const val OVERVIEW_SIDE_DP = 24
 
     /**
      * 전체 경로 보기 패딩 (비대칭).
-     * - 아래: 지도 위 큰 숫자·계기판 묶음([bottomCardPx], 숫자 윗면부터 잰 높이) 위로 24dp → 출발점 S 가 가리지 않음
+     * - 현재 위치 쪽(위든 아래든): 지도 영역의 1/6
+     * - 출발점 S 쪽: 아래면 숫자·계기판 묶음([bottomCardPx]) 위 10dp, 위면 버튼 줄([topCardsPx]) 아래 10dp
      * - 좌우: 24dp
-     * - 위: 상단 버튼 줄([topCardsPx]) 아래 + 지도 영역의 1/6 (현재 위치 쪽 여유)
      */
-    fun overviewPadding(viewW: Int, viewH: Int, topCardsPx: Int, bottomCardPx: Int, density: Float): OverlayPadding {
+    fun overviewPadding(viewW: Int, viewH: Int, topCardsPx: Int, bottomCardPx: Int, density: Float, startAtTop: Boolean = false): OverlayPadding {
         val base = overlayPadding(viewW, viewH, topCardsPx, bottomCardPx)
-        val edge = (OVERVIEW_EDGE_DP * density).toInt()
+        val gap = (OVERVIEW_START_GAP_DP * density).toInt()
+        val side = min((OVERVIEW_SIDE_DP * density).toInt(), viewW / 6)
         val availH = (viewH - base.top - base.bottom).coerceAtLeast(0)
-        val top = base.top + (availH * OVERVIEW_TOP_FRACTION).toInt()
-        val side = min(edge, viewW / 6)
-        return OverlayPadding(base.left + side, top, base.right + side, base.bottom + edge)
+        val current = (availH * OVERVIEW_CURRENT_FRACTION).toInt()
+        return if (startAtTop) OverlayPadding(base.left + side, base.top + gap, base.right + side, base.bottom + current)
+        else OverlayPadding(base.left + side, base.top + current, base.right + side, base.bottom + gap)
     }
 
     fun overviewFit(track: List<LatLonPoint>, current: LatLonPoint?, course: List<LatLonPoint>, padding: OverlayPadding): OverviewFit? {

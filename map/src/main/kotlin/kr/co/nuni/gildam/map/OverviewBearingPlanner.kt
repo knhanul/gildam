@@ -83,6 +83,14 @@ object OverviewBearingPlanner {
         return ((out % 360.0) + 360.0) % 360.0
     }
 
+    /** 지도 회전 [bearing] 에서 출발점이 현재 위치보다 화면 위쪽에 있는지 */
+    fun startIsAtTop(start: LatLonPoint?, current: LatLonPoint?, bearing: Double): Boolean {
+        if (start == null || current == null) return false
+        val k = cos(Math.toRadians((start.latitude + current.latitude) / 2))
+        val (_, up) = rotate((start.longitude - current.longitude) * k * M_PER_DEG, (start.latitude - current.latitude) * M_PER_DEG, bearing)
+        return up > 0
+    }
+
     /** 동(x)·북(y) m 좌표를 지도 회전 [bearing] 의 화면 좌표(오른쪽, 위)로 */
     fun rotate(xEast: Double, yNorth: Double, bearing: Double): Pair<Double, Double> {
         val t = Math.toRadians(bearing)

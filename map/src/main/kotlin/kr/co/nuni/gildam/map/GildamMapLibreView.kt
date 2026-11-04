@@ -312,6 +312,13 @@ fun GildamMapLibreView(
                                 // 방향(위/아래)은 축을 새로 정할 때만 정해서 갑자기 뒤집히지 않게
                                 if (rotated || camState.overviewOriented == null) camState.overviewOriented = OverviewBearingPlanner.orient(axisNow, trackPoints.ifEmpty { pts })
                                 val bearingNow = camState.overviewOriented ?: axisNow
+                                // 출발점이 위/아래 어느 쪽인지에 따라 여백을 다시 잡음
+                                val startTop = OverviewBearingPlanner.startIsAtTop(
+                                    trackPoints.firstOrNull() ?: coursePoints.firstOrNull(),
+                                    currentLocation ?: trackPoints.lastOrNull() ?: coursePoints.lastOrNull(),
+                                    bearingNow
+                                )
+                                val pad = MapCameraPlanner.overviewPadding(view.width, view.height, overlayTopPx, overlayBottomPx, view.resources.displayMetrics.density, startTop)
                                 val cam = OverviewBearingPlanner.fitRotated(pts, bearingNow, view.width, view.height, pad, view.resources.displayMetrics.density)
                                 if (cam != null) view.post {
                                     runCatching {
@@ -522,7 +529,14 @@ private fun PreviewFallbackMapCanvas(
                 return@Canvas
             }
             val pad = if (followSpanM != null) MapCameraPlanner.overlayPadding(size.width.toInt(), size.height.toInt(), overlayTopPx, overlayBottomPx)
-                else MapCameraPlanner.overviewPadding(size.width.toInt(), size.height.toInt(), overlayTopPx, overlayBottomPx, density)
+                else MapCameraPlanner.overviewPadding(
+                    size.width.toInt(), size.height.toInt(), overlayTopPx, overlayBottomPx, density,
+                    // 미리보기 점은 이미 돌려 둔 좌표라 북쪽 위 기준으로 판단
+                    startAtTop = OverviewBearingPlanner.startIsAtTop(
+                        trackPoints.firstOrNull() ?: coursePoints.firstOrNull(),
+                        currentLocation ?: trackPoints.lastOrNull() ?: coursePoints.lastOrNull(), 0.0
+                    )
+                )
             val availW = size.width - pad.left - pad.right; val availH = size.height - pad.top - pad.bottom
             val center = currentLocation ?: trackPoints.lastOrNull()
             val sc: Float; val ox: Float; val oy: Float; val minLon: Double; val maxLat: Double; val kx: Double
