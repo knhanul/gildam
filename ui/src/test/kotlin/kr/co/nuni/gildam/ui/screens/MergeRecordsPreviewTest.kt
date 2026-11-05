@@ -22,7 +22,7 @@ class MergeRecordsPreviewTest {
 
     @get:Rule
     val paparazzi = Paparazzi(
-        deviceConfig = DeviceConfig.PIXEL_6,
+        deviceConfig = DeviceConfig.PIXEL_6.copy(locale = "ko"),
         theme = "android:Theme.Material.Light.NoActionBar",
         showSystemUi = false
     )

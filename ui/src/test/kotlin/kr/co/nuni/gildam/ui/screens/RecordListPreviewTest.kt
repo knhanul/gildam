@@ -1,5 +1,6 @@
 package kr.co.nuni.gildam.ui.screens
 
+import kr.co.nuni.gildam.ui.l10n.displayTitle
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -35,7 +36,7 @@ class RecordListPreviewTest {
 
     @get:Rule
     val paparazzi = Paparazzi(
-        deviceConfig = DeviceConfig.PIXEL_6,
+        deviceConfig = DeviceConfig.PIXEL_6.copy(locale = "ko"),
         theme = "android:Theme.Material.Light.NoActionBar",
         showSystemUi = false
     )
@@ -117,7 +118,7 @@ class RecordListPreviewTest {
                         verticalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
                         groups.forEach { g ->
-                            item { RecordGroupHeader(title = g.title, count = g.activities.size) }
+                            item { RecordGroupHeader(title = g.displayTitle(), count = g.activities.size) }
                             items(g.activities, key = { it.id }) { a ->
                                 ActivityCompactRow(activity = a, onClick = {})
                             }
@@ -192,7 +193,7 @@ class RecordListPreviewTest {
                         verticalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
                         groups.forEach { g ->
-                            item { RecordGroupHeader(title = g.title, count = g.activities.size) }
+                            item { RecordGroupHeader(title = g.displayTitle(), count = g.activities.size) }
                             items(g.activities, key = { it.id }) { a ->
                                 ActivityCompactRow(activity = a, onClick = {})
                             }
@@ -225,7 +226,7 @@ class RecordListPreviewTest {
                         verticalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
                         groups.forEach { g ->
-                            item { RecordGroupHeader(title = g.title, count = g.activities.size) }
+                            item { RecordGroupHeader(title = g.displayTitle(), count = g.activities.size) }
                             items(g.activities, key = { it.id }) { a ->
                                 ActivityCompactRow(
                                     activity = a,

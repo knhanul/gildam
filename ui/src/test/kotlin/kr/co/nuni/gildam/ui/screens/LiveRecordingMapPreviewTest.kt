@@ -19,7 +19,7 @@ class LiveRecordingMapPreviewTest {
 
     @get:Rule
     val paparazzi = Paparazzi(
-        deviceConfig = DeviceConfig.PIXEL_6,
+        deviceConfig = DeviceConfig.PIXEL_6.copy(locale = "ko"),
         theme = "android:Theme.Material.Light.NoActionBar",
         showSystemUi = false
     )
@@ -109,7 +109,7 @@ class LiveRecordingMapPreviewTest {
 class LiveRecordingMapNarrowPreviewTest {
     @get:Rule
     val paparazzi = Paparazzi(
-        deviceConfig = DeviceConfig.PIXEL_6.copy(screenWidth = 1080, screenHeight = 2160, xdpi = 480, ydpi = 480, density = com.android.resources.Density.XXHIGH),
+        deviceConfig = DeviceConfig.PIXEL_6.copy(screenWidth = 1080, screenHeight = 2160, xdpi = 480, ydpi = 480, density = com.android.resources.Density.XXHIGH, locale = "ko"),
         theme = "android:Theme.Material.Light.NoActionBar",
         showSystemUi = false
     )
