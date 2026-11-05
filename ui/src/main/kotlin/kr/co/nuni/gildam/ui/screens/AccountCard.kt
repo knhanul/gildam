@@ -1,5 +1,9 @@
 package kr.co.nuni.gildam.ui.screens
 
+import androidx.compose.ui.res.pluralStringResource
+import kr.co.nuni.gildam.ui.l10n.*
+import androidx.compose.ui.res.stringResource
+import kr.co.nuni.gildam.ui.R
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -86,7 +90,7 @@ internal fun AccountCard(
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
             Text(
-                text = "계정 · 동기화",
+                text = stringResource(R.string.account_title),
                 style = MaterialTheme.typography.titleSmall,
                 fontWeight = FontWeight.SemiBold,
                 color = MaterialTheme.colorScheme.onSurface
@@ -100,7 +104,7 @@ internal fun AccountCard(
                 )
             } else {
                 Text(
-                    text = "경로와 메모를 다른 기기에서도 이어 보세요.",
+                    text = stringResource(R.string.account_signin_desc),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -114,7 +118,7 @@ internal fun AccountCard(
                         contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp),
                         modifier = Modifier.fillMaxWidth().height(34.dp)
                     ) {
-                        Text("[디버그] 데모 세션 활성화", style = MaterialTheme.typography.labelSmall)
+                        Text(stringResource(R.string.account_debug_demo), style = MaterialTheme.typography.labelSmall)
                     }
                 }
             }
@@ -139,23 +143,23 @@ private fun LoggedInContent(
 ) {
     var showNicknameDialog by remember { mutableStateOf(false) }
     Text(
-        text = "카카오 계정으로 로그인됨",
+        text = stringResource(R.string.account_signed_in_kakao),
         style = MaterialTheme.typography.bodyMedium,
         fontWeight = FontWeight.SemiBold,
         color = MaterialTheme.colorScheme.onSurface
     )
     Row(verticalAlignment = Alignment.CenterVertically) {
         Text(
-            text = nickname ?: "닉네임을 정해 주세요",
+            text = nickname ?: stringResource(R.string.account_nickname_empty),
             style = MaterialTheme.typography.labelMedium,
             fontWeight = if (nickname != null) FontWeight.SemiBold else FontWeight.Normal,
             color = if (nickname != null) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant
         )
-        GildamTooltip(label = "닉네임 바꾸기") {
+        GildamTooltip(label = stringResource(R.string.account_nickname_change)) {
             IconButton(onClick = { showNicknameDialog = true }, modifier = Modifier.size(32.dp)) {
                 Icon(
                     Icons.Outlined.Edit,
-                    contentDescription = "닉네임 바꾸기",
+                    contentDescription = stringResource(R.string.account_nickname_change),
                     tint = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.size(16.dp)
                 )
@@ -171,7 +175,7 @@ private fun LoggedInContent(
     }
     if (serverTrackCount != null) {
         Text(
-            text = "서버에 저장된 기록 ${serverTrackCount}개",
+            text = pluralStringResource(R.plurals.account_server_tracks, serverTrackCount, serverTrackCount),
             style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
@@ -181,7 +185,7 @@ private fun LoggedInContent(
     if (sessionState.requiresReauthBanner) {
         SyncStatusRow(
             icon = Icons.Outlined.ErrorOutline,
-            text = "로그인이 만료됐어요 · 다시 로그인해 주세요",
+            text = stringResource(R.string.account_session_expired),
             emphasized = true
         )
         Spacer(modifier = Modifier.height(8.dp))
@@ -190,17 +194,17 @@ private fun LoggedInContent(
             onClick = onLogout,
             contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp),
             modifier = Modifier.height(30.dp)
-        ) { Text("로그아웃", style = MaterialTheme.typography.labelSmall) }
+        ) { Text(stringResource(R.string.account_sign_out), style = MaterialTheme.typography.labelSmall) }
     } else {
         when (syncStatus) {
-            SyncUiStatus.SYNCING -> SyncStatusRow(Icons.Outlined.Sync, "동기화 중…")
-            SyncUiStatus.WAITING -> SyncStatusRow(Icons.Outlined.CloudOff, "동기화 대기 중 · 네트워크를 확인해요")
-            SyncUiStatus.FAILED -> SyncStatusRow(Icons.Outlined.ErrorOutline, "동기화에 실패했어요", emphasized = true)
+            SyncUiStatus.SYNCING -> SyncStatusRow(Icons.Outlined.Sync, stringResource(R.string.sync_in_progress))
+            SyncUiStatus.WAITING -> SyncStatusRow(Icons.Outlined.CloudOff, stringResource(R.string.sync_waiting))
+            SyncUiStatus.FAILED -> SyncStatusRow(Icons.Outlined.ErrorOutline, stringResource(R.string.sync_failed), emphasized = true)
             SyncUiStatus.SUCCEEDED, SyncUiStatus.IDLE ->
                 if (lastSyncSuccessAtMs > 0L) {
-                    SyncStatusRow(Icons.Outlined.CloudDone, "동기화 완료 · 마지막 ${formatSyncTime(lastSyncSuccessAtMs)}")
+                    SyncStatusRow(Icons.Outlined.CloudDone, stringResource(R.string.sync_done, formatSyncTime(lastSyncSuccessAtMs, currentLocale())))
                 } else {
-                    SyncStatusRow(Icons.Outlined.CloudQueue, "아직 동기화하지 않았어요")
+                    SyncStatusRow(Icons.Outlined.CloudQueue, stringResource(R.string.sync_never))
                 }
         }
         Spacer(modifier = Modifier.height(8.dp))
@@ -209,18 +213,18 @@ private fun LoggedInContent(
                 onClick = onManualSync,
                 contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
                 modifier = Modifier.height(34.dp)
-            ) { Text(if (syncStatus == SyncUiStatus.FAILED) "다시 시도" else "지금 동기화", style = MaterialTheme.typography.labelMedium) }
+            ) { Text(if (syncStatus == SyncUiStatus.FAILED) stringResource(R.string.action_retry) else stringResource(R.string.sync_now), style = MaterialTheme.typography.labelMedium) }
             OutlinedButton(
                 onClick = onLogout,
                 contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
                 modifier = Modifier.height(34.dp)
-            ) { Text("로그아웃", style = MaterialTheme.typography.labelMedium) }
+            ) { Text(stringResource(R.string.account_sign_out), style = MaterialTheme.typography.labelMedium) }
         }
         TextButton(
             onClick = onSwitchAccount,
             contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp),
             modifier = Modifier.height(30.dp)
-        ) { Text("다른 카카오 계정으로 전환", style = MaterialTheme.typography.labelSmall) }
+        ) { Text(stringResource(R.string.account_switch_kakao), style = MaterialTheme.typography.labelSmall) }
     }
 }
 
@@ -253,12 +257,12 @@ private fun PhotoStorageFootnote(onClick: () -> Unit) {
         horizontalArrangement = Arrangement.Center
     ) {
         Text(
-            text = "사진 파일은 동기화되지 않아요",
+            text = stringResource(R.string.account_photos_not_synced),
             style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
         Text(
-            text = " · 보관 안내",
+            text = stringResource(R.string.account_photos_storage_link),
             style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.primary,
             fontWeight = FontWeight.SemiBold
@@ -272,9 +276,9 @@ private fun PhotoStorageFootnote(onClick: () -> Unit) {
     }
 }
 
-private fun formatSyncTime(epochMs: Long): String =
+private fun formatSyncTime(epochMs: Long, locale: java.util.Locale): String =
     Instant.ofEpochMilli(epochMs).atZone(ZoneId.systemDefault())
-        .format(DateTimeFormatter.ofPattern("M월 d일 HH:mm"))
+        .format(shortDateTimeFormatter(locale))
 
 private val KakaoYellow = Color(0xFFFEE500)
 private val KakaoLabel = Color(0xD9000000) // 85% black (카카오 디자인 가이드)
@@ -291,7 +295,7 @@ internal fun KakaoLoginButton(onClick: () -> Unit, modifier: Modifier = Modifier
     ) {
         KakaoSymbol(modifier = Modifier.size(18.dp))
         Spacer(modifier = Modifier.width(7.dp))
-        Text("카카오 로그인", fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = KakaoLabel)
+        Text(stringResource(R.string.kakao_login), fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = KakaoLabel)
     }
 }
 
@@ -310,7 +314,7 @@ private fun KakaoSymbol(modifier: Modifier = Modifier) {
 @Composable
 private fun NuniFootnote() {
     Text(
-        text = "NUNI ID로 연결해요",
+        text = stringResource(R.string.account_nuni_id),
         style = MaterialTheme.typography.labelSmall,
         color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f),
         textAlign = TextAlign.Center,
@@ -329,7 +333,7 @@ private fun NicknameDialog(initial: String, onDismiss: () -> Unit, onSave: (Stri
     val valid = ProfilePrefs.normalize(text) != null
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("닉네임 바꾸기") },
+        title = { Text(stringResource(R.string.account_nickname_change)) },
         text = {
             OutlinedTextField(
                 value = text,
@@ -338,14 +342,14 @@ private fun NicknameDialog(initial: String, onDismiss: () -> Unit, onSave: (Stri
                 isError = text.isNotEmpty() && !valid,
                 supportingText = {
                     Text(
-                        if (text.isNotEmpty() && !valid) "1~${ProfilePrefs.MAX_LENGTH}자로 정해 주세요"
+                        if (text.isNotEmpty() && !valid) stringResource(R.string.account_nickname_length, ProfilePrefs.MAX_LENGTH)
                         else "${trimmed.length}/${ProfilePrefs.MAX_LENGTH}"
                     )
                 },
-                placeholder = { Text("닉네임") }
+                placeholder = { Text(stringResource(R.string.account_nickname)) }
             )
         },
-        confirmButton = { TextButton(onClick = { onSave(text) }, enabled = valid) { Text("저장") } },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("취소") } }
+        confirmButton = { TextButton(onClick = { onSave(text) }, enabled = valid) { Text(stringResource(R.string.action_save)) } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_cancel)) } }
     )
 }

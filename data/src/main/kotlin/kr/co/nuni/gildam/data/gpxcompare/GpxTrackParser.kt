@@ -8,7 +8,14 @@ import javax.xml.parsers.SAXParserFactory
 /** 비교용 최소 좌표. 시간·이름·메모 등 개인 정보는 읽지 않습니다. */
 data class GpxPoint(val lat: Double, val lon: Double, val ele: Double?)
 
-class GpxParseException(message: String, cause: Throwable? = null) : Exception(message, cause)
+/** 화면 글자는 ui 모듈이 [reason] 으로 고릅니다 (message 는 로그용 영어). */
+class GpxParseException(
+    val reason: Reason,
+    message: String = reason.name,
+    cause: Throwable? = null
+) : Exception(message, cause) {
+    enum class Reason { OPEN_FAILED, UNREADABLE, TOO_FEW_POINTS }
+}
 
 /**
  * GPX 1.0/1.1 에서 trkpt(없으면 rtept)의 위도·경도·고도만 읽는 순수 Kotlin 파서.
@@ -55,10 +62,10 @@ object GpxTrackParser {
             runCatching { f.setFeature("http://apache.org/xml/features/disallow-doctype-decl", true) }
             f.newSAXParser().parse(input, handler)
         } catch (e: Exception) {
-            throw GpxParseException("GPX 파일을 읽을 수 없어요.", e)
+            throw GpxParseException(GpxParseException.Reason.UNREADABLE, "GPX parse failed", e)
         }
         val pts = if (trk.isNotEmpty()) trk else rte
-        if (pts.size < 2) throw GpxParseException("경로 점이 2개 미만이에요.")
+        if (pts.size < 2) throw GpxParseException(GpxParseException.Reason.TOO_FEW_POINTS, "fewer than 2 points")
         return pts
     }
 }

@@ -9,6 +9,7 @@ import dagger.hilt.android.AndroidEntryPoint
 import android.widget.Toast
 import androidx.lifecycle.lifecycleScope
 import kotlinx.coroutines.launch
+import kr.co.nuni.gildam.auth.AuthException
 import kr.co.nuni.gildam.auth.NuniAuthManager
 import kr.co.nuni.gildam.sync.worker.GildamSyncWorker
 import kr.co.nuni.gildam.ui.GildamAppRoot
@@ -47,7 +48,10 @@ class MainActivity : ComponentActivity() {
             lifecycleScope.launch {
                 nuniAuthManager.completeLogin(data)
                     .onSuccess { GildamSyncWorker.enqueueImmediateSync(applicationContext) }
-                    .onFailure { Toast.makeText(this@MainActivity, it.message ?: "로그인에 실패했어요.", Toast.LENGTH_LONG).show() }
+                    .onFailure {
+                        val msg = if ((it as? AuthException)?.userCancelled == true) R.string.login_cancelled else R.string.login_failed
+                        Toast.makeText(this@MainActivity, msg, Toast.LENGTH_LONG).show()
+                    }
             }
         }
         // 로그아웃 복귀(kr.co.nuni.gildam:/logout)는 앱으로 돌아오기만 하면 됨

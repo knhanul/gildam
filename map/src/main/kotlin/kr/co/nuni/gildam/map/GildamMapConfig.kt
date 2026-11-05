@@ -12,7 +12,7 @@ object GildamMapConfig {
     const val ASSET_PREFIX = "asset://"
 
     /** 지도 위에 항상 보여야 하는 출처 표시 (OpenFreeMap 이용 약관·ODbL) */
-    const val ATTRIBUTION_TEXT = "© OpenFreeMap © OpenMapTiles © OpenStreetMap 기여자"
+    const val ATTRIBUTION_TEXT = "© OpenFreeMap © OpenMapTiles © OpenStreetMap contributors"
 
     const val SEOUL_DEFAULT_LAT = 37.5796
     const val SEOUL_DEFAULT_LON = 126.9770

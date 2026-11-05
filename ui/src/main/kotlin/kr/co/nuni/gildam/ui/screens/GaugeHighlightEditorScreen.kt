@@ -1,5 +1,8 @@
 package kr.co.nuni.gildam.ui.screens
 
+import kr.co.nuni.gildam.ui.l10n.*
+import androidx.compose.ui.res.stringResource
+import kr.co.nuni.gildam.ui.R
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
@@ -88,15 +91,15 @@ fun GaugeHighlightEditorScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("지도 강조 지표") },
+                title = { Text(stringResource(R.string.gauge_highlight_title)) },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
-                        Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = "뒤로")
+                        Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = stringResource(R.string.action_back))
                     }
                 },
                 actions = {
                     TextButton(onClick = { onSave(draft.toMap()); onNavigateBack() }) {
-                        Text("완료", fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.secondary)
+                        Text(stringResource(R.string.action_done), fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.secondary)
                     }
                 }
             )
@@ -119,16 +122,16 @@ fun GaugeHighlightEditorScreen(
             )
 
             // 중앙: 지도 위 표시 미리보기 (예시 지도·예시 값, 실제 위치·기록 사용 안 함)
-            Text("미리보기", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold)
+            Text(stringResource(R.string.gauge_preview), style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold)
             PreviewMap(metric = metric)
             Text(
-                "예시 지도와 예시 값이에요. 실제 위치나 기록을 사용하지 않아요.",
+                stringResource(R.string.gauge_preview_desc),
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
 
             // 하단: 선택 가능한 지표 목록 ('표시 안 함' 포함)
-            Text("지도에 크게 표시할 정보", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold)
+            Text(stringResource(R.string.gauge_pick_title), style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold)
             Card(
                 shape = RoundedCornerShape(16.dp),
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f))
@@ -146,7 +149,7 @@ fun GaugeHighlightEditorScreen(
                             RadioButton(selected = metric == m, onClick = null)
                             Spacer(Modifier.width(4.dp))
                             Text(
-                                m.labelKo,
+                                m.label,
                                 style = MaterialTheme.typography.bodyMedium,
                                 fontWeight = if (metric == m) FontWeight.SemiBold else FontWeight.Normal
                             )
@@ -161,13 +164,13 @@ fun GaugeHighlightEditorScreen(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    "지도에서 크게 볼 값을 골라 주세요.\n계기판의 항목과 위치는 바뀌지 않아요.",
+                    stringResource(R.string.gauge_pick_desc),
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.weight(1f)
                 )
                 TextButton(onClick = { draft[type] = GaugeMetric.defaultFor(type) }) {
-                    Text("이 활동 기본값으로", color = MaterialTheme.colorScheme.secondary, fontWeight = FontWeight.SemiBold)
+                    Text(stringResource(R.string.gauge_reset_default), color = MaterialTheme.colorScheme.secondary, fontWeight = FontWeight.SemiBold)
                 }
             }
             Spacer(Modifier.height(4.dp))
@@ -182,7 +185,7 @@ private fun ActivityPicker(selected: TransportType, onSelect: (TransportType) ->
     val cs = MaterialTheme.colorScheme
     ExposedDropdownMenuBox(expanded = expanded, onExpandedChange = { expanded = it }, modifier = Modifier.fillMaxWidth()) {
         OutlinedTextField(
-            value = selected.labelKo,
+            value = selected.label,
             onValueChange = {},
             readOnly = true,
             singleLine = true,
@@ -210,7 +213,7 @@ private fun ActivityPicker(selected: TransportType, onSelect: (TransportType) ->
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             TransportSticker(t, selected = t == selected, size = 24.dp)
                             Spacer(Modifier.width(10.dp))
-                            Text(t.labelKo, fontWeight = if (t == selected) FontWeight.Bold else FontWeight.Normal)
+                            Text(t.label, fontWeight = if (t == selected) FontWeight.Bold else FontWeight.Normal)
                         }
                     },
                     onClick = { onSelect(t); expanded = false }
@@ -255,7 +258,7 @@ private fun PreviewMap(metric: GaugeMetric) {
         }
         if (metric == GaugeMetric.NONE) {
             Text(
-                "지도 위에 크게 띄우는 값이 없어요",
+                stringResource(R.string.gauge_none_desc),
                 style = MaterialTheme.typography.labelMedium,
                 color = cs.onSurfaceVariant,
                 modifier = Modifier.align(Alignment.Center)

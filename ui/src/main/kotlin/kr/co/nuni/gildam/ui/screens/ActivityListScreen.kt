@@ -1,5 +1,7 @@
 package kr.co.nuni.gildam.ui.screens
 
+import kr.co.nuni.gildam.ui.l10n.*
+import androidx.compose.ui.res.stringResource
 import android.widget.Toast
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.Image
@@ -154,7 +156,7 @@ fun ActivityListScreen(
     fun toggleMerge(item: ActivityEntity) {
         // 기록 중이거나 끝나지 않은 기록은 합칠 수 없으니 고를 때부터 막습니다
         if (item.status != ActivityStatus.COMPLETED) {
-            Toast.makeText(context, "끝난 기록만 합칠 수 있어요", Toast.LENGTH_SHORT).show()
+            Toast.makeText(context, context.getString(R.string.merge_only_finished), Toast.LENGTH_SHORT).show()
             return
         }
         val next = if (item.id in mergeSelected) mergeSelected - item.id
@@ -171,7 +173,7 @@ fun ActivityListScreen(
         ) {
             MergeRecordsContent(
                 sources = sources,
-                defaultTitle = RecordMerger.defaultTitle(sources),
+                defaultTitle = RecordMerger.defaultTitle(sources).ifBlank { stringResource(R.string.merge_default_title) },
                 merging = mergeRunning,
                 onCancel = { showMergeConfirm = false },
                 onConfirm = { title ->
@@ -182,9 +184,9 @@ fun ActivityListScreen(
                         showMergeConfirm = false
                         if (ok) {
                             exitMerging()
-                            Toast.makeText(context, "기록 ${sources.size}개를 하나로 합쳤어요", Toast.LENGTH_SHORT).show()
+                            Toast.makeText(context, context.resources.getQuantityString(R.plurals.merge_done_toast, sources.size, sources.size), Toast.LENGTH_SHORT).show()
                         } else {
-                            Toast.makeText(context, "합치지 못했어요. 끝난 기록을 두 개 이상 골라 주세요", Toast.LENGTH_LONG).show()
+                            Toast.makeText(context, context.getString(R.string.merge_failed_toast), Toast.LENGTH_LONG).show()
                         }
                     }
                 }
@@ -203,7 +205,7 @@ fun ActivityListScreen(
             ExtendedFloatingActionButton(
                 onClick = onNavigateBackToRecorder,
                 icon = { Icon(Icons.Outlined.Add, contentDescription = null) },
-                text = { Text("새 길 기록하기") }
+                text = { Text(stringResource(R.string.list_new_record)) }
             )
         }
     ) { innerPadding ->
@@ -228,33 +230,33 @@ fun ActivityListScreen(
                             onClick = onNavigateBackToRecorder,
                             modifier = Modifier.size(34.dp)
                         ) {
-                            Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = "기록 화면으로")
+                            Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = stringResource(R.string.list_back_to_record))
                         }
                         Spacer(modifier = Modifier.width(4.dp))
                     }
                     Image(
                         painter = painterResource(R.drawable.gildam_logo),
-                        contentDescription = "길담 로고",
+                        contentDescription = stringResource(R.string.logo_cd),
                         modifier = Modifier.size(24.dp)
                     )
                     Spacer(modifier = Modifier.width(7.dp))
                     Text(
-                        text = if (merging) "합칠 기록 고르기" else "길담 보관함",
+                        text = if (merging) stringResource(R.string.merge_pick_title) else stringResource(R.string.list_title),
                         style = MaterialTheme.typography.titleLarge,
                         fontWeight = FontWeight.SemiBold
                     )
                 }
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     if (merging) {
-                        TextButton(onClick = { exitMerging() }) { Text("취소") }
+                        TextButton(onClick = { exitMerging() }) { Text(stringResource(R.string.action_cancel)) }
                         Button(
                             onClick = { showMergeConfirm = true },
                             enabled = mergeSelected.size >= RecordMerger.MIN_COUNT
                         ) {
-                            Text("합치기" + if (mergeSelected.isEmpty()) "" else " (${mergeSelected.size})")
+                            Text(stringResource(R.string.merge_action) + if (mergeSelected.isEmpty()) "" else " (${mergeSelected.size})")
                         }
                     }
-                    if (!merging) GildamTooltip("기록 여러 개 합치기") {
+                    if (!merging) GildamTooltip(stringResource(R.string.merge_records_tooltip)) {
                         IconButton(
                             onClick = {
                                 merging = true
@@ -263,7 +265,7 @@ fun ActivityListScreen(
                             },
                             modifier = Modifier.size(34.dp)
                         ) {
-                            Icon(Icons.AutoMirrored.Outlined.CallMerge, contentDescription = "기록 여러 개 합치기", modifier = Modifier.size(20.dp))
+                            Icon(Icons.AutoMirrored.Outlined.CallMerge, contentDescription = stringResource(R.string.merge_records_tooltip), modifier = Modifier.size(20.dp))
                         }
                     }
                     if (!merging) IconButton(
@@ -275,16 +277,16 @@ fun ActivityListScreen(
                     ) {
                         Icon(
                             if (searchExpanded) Icons.Outlined.Close else Icons.Outlined.Search,
-                            contentDescription = if (searchExpanded) "찾기 닫기" else "찾기",
+                            contentDescription = if (searchExpanded) stringResource(R.string.search_close) else stringResource(R.string.search),
                             modifier = Modifier.size(20.dp)
                         )
                     }
                     if (!isTopLevelTab) {
                         IconButton(onClick = onNavigateToGpxCompare, modifier = Modifier.size(34.dp)) {
-                            Icon(Icons.Outlined.Terrain, contentDescription = "GPX 길 비교", modifier = Modifier.size(20.dp))
+                            Icon(Icons.Outlined.Terrain, contentDescription = stringResource(R.string.gpx_compare_title), modifier = Modifier.size(20.dp))
                         }
                         IconButton(onClick = onNavigateToSettings, modifier = Modifier.size(34.dp)) {
-                            Icon(Icons.Outlined.Settings, contentDescription = "설정", modifier = Modifier.size(20.dp))
+                            Icon(Icons.Outlined.Settings, contentDescription = stringResource(R.string.settings_title), modifier = Modifier.size(20.dp))
                         }
                     }
                 }
@@ -295,14 +297,14 @@ fun ActivityListScreen(
                     OutlinedTextField(
                         value = searchQuery,
                         onValueChange = onSearchQueryChange,
-                        placeholder = { Text("제목, 장소 검색...", style = MaterialTheme.typography.bodyMedium) },
+                        placeholder = { Text(stringResource(R.string.search_placeholder), style = MaterialTheme.typography.bodyMedium) },
                         textStyle = MaterialTheme.typography.bodyMedium,
                         singleLine = true,
                         shape = RoundedCornerShape(12.dp),
                         trailingIcon = {
                             if (searchQuery.isNotEmpty()) {
                                 IconButton(onClick = { onSearchQueryChange("") }) {
-                                    Icon(Icons.Outlined.Clear, contentDescription = "검색어 지우기")
+                                    Icon(Icons.Outlined.Clear, contentDescription = stringResource(R.string.search_clear))
                                 }
                             }
                         },
@@ -326,7 +328,7 @@ fun ActivityListScreen(
 
             if (merging) {
                 Text(
-                    "끝난 기록을 두 개 이상 골라 주세요. 고른 기록은 하나로 합쳐지고 원본은 사라져요.",
+                    stringResource(R.string.merge_hint),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(start = 4.dp, bottom = 6.dp)
@@ -347,7 +349,7 @@ fun ActivityListScreen(
                     groups.forEach { group ->
                         if (group.title.isNotEmpty()) {
                             stickyHeader(key = "group:${group.key}") {
-                                RecordGroupHeader(title = group.title, count = group.activities.size)
+                                RecordGroupHeader(title = group.displayTitle(), count = group.activities.size)
                             }
                         }
                         items(group.activities, key = { it.id }) { item ->
@@ -426,7 +428,7 @@ internal fun RecordFilterRow(
                 contentAlignment = Alignment.Center
             ) {
                 Text(
-                    text = "전체",
+                    text = stringResource(R.string.filter_all),
                     style = MaterialTheme.typography.labelMedium,
                     fontWeight = if (allSelected) FontWeight.Bold else FontWeight.Medium,
                     color = if (allSelected) onBrand() else cs.onSurfaceVariant
@@ -435,7 +437,7 @@ internal fun RecordFilterRow(
 
             TransportType.entries.forEach { type ->
                 val selected = selectedTransportFilter == type
-                GildamTooltip(type.labelKo) {
+                GildamTooltip(type.label) {
                     Box(
                         modifier = Modifier
                             .size(34.dp)
@@ -493,14 +495,14 @@ internal fun RecordGroupModeMenu(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
-                text = recordGroupMode.labelKo,
+                text = recordGroupMode.label,
                 style = MaterialTheme.typography.labelMedium,
                 fontWeight = if (active) FontWeight.Bold else FontWeight.Medium,
                 color = if (active) onBrand() else cs.onSurfaceVariant
             )
             Icon(
                 Icons.Outlined.ArrowDropDown,
-                contentDescription = "묶어 보기 방식 고르기",
+                contentDescription = stringResource(R.string.group_mode_pick_cd),
                 tint = if (active) onBrand() else cs.onSurfaceVariant,
                 modifier = Modifier.size(18.dp)
             )
@@ -525,7 +527,7 @@ internal fun RecordGroupMenuItems(
 ) {
     RecordGroupMode.entries.forEach { mode ->
         DropdownMenuItem(
-            text = { Text(mode.labelKo, style = MaterialTheme.typography.bodyMedium) },
+            text = { Text(mode.label, style = MaterialTheme.typography.bodyMedium) },
             leadingIcon = {
                 if (mode == recordGroupMode) {
                     Icon(Icons.Outlined.Check, contentDescription = null, modifier = Modifier.size(18.dp))
@@ -556,7 +558,7 @@ internal fun RecordGroupHeader(title: String, count: Int) {
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
         Text(
-            text = "${count}개",
+            text = stringResource(R.string.group_count, count),
             style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
@@ -599,7 +601,7 @@ internal fun ActivityCompactRow(
         if (mergeSelected != null) {
             Icon(
                 imageVector = if (mergeSelected) Icons.Filled.CheckCircle else Icons.Outlined.RadioButtonUnchecked,
-                contentDescription = if (mergeSelected) "합칠 기록으로 고름" else "합칠 기록으로 고르지 않음",
+                contentDescription = if (mergeSelected) stringResource(R.string.merge_selected_cd) else stringResource(R.string.merge_unselected_cd),
                 tint = if (mergeSelected) cs.primary else cs.onSurfaceVariant,
                 modifier = Modifier.size(18.dp)
             )
@@ -626,7 +628,7 @@ internal fun ActivityCompactRow(
         Spacer(modifier = Modifier.width(4.dp))
         Icon(
             imageVector = if (activity.syncState == SyncState.SYNCED) Icons.Outlined.CloudDone else Icons.Outlined.CloudQueue,
-            contentDescription = activity.syncState.labelKo,
+            contentDescription = activity.syncState.label,
             tint = cs.onSurfaceVariant,
             modifier = Modifier.size(14.dp)
         )
@@ -665,12 +667,12 @@ private fun BoxEmptyListState(onStartClick: () -> Unit) {
             kr.co.nuni.gildam.ui.illustration.EmptyRecordsIllustration()
             Spacer(modifier = Modifier.height(12.dp))
             Text(
-                text = "첫 번째 길이야기를 시작해 보세요",
+                text = stringResource(R.string.list_empty_title),
                 style = MaterialTheme.typography.titleLarge
             )
             Spacer(modifier = Modifier.height(6.dp))
             Text(
-                text = "스마트폰만으로 걸음과 드라이브 궤적, 길 위의 메모와 사진을 기록할 수 있습니다.",
+                text = stringResource(R.string.list_empty_desc),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )

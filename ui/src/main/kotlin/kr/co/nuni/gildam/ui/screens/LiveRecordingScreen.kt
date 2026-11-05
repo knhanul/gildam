@@ -1,5 +1,7 @@
 package kr.co.nuni.gildam.ui.screens
 
+import kr.co.nuni.gildam.ui.l10n.*
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -219,25 +221,25 @@ fun LiveRecordingScreen(
                     ) {
                         Image(
                             painter = painterResource(R.drawable.gildam_logo),
-                            contentDescription = "길담 로고",
+                            contentDescription = stringResource(R.string.logo_cd),
                             modifier = Modifier.size(28.dp)
                         )
                         Spacer(modifier = Modifier.width(8.dp))
                         Column {
                             Text(
                                 text = if (liveState.isRecording) {
-                                    if (liveState.isPaused) "⏸ 일시정지됨" else "🟢 기록 중 · 백그라운드 보호 활성"
+                                    if (liveState.isPaused) stringResource(R.string.live_status_paused) else stringResource(R.string.live_status_recording)
                                 } else {
-                                    "길담 · 길이야기"
+                                    stringResource(R.string.live_brand)
                                 },
                                 style = MaterialTheme.typography.titleMedium,
                                 color = MaterialTheme.colorScheme.primary
                             )
                             Text(
                                 text = if (keepScreenOn) {
-                                    "화면을 켜 둡니다 · 1초 주기로 궤적 기록"
+                                    stringResource(R.string.live_screen_on_sub)
                                 } else {
-                                    "화면이 꺼져도 1초 주기로 궤적을 기록합니다"
+                                    stringResource(R.string.live_screen_off_sub)
                                 },
                                 style = MaterialTheme.typography.labelSmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -246,10 +248,10 @@ fun LiveRecordingScreen(
                     }
                     if (showTopNavIcons) Row {
                         IconButton(onClick = onNavigateToList) {
-                            Icon(Icons.Outlined.FormatListBulleted, contentDescription = "기록 목록")
+                            Icon(Icons.Outlined.FormatListBulleted, contentDescription = stringResource(R.string.records_list_cd))
                         }
                         IconButton(onClick = onNavigateToSettings) {
-                            Icon(Icons.Outlined.Settings, contentDescription = "설정")
+                            Icon(Icons.Outlined.Settings, contentDescription = stringResource(R.string.settings_title))
                         }
                     }
                 }
@@ -276,7 +278,7 @@ fun LiveRecordingScreen(
                         .padding(top = 8.dp)
                 ) {
                     Text(
-                        text = "GPS 신호를 찾고 있어요. 마지막 확인 위치부터 이어집니다.",
+                        text = stringResource(R.string.gps_searching_desc),
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onPrimary,
                         modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp)
@@ -394,8 +396,8 @@ fun LiveRecordingScreen(
                     // 컨트롤 액션 버튼 영역
                     if (!liveState.isRecording) {
                         VividActionButton(
-                            title = "길 기록 시작하기",
-                            subtitle = if (follow != null) "코스를 따라 출발해요" else "${selectedTransport.labelKo} · 탭 한 번으로 출발!",
+                            title = stringResource(R.string.live_start_title),
+                            subtitle = if (follow != null) stringResource(R.string.live_start_follow_sub) else stringResource(R.string.live_start_sub, selectedTransport.label),
                             type = selectedTransport,
                             onClick = {
                                 haptics.performHapticFeedback(HapticFeedbackType.LongPress)
@@ -411,7 +413,7 @@ fun LiveRecordingScreen(
                         ) {
                             TooltipIconButton(
                                 icon = if (liveState.isPaused) Icons.Outlined.PlayArrow else Icons.Outlined.Pause,
-                                label = if (liveState.isPaused) "기록 재개" else "일시정지",
+                                label = if (liveState.isPaused) stringResource(R.string.live_resume) else stringResource(R.string.live_pause),
                                 onClick = {
                                     haptics.performHapticFeedback(HapticFeedbackType.LongPress)
                                     if (liveState.isPaused) onResumeRecording() else onPauseRecording()
@@ -420,7 +422,7 @@ fun LiveRecordingScreen(
                             )
                             TooltipIconButton(
                                 icon = Icons.Outlined.AddLocationAlt,
-                                label = "여기에 메모·사진 남기기",
+                                label = stringResource(R.string.live_add_note),
                                 onClick = { showAddMemoSheet = true },
                                 style = IconButtonStyle.BRAND,
                                 visualSize = 52.dp,
@@ -428,7 +430,7 @@ fun LiveRecordingScreen(
                             )
                             TooltipIconButton(
                                 icon = Icons.Outlined.Stop,
-                                label = "기록 종료",
+                                label = stringResource(R.string.live_stop),
                                 onClick = {
                                     haptics.performHapticFeedback(HapticFeedbackType.LongPress)
                                     onStopRecording()
@@ -459,7 +461,6 @@ fun LiveRecordingScreen(
     }
 }
 
-private val UNFINISHED_TIME_FMT = DateTimeFormatter.ofPattern("M월 d일 HH:mm", Locale.KOREA)
 
 @Composable
 private fun UnfinishedRecordingCard(
@@ -468,13 +469,14 @@ private fun UnfinishedRecordingCard(
     onFinishNow: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val startTimeStr = remember(activity.startedAtEpochMs) {
-        UNFINISHED_TIME_FMT.format(
+    val locale = currentLocale()
+    val startTimeStr = remember(activity.startedAtEpochMs, locale) {
+        shortDateTimeFormatter(locale).format(
             Instant.ofEpochMilli(activity.startedAtEpochMs).atZone(ZoneId.systemDefault())
         )
     }
     val distanceKmStr = remember(activity.distanceMeters) {
-        String.format(Locale.KOREA, "%.2f", activity.distanceMeters / 1000.0)
+        String.format(Locale.ROOT, "%.2f", activity.distanceMeters / 1000.0)
     }
 
     Card(
@@ -487,14 +489,14 @@ private fun UnfinishedRecordingCard(
     ) {
         Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
             Text(
-                text = "끝나지 않은 기록이 있어요",
+                text = stringResource(R.string.unfinished_title),
                 style = MaterialTheme.typography.titleSmall,
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.onSecondaryContainer
             )
             Spacer(modifier = Modifier.height(4.dp))
             Text(
-                text = "「${activity.title}」 · $startTimeStr · 지금까지 $distanceKmStr km. 이어서 기록할까요?",
+                text = stringResource(R.string.unfinished_desc, activity.title, startTimeStr, distanceKmStr),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSecondaryContainer
             )
@@ -507,13 +509,13 @@ private fun UnfinishedRecordingCard(
                     onClick = onFinishNow,
                     contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
                 ) {
-                    Text("여기서 마치기", style = MaterialTheme.typography.labelMedium)
+                    Text(stringResource(R.string.unfinished_finish), style = MaterialTheme.typography.labelMedium)
                 }
                 Button(
                     onClick = onResume,
                     contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp)
                 ) {
-                    Text("이어서 기록", style = MaterialTheme.typography.labelMedium)
+                    Text(stringResource(R.string.unfinished_continue), style = MaterialTheme.typography.labelMedium)
                 }
             }
         }
@@ -542,7 +544,7 @@ private fun StatSubCard(
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Text(
-                text = metric.labelWithUnit,
+                text = metric.labelWithUnitText,
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 textAlign = TextAlign.Center,
@@ -587,12 +589,12 @@ private fun AddWaypointBottomSheet(
                 .padding(horizontal = 20.dp, vertical = 12.dp)
         ) {
             Text(
-                text = "길 위의 메모·사진 남기기",
+                text = stringResource(R.string.note_sheet_title),
                 style = MaterialTheme.typography.titleLarge
             )
             Spacer(modifier = Modifier.height(4.dp))
             Text(
-                text = "사진 원본은 앱 폴더나 클라우드로 복사되지 않고 갤러리(MediaStore URI)로만 연결됩니다.",
+                text = stringResource(R.string.note_sheet_desc),
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -602,7 +604,7 @@ private fun AddWaypointBottomSheet(
             OutlinedTextField(
                 value = memoText,
                 onValueChange = { memoText = it },
-                label = { Text("이곳에서 어떤 풍경이나 생각을 마주하셨나요?") },
+                label = { Text(stringResource(R.string.note_hint)) },
                 minLines = 3,
                 modifier = Modifier.fillMaxWidth()
             )
@@ -620,8 +622,8 @@ private fun AddWaypointBottomSheet(
                 Icon(Icons.Outlined.AddAPhoto, contentDescription = null)
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
-                    if (selectedUri != null) "갤러리 사진 연결됨 (변경하려면 탭)"
-                    else "갤러리에서 사진 연결하기 (로컬 전용)"
+                    if (selectedUri != null) stringResource(R.string.note_photo_linked)
+                    else stringResource(R.string.note_photo_link)
                 )
             }
 
@@ -630,7 +632,7 @@ private fun AddWaypointBottomSheet(
                 OutlinedTextField(
                     value = caption,
                     onValueChange = { caption = it },
-                    label = { Text("사진 한 줄 캡션 (선택)") },
+                    label = { Text(stringResource(R.string.note_caption)) },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth()
                 )
@@ -638,10 +640,11 @@ private fun AddWaypointBottomSheet(
 
             Spacer(modifier = Modifier.height(18.dp))
 
+            val defaultNoteTitle = stringResource(R.string.note_default_title)
             Button(
                 onClick = {
                     onSaveWaypoint(
-                        memoText.ifBlank { "길 위의 기록" },
+                        memoText.ifBlank { defaultNoteTitle },
                         caption.takeIf { it.isNotBlank() },
                         selectedUri
                     )
@@ -650,7 +653,7 @@ private fun AddWaypointBottomSheet(
                     .fillMaxWidth()
                     .height(52.dp)
             ) {
-                Text("현재 위치에 기록 저장")
+                Text(stringResource(R.string.note_save))
             }
             Spacer(modifier = Modifier.height(20.dp))
         }

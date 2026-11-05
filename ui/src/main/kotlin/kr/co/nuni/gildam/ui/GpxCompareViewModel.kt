@@ -1,5 +1,6 @@
 package kr.co.nuni.gildam.ui
 
+import kr.co.nuni.gildam.ui.l10n.*
 import android.content.Context
 import android.net.Uri
 import android.provider.OpenableColumns
@@ -46,12 +47,12 @@ class GpxCompareViewModel @Inject constructor(
                     val name = displayName(context, uri)
                     try {
                         val pts = resolver.openInputStream(uri)?.use { GpxTrackParser.parse(it) }
-                            ?: throw GpxParseException("파일을 열 수 없어요.")
+                            ?: throw GpxParseException(GpxParseException.Reason.OPEN_FAILED)
                         GpxCompareEntry.Loaded(UUID.randomUUID().toString(), GpxRuggedness.analyze(name, pts))
                     } catch (e: GpxParseException) {
-                        GpxCompareEntry.Failed(UUID.randomUUID().toString(), name, e.message ?: "읽기 실패")
+                        GpxCompareEntry.Failed(UUID.randomUUID().toString(), name, context.getString(e.reason.messageRes()))
                     } catch (e: Exception) {
-                        GpxCompareEntry.Failed(UUID.randomUUID().toString(), name, "파일을 읽는 중 문제가 생겼어요.")
+                        GpxCompareEntry.Failed(UUID.randomUUID().toString(), name, context.getString(R.string.gpx_read_failed))
                     }
                 }
             }

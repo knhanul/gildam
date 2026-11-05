@@ -1,5 +1,7 @@
 package kr.co.nuni.gildam.ui.navigation
 
+import androidx.compose.ui.res.stringResource
+import kr.co.nuni.gildam.ui.R
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.height
@@ -29,15 +31,17 @@ import androidx.compose.ui.unit.dp
 
 /** 하단 탭 3개: 기록 / 기록 목록 / 설정 */
 enum class GildamTab(
-    val label: String,
+    val labelRes: Int,
     val selectedIcon: ImageVector,
     val unselectedIcon: ImageVector,
     val route: Any
 ) {
-    RECORD("기록", Icons.Filled.FiberManualRecord, Icons.Outlined.FiberManualRecord, LiveRecordingRoute),
-    LIST("기록 목록", Icons.AutoMirrored.Filled.FormatListBulleted, Icons.AutoMirrored.Outlined.FormatListBulleted, ActivityListRoute),
-    COURSES("코스", Icons.Filled.Terrain, Icons.Outlined.Terrain, CoursesRoute),
-    SETTINGS("설정", Icons.Filled.Settings, Icons.Outlined.Settings, SettingsRoute)
+    RECORD(R.string.tab_record, Icons.Filled.FiberManualRecord, Icons.Outlined.FiberManualRecord, LiveRecordingRoute),
+    LIST(R.string.tab_list, Icons.AutoMirrored.Filled.FormatListBulleted, Icons.AutoMirrored.Outlined.FormatListBulleted, ActivityListRoute),
+    COURSES(R.string.tab_courses, Icons.Filled.Terrain, Icons.Outlined.Terrain, CoursesRoute),
+    SETTINGS(R.string.tab_settings, Icons.Filled.Settings, Icons.Outlined.Settings, SettingsRoute);
+
+    val label: String @Composable get() = stringResource(labelRes)
 }
 
 @Composable

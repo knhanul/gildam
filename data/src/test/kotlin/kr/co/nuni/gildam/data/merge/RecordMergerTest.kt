@@ -108,10 +108,10 @@ class RecordMergerTest {
 
     @Test
     fun `기록이 하나거나 끝나지 않았으면 합칠 수 없다`() {
-        assertEquals("합치려면 기록을 두 개 이상 골라 주세요.", RecordMerger.validate(listOf(activity("a", 1_000L))))
+        assertEquals("need at least 2 records", RecordMerger.validate(listOf(activity("a", 1_000L))))
         val recording = activity("a", 1_000L).copy(status = ActivityStatus.RECORDING)
         assertEquals(
-            "끝난 기록만 합칠 수 있어요.",
+            "only completed records",
             RecordMerger.validate(listOf(recording, activity("b", 2_000L)))
         )
         assertNull(RecordMerger.validate(listOf(activity("a", 1_000L), activity("b", 2_000L))))

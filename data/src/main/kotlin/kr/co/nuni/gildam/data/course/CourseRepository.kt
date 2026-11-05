@@ -1,5 +1,6 @@
 package kr.co.nuni.gildam.data.course
 
+import kr.co.nuni.gildam.data.R
 import android.content.Context
 import android.net.Uri
 import android.provider.OpenableColumns
@@ -49,7 +50,7 @@ class CourseRepository @Inject constructor(
             context.contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use { c ->
                 if (c.moveToFirst()) c.getString(0) else null
             }
-        }.getOrNull() ?: uri.lastPathSegment ?: "코스"
+        }.getOrNull() ?: uri.lastPathSegment ?: context.getString(R.string.course_default_name)
         return raw.removeSuffix(".gpx").removeSuffix(".GPX")
     }
 }

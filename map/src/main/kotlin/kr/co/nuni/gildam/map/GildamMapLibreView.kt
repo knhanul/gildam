@@ -504,7 +504,7 @@ fun GildamMapLibreView(
             color = MaterialTheme.colorScheme.surface.copy(alpha = 0.78f)
         ) {
             Text(
-                text = GildamMapConfig.ATTRIBUTION_TEXT,
+                text = androidx.compose.ui.res.stringResource(R.string.map_attribution),
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)

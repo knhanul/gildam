@@ -1,5 +1,6 @@
 package kr.co.nuni.gildam.ui.illustration
 
+import kr.co.nuni.gildam.ui.l10n.*
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -136,7 +137,7 @@ fun TransportChip(type: TransportType, selected: Boolean, enabled: Boolean, onCl
     ) {
         TransportSticker(type, selected)
         Spacer(Modifier.width(7.dp))
-        Text(type.labelKo, style = MaterialTheme.typography.labelLarge, fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
+        Text(type.label, style = MaterialTheme.typography.labelLarge, fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
             color = if (selected) cs.onPrimaryContainer else cs.onSurfaceVariant)
     }
 }

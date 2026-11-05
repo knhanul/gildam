@@ -1,5 +1,9 @@
 package kr.co.nuni.gildam.ui.screens
 
+import androidx.compose.ui.res.pluralStringResource
+import kr.co.nuni.gildam.ui.l10n.*
+import androidx.compose.ui.res.stringResource
+import kr.co.nuni.gildam.ui.R
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
@@ -147,10 +151,10 @@ fun ActivityDetailScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(bundle?.activity?.title ?: "기록 상세") },
+                title = { Text(bundle?.activity?.title ?: stringResource(R.string.detail_title)) },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
-                        Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = "뒤로")
+                        Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = stringResource(R.string.action_back))
                     }
                 },
                 actions = {
@@ -158,7 +162,7 @@ fun ActivityDetailScreen(
                         RecordActionButtons(bundle.activity, isLoggedIn, onEdit = { showEdit = true }, onDelete = { showDelete = true },
                             onUpload = { onUploadActivity(bundle.activity.id) })
                         IconButton(onClick = { onNavigateToSafeExport(bundle.activity.id) }) {
-                            Icon(Icons.Outlined.IosShare, contentDescription = "안전 공유 및 GPX 내보내기")
+                            Icon(Icons.Outlined.IosShare, contentDescription = stringResource(R.string.detail_share_cd))
                         }
                     }
                 }
@@ -172,7 +176,7 @@ fun ActivityDetailScreen(
                     .padding(innerPadding)
                     .padding(24.dp)
             ) {
-                Text("기록을 불러오는 중입니다...")
+                Text(stringResource(R.string.detail_loading))
             }
             return@Scaffold
         }
@@ -207,7 +211,7 @@ fun ActivityDetailScreen(
                     )
                     Spacer(modifier = Modifier.width(6.dp))
                     Text(
-                        text = "${activity.visibility.labelKo} · ${activity.syncState.labelKo} · ${activity.transportType.labelKo}",
+                        text = "${activity.visibility.label} · ${activity.syncState.label} · ${activity.transportType.label}",
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.primary
                     )
@@ -218,7 +222,7 @@ fun ActivityDetailScreen(
                             color = MaterialTheme.colorScheme.errorContainer
                         ) {
                             Text(
-                                text = "끊김 ${gapCount}곳",
+                                text = pluralStringResource(R.plurals.detail_gaps, gapCount, gapCount),
                                 style = MaterialTheme.typography.labelSmall,
                                 color = MaterialTheme.colorScheme.onErrorContainer,
                                 modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
@@ -238,7 +242,7 @@ fun ActivityDetailScreen(
                     Surface(color = MaterialTheme.colorScheme.surfaceVariant, modifier = mapModifier) {
                         Box(contentAlignment = Alignment.Center) {
                             Text(
-                                if (activity.distanceMeters > 0.0) "경로를 불러오는 중…" else "저장된 경로가 없어요",
+                                if (activity.distanceMeters > 0.0) stringResource(R.string.detail_route_loading) else stringResource(R.string.detail_no_route),
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -254,7 +258,7 @@ fun ActivityDetailScreen(
                         )
                         // 전체 화면으로 보기 (작은 아이콘 + 말풍선 안내)
                         kr.co.nuni.gildam.ui.illustration.TooltipIconButton(
-                            Icons.Outlined.OpenInFull, "지도 전체 화면", { showFullscreenMap = true },
+                            Icons.Outlined.OpenInFull, stringResource(R.string.map_fullscreen), { showFullscreenMap = true },
                             style = kr.co.nuni.gildam.ui.illustration.IconButtonStyle.TONAL,
                             visualSize = 34.dp, iconSize = 18.dp,
                             modifier = Modifier.align(Alignment.TopEnd).padding(6.dp)
@@ -284,10 +288,10 @@ fun ActivityDetailScreen(
                             .padding(16.dp),
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
-                        DetailMetricColumn("총 거리", String.format("%.2f km", activity.distanceMeters / 1000.0))
-                        DetailMetricColumn("총 시간", formatDurationHms(activity.totalDurationMs))
-                        DetailMetricColumn("이동 평균", String.format("%.1f km/h", activity.movingAvgSpeedMps * 3.6f))
-                        DetailMetricColumn("상승 고도", String.format("+%.0f m", activity.elevationGainMeters))
+                        DetailMetricColumn(stringResource(R.string.detail_total_distance), String.format("%.2f km", activity.distanceMeters / 1000.0))
+                        DetailMetricColumn(stringResource(R.string.detail_total_time), formatDurationHms(activity.totalDurationMs))
+                        DetailMetricColumn(stringResource(R.string.detail_moving_avg), String.format("%.1f km/h", activity.movingAvgSpeedMps * 3.6f))
+                        DetailMetricColumn(stringResource(R.string.detail_elevation_gain), String.format("+%.0f m", activity.elevationGainMeters))
                     }
                 }
 
@@ -302,9 +306,9 @@ fun ActivityDetailScreen(
                                 tint = MaterialTheme.colorScheme.onPrimaryContainer, modifier = Modifier.size(20.dp))
                             Spacer(Modifier.width(10.dp))
                             Column {
-                                Text("같은 길이면 약 $eta 걸려요", style = MaterialTheme.typography.titleSmall,
+                                Text(stringResource(R.string.detail_eta_same_route, eta), style = MaterialTheme.typography.titleSmall,
                                     color = MaterialTheme.colorScheme.onPrimaryContainer)
-                                Text("오르막·내리막을 반영한 걷기 예상 시간", style = MaterialTheme.typography.labelSmall,
+                                Text(stringResource(R.string.detail_eta_desc), style = MaterialTheme.typography.labelSmall,
                                     color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.75f))
                             }
                         }
@@ -323,7 +327,7 @@ fun ActivityDetailScreen(
                 Spacer(modifier = Modifier.height(12.dp))
 
                 Text(
-                    text = "길 위의 이야기 (Waypoints · ${bundle.waypoints.size})",
+                    text = stringResource(R.string.detail_waypoints_title, bundle.waypoints.size),
                     style = MaterialTheme.typography.titleLarge,
                     modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp)
                 )
@@ -339,7 +343,7 @@ fun ActivityDetailScreen(
                             .padding(horizontal = 16.dp, vertical = 8.dp)
                     ) {
                         Text(
-                            text = "조용히 길에만 집중한 여정이네요. 남겨진 위치 메모가 없습니다.",
+                            text = stringResource(R.string.detail_waypoints_empty),
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.padding(18.dp)
@@ -422,11 +426,11 @@ private fun WaypointStoryCard(
                             Spacer(modifier = Modifier.width(12.dp))
                             Column {
                                 Text(
-                                    text = "사진은 촬영한 기기(${wpt.capturedDeviceName ?: "다른 기기"})에만 있어요",
+                                    text = stringResource(R.string.detail_photo_other_device, wpt.capturedDeviceName ?: stringResource(R.string.detail_photo_other_device_unknown)),
                                     style = MaterialTheme.typography.titleMedium
                                 )
                                 Text(
-                                    text = "클라우드에 사진 파일을 올리지 않아 이 기기에서는 메모만 보입니다.",
+                                    text = stringResource(R.string.detail_photo_other_device_desc),
                                     style = MaterialTheme.typography.labelSmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
@@ -453,9 +457,9 @@ private fun WaypointStoryCard(
                                 Spacer(modifier = Modifier.width(10.dp))
                                 Text(
                                     text = if (localPhoto.uriStatus == UriStatus.MISSING_IN_GALLERY) {
-                                        "갤러리에서 사진이 삭제되었거나 위치가 바뀌었어요"
+                                        stringResource(R.string.detail_photo_missing)
                                     } else {
-                                        "갤러리 사진 접근 권한이 필요해요"
+                                        stringResource(R.string.detail_photo_permission)
                                     },
                                     style = MaterialTheme.typography.titleMedium,
                                     color = MaterialTheme.colorScheme.onErrorContainer
@@ -464,10 +468,10 @@ private fun WaypointStoryCard(
                             Spacer(modifier = Modifier.height(8.dp))
                             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                 OutlinedButton(onClick = { onRequestRelinkPhoto(localPhoto.photoId) }) {
-                                    Text("갤러리에서 다시 연결")
+                                    Text(stringResource(R.string.detail_photo_relink))
                                 }
                                 TextButton(onClick = onRemoveMissingPhotoKeepMemo) {
-                                    Text("사진 표시 지우기(메모 유지)")
+                                    Text(stringResource(R.string.detail_photo_unlink))
                                 }
                             }
                         }
@@ -484,7 +488,7 @@ private fun WaypointStoryCard(
 
                     AsyncImage(
                         model = modelToLoad,
-                        contentDescription = wpt.caption ?: "길 위의 사진",
+                        contentDescription = wpt.caption ?: stringResource(R.string.detail_photo_cd),
                         contentScale = ContentScale.Crop,
                         modifier = Modifier
                             .fillMaxWidth()

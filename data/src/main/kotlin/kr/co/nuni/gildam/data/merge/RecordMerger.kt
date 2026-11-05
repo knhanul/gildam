@@ -30,9 +30,9 @@ object RecordMerger {
     )
 
     fun validate(sources: List<ActivityEntity>): String? = when {
-        sources.size < MIN_COUNT -> "합치려면 기록을 두 개 이상 골라 주세요."
-        sources.size > MAX_COUNT -> "한 번에 ${MAX_COUNT}개까지만 합칠 수 있어요."
-        sources.any { it.status != ActivityStatus.COMPLETED } -> "끝난 기록만 합칠 수 있어요."
+        sources.size < MIN_COUNT -> "need at least $MIN_COUNT records"
+        sources.size > MAX_COUNT -> "at most $MAX_COUNT records"
+        sources.any { it.status != ActivityStatus.COMPLETED } -> "only completed records"
         else -> null
     }
 
@@ -47,7 +47,7 @@ object RecordMerger {
         title: String,
         now: Long
     ): Result {
-        require(sources.size >= MIN_COUNT) { "기록이 두 개 이상이어야 합니다." }
+        require(sources.size >= MIN_COUNT) { "need at least two records" }
 
         var totalDurationMs = 0L
         var movingDurationMs = 0L
@@ -124,6 +124,6 @@ object RecordMerger {
     /** 합칠 때 기본으로 채워 둘 제목 */
     fun defaultTitle(sources: List<ActivityEntity>): String {
         val base = sources.minByOrNull { it.startedAtEpochMs }?.title?.trim().orEmpty()
-        return base.ifBlank { "합친 길기록" }
+        return base // 비어 있으면 화면에서 기기 언어로 기본 제목을 채웁니다
     }
 }

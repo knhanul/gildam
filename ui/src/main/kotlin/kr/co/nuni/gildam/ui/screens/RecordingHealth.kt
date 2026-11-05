@@ -1,5 +1,7 @@
 package kr.co.nuni.gildam.ui.screens
 
+import androidx.compose.ui.res.stringResource
+import kr.co.nuni.gildam.ui.R
 import android.Manifest
 import android.content.BroadcastReceiver
 import android.content.Context
@@ -30,49 +32,54 @@ import kotlinx.coroutines.delay
  * 기록이 끊기지 않게 확인하는 항목. 순서 = 중요한 순서 (상태 점 옆에는 첫 항목만 짧게).
  * [severe] 이면 상태 점이 빨강, 아니면 주황.
  */
-enum class RecordingIssue(val short: String, val title: String, val message: String, val severe: Boolean) {
+enum class RecordingIssue(val shortRes: Int, val titleRes: Int, val messageRes: Int, val severe: Boolean) {
     LOCATION_OFF(
-        "위치 꺼짐", "휴대폰 위치가 꺼져 있어요",
-        "휴대폰의 위치(GPS)가 꺼져 있으면 길을 기록할 수 없어요. 위치를 켜 주세요.", severe = true
+        R.string.health_location_off_short, R.string.health_location_off_title,
+        R.string.health_location_off_desc, severe = true
     ),
     LOCATION_DENIED(
-        "위치 권한 없음", "위치 권한이 없어요",
-        "길담이 위치를 볼 수 없어서 기록할 수 없어요. 위치 권한을 허용해 주세요.", severe = true
+        R.string.health_no_permission_short, R.string.health_no_permission_title,
+        R.string.health_no_permission_desc, severe = true
     ),
     BACKGROUND_LOCATION(
-        "위치 '항상 허용' 아님", "위치 권한이 '항상 허용'이 아니에요",
-        "화면을 끄거나 다른 앱을 쓰면 기록이 멈출 수 있어요. 위치 권한을 '항상 허용'으로 바꿔 주세요.", severe = false
+        R.string.health_not_always_short, R.string.health_not_always_title,
+        R.string.health_not_always_desc, severe = false
     ),
     APPROXIMATE_LOCATION(
-        "정확한 위치 꺼짐", "'정확한 위치'가 꺼져 있어요",
-        "대략적인 위치만 쓰면 길이 삐뚤게 그려져요. 위치 권한에서 '정확한 위치 사용'을 켜 주세요.", severe = false
+        R.string.health_precise_off_short, R.string.health_precise_off_title,
+        R.string.health_precise_off_desc, severe = false
     ),
     GPS_WEAK(
-        "GPS 약함", "GPS 신호가 약해요",
-        "터널·실내라서 GPS 신호를 찾고 있어요. 마지막 확인 위치부터 이어집니다.", severe = false
+        R.string.health_gps_weak_short, R.string.health_gps_weak_title,
+        R.string.health_gps_weak_desc, severe = false
     ),
     BATTERY_OPTIMIZATION(
-        "배터리 최적화", "배터리 최적화가 켜져 있어요",
-        "휴대폰이 배터리를 아끼려고 길담을 멈출 수 있어요. 길담을 '제한 없음(최적화 안 함)'으로 바꿔 주세요.", severe = false
+        R.string.health_battery_opt_short, R.string.health_battery_opt_title,
+        R.string.health_battery_opt_desc, severe = false
     ),
     POWER_SAVER(
-        "절전 모드", "절전 모드가 켜져 있어요",
-        "절전 모드에서는 위치 기록이 띄엄띄엄 될 수 있어요. 기록하는 동안 절전 모드를 꺼 주세요.", severe = false
+        R.string.health_power_save_short, R.string.health_power_save_title,
+        R.string.health_power_save_desc, severe = false
     ),
     NOTIFICATIONS_OFF(
-        "알림 꺼짐", "길담 알림이 꺼져 있어요",
-        "기록 중 알림이 안 보이면 기록 상태를 확인하거나 바로 멈추기 어려워요. 알림을 허용해 주세요.", severe = false
+        R.string.health_notif_off_short, R.string.health_notif_off_title,
+        R.string.health_notif_off_desc, severe = false
     );
 
+
+    val short: String @Composable get() = stringResource(shortRes)
+    val title: String @Composable get() = stringResource(titleRes)
+    val message: String @Composable get() = stringResource(messageRes)
     /** GPS 약함은 설정으로 고칠 수 없음 */
     val hasSettings: Boolean get() = this != GPS_WEAK
 }
 
 /** 상태 점 옆 짧은 글: 첫 항목 + '외 N' */
+@Composable
 fun List<RecordingIssue>.shortSummary(): String? = when (size) {
     0 -> null
     1 -> first().short
-    else -> "${first().short} 외 ${size - 1}"
+    else -> stringResource(R.string.health_more, first().short, size - 1)
 }
 
 /** 지금 휴대폰 상태를 점검 (GPS 약함은 기록 상태에서 따로 더함) */

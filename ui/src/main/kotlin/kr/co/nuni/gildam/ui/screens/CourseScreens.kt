@@ -1,5 +1,8 @@
 package kr.co.nuni.gildam.ui.screens
 
+import kr.co.nuni.gildam.ui.l10n.*
+import androidx.compose.ui.res.stringResource
+import kr.co.nuni.gildam.ui.R
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.ExperimentalFoundationApi
@@ -142,10 +145,10 @@ fun CourseListScreen(
         topBar = {
             if (selecting) {
                 TopAppBar(
-                    title = { Text("코스 비교 · ${selected.size}/$maxCompare") },
+                    title = { Text(stringResource(R.string.course_compare_title, selected.size, maxCompare)) },
                     navigationIcon = {
                         IconButton(onClick = { exitSelection() }) {
-                            Icon(Icons.Outlined.Close, contentDescription = "선택 취소")
+                            Icon(Icons.Outlined.Close, contentDescription = stringResource(R.string.selection_cancel))
                         }
                     },
                     actions = {
@@ -153,21 +156,21 @@ fun CourseListScreen(
                             onClick = { val ids = selected.toList(); exitSelection(); onCompareCourses(ids) },
                             enabled = selected.size >= 2
                         ) {
-                            Text("비교" + if (selected.isNotEmpty()) " (${selected.size})" else "")
+                            Text(stringResource(R.string.compare) + if (selected.isNotEmpty()) " (${selected.size})" else "")
                         }
                     }
                 )
             } else {
                 TopAppBar(
-                    title = { Text("코스") },
+                    title = { Text(stringResource(R.string.courses_title)) },
                     actions = {
                         if (courses.size >= 2) kr.co.nuni.gildam.ui.illustration.TooltipIconButton(
-                            Icons.Outlined.CompareArrows, "코스 골라 비교", { selecting = true },
+                            Icons.Outlined.CompareArrows, stringResource(R.string.course_pick_compare), { selecting = true },
                             style = kr.co.nuni.gildam.ui.illustration.IconButtonStyle.TONAL, visualSize = 38.dp, iconSize = 20.dp,
                             modifier = Modifier.padding(end = 4.dp)
                         )
                         if (courses.isNotEmpty()) kr.co.nuni.gildam.ui.illustration.TooltipIconButton(
-                            Icons.AutoMirrored.Outlined.NoteAdd, "GPX 코스 불러오기", onImport,
+                            Icons.AutoMirrored.Outlined.NoteAdd, stringResource(R.string.course_import_gpx), onImport,
                             style = kr.co.nuni.gildam.ui.illustration.IconButtonStyle.BRAND, visualSize = 38.dp, iconSize = 20.dp,
                             modifier = Modifier.padding(end = 8.dp)
                         )
@@ -187,8 +190,8 @@ fun CourseListScreen(
             else {
                 item {
                     Text(
-                        if (selecting) "비교할 코스를 2~${maxCompare}개 골라 주세요"
-                        else "내 코스 ${courses.size}",
+                        if (selecting) stringResource(R.string.course_pick_hint, maxCompare)
+                        else stringResource(R.string.course_my_count, courses.size),
                         style = MaterialTheme.typography.titleSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.padding(top = 6.dp, start = 4.dp)
@@ -229,8 +232,8 @@ private fun CompareEntryCard(enabled: Boolean, onClick: () -> Unit) {
             }
             Spacer(Modifier.width(14.dp))
             Column(Modifier.weight(1f)) {
-                Text("GPX 비교", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onPrimaryContainer)
-                Text("여러 길의 험함을 한눈에 비교해요", style = MaterialTheme.typography.bodySmall,
+                Text(stringResource(R.string.gpx_compare_short), style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onPrimaryContainer)
+                Text(stringResource(R.string.gpx_compare_card_desc), style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.75f))
             }
             Icon(Icons.Outlined.ChevronRight, null, tint = MaterialTheme.colorScheme.onPrimaryContainer)
@@ -243,16 +246,16 @@ private fun EmptyCourses(onImport: () -> Unit) {
     Column(Modifier.fillMaxWidth().padding(top = 16.dp, start = 4.dp, end = 4.dp), horizontalAlignment = Alignment.CenterHorizontally) {
         kr.co.nuni.gildam.ui.illustration.EmptyCoursesIllustration()
         Spacer(Modifier.height(20.dp))
-        Text("아직 코스가 없어요", style = MaterialTheme.typography.titleLarge)
+        Text(stringResource(R.string.courses_empty_title), style = MaterialTheme.typography.titleLarge)
         Spacer(Modifier.height(8.dp))
-        Text("GPX 파일을 불러오면 거리·오르막·난이도와\n예상 소요 시간을 알려드려요.", style = MaterialTheme.typography.bodyMedium,
+        Text(stringResource(R.string.courses_empty_desc), style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Center)
         Spacer(Modifier.height(24.dp))
         Button(onClick = onImport, shape = RoundedCornerShape(14.dp), contentPadding = PaddingValues(horizontal = 24.dp, vertical = 14.dp)) {
-            Icon(Icons.Outlined.FileOpen, null); Spacer(Modifier.width(8.dp)); Text("GPX 불러오기")
+            Icon(Icons.Outlined.FileOpen, null); Spacer(Modifier.width(8.dp)); Text(stringResource(R.string.gpx_import))
         }
         Spacer(Modifier.height(10.dp))
-        Text("좌표만 읽고, 파일 속 시간·이름 같은 개인 정보는 저장하지 않아요.", style = MaterialTheme.typography.labelSmall,
+        Text(stringResource(R.string.courses_privacy), style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Center)
     }
 }
@@ -269,6 +272,8 @@ private fun CourseCard(
     onClick: () -> Unit,
     onLongClick: () -> Unit
 ) {
+    val selectedDesc = stringResource(R.string.state_selected)
+    val notSelectedDesc = stringResource(R.string.state_not_selected)
     val shape = RoundedCornerShape(20.dp)
     Card(
         shape = shape,
@@ -281,7 +286,7 @@ private fun CourseCard(
             .clip(shape)
             .combinedClickable(onClick = onClick, onLongClick = onLongClick)
             .semantics {
-                if (selected != null) stateDescription = if (selected) "선택됨" else "선택 안 됨"
+                if (selected != null) stateDescription = if (selected) selectedDesc else notSelectedDesc
             }
     ) {
         Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -304,9 +309,9 @@ private fun CourseCard(
                 }
                 Spacer(Modifier.height(10.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                    MiniStat("거리", kmText(c.distanceM))
-                    MiniStat("오르막", "%.0f m".format(c.ascentM))
-                    MiniStat("예상", HikingTimeEstimator.formatKo(c.etaSec))
+                    MiniStat(stringResource(R.string.stat_distance), kmText(c.distanceM))
+                    MiniStat(stringResource(R.string.stat_climb), "%.0f m".format(c.ascentM))
+                    MiniStat(stringResource(R.string.stat_eta), etaText(c.etaSec))
                 }
             }
         }
@@ -364,18 +369,18 @@ fun CourseDetailScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(detail?.name ?: "코스", maxLines = 1, overflow = TextOverflow.Ellipsis) },
-                navigationIcon = { IconButton(onClick = onNavigateBack) { Icon(Icons.AutoMirrored.Outlined.ArrowBack, "뒤로") } },
+                title = { Text(detail?.name ?: stringResource(R.string.courses_title_one), maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                navigationIcon = { IconButton(onClick = onNavigateBack) { Icon(Icons.AutoMirrored.Outlined.ArrowBack, stringResource(R.string.action_back)) } },
                 actions = { if (detail != null) kr.co.nuni.gildam.ui.illustration.TooltipIconButton(
-                    Icons.Outlined.DeleteOutline, "코스 삭제", { onDelete(detail.id) },
+                    Icons.Outlined.DeleteOutline, stringResource(R.string.course_delete), { onDelete(detail.id) },
                     style = kr.co.nuni.gildam.ui.illustration.IconButtonStyle.PLAIN, modifier = Modifier.padding(end = 4.dp)) }
             )
         },
         bottomBar = {
             if (detail != null) Surface(color = MaterialTheme.colorScheme.surface, shadowElevation = 8.dp) {
                 kr.co.nuni.gildam.ui.illustration.VividActionButton(
-                    title = "이 코스 따라 걷기",
-                    subtitle = "예상 " + HikingTimeEstimator.formatKo(detail.etaSec) + " · 남은 거리와 도착 시간을 알려드려요",
+                    title = stringResource(R.string.course_follow),
+                    subtitle = stringResource(R.string.course_follow_sub, etaText(detail.etaSec)),
                     type = suggestedActivity,
                     onClick = { showFollowSheet = true },
                     // 기기마다 다른 시스템 내비게이션 바(제스처·3버튼) 높이만큼 띄워 버튼이 가려지지 않게 함
@@ -384,7 +389,7 @@ fun CourseDetailScreen(
             }
         }
     ) { inner ->
-        if (detail == null) { Box(Modifier.fillMaxSize().padding(inner), contentAlignment = Alignment.Center) { Text("코스를 불러오는 중…") }; return@Scaffold }
+        if (detail == null) { Box(Modifier.fillMaxSize().padding(inner), contentAlignment = Alignment.Center) { Text(stringResource(R.string.course_loading)) }; return@Scaffold }
         val r = detail.result
         if (showFollowSheet) {
             FollowActivitySheet(
@@ -422,7 +427,7 @@ fun CourseDetailScreen(
                 )
                 // 전체 화면으로 보기 (작은 아이콘 + 말풍선 안내)
                 kr.co.nuni.gildam.ui.illustration.TooltipIconButton(
-                    Icons.Outlined.OpenInFull, "지도 전체 화면", { showFullscreenMap = true },
+                    Icons.Outlined.OpenInFull, stringResource(R.string.map_fullscreen), { showFullscreenMap = true },
                     style = kr.co.nuni.gildam.ui.illustration.IconButtonStyle.TONAL,
                     visualSize = 34.dp, iconSize = 18.dp,
                     modifier = Modifier.align(Alignment.TopEnd).padding(6.dp)
@@ -430,32 +435,32 @@ fun CourseDetailScreen(
             }
             Row(verticalAlignment = Alignment.CenterVertically) {
                 GradeBadge(r.grade); Spacer(Modifier.width(10.dp))
-                Text(r.grade.descriptionKo, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(r.grade.description, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
             // 예상 시간 히어로
             Surface(shape = RoundedCornerShape(20.dp), color = MaterialTheme.colorScheme.primaryContainer, modifier = Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(18.dp)) {
-                    Text("예상 소요 시간", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onPrimaryContainer)
-                    Text("약 " + HikingTimeEstimator.formatKo(detail.etaSec), style = MaterialTheme.typography.headlineMedium,
+                    Text(stringResource(R.string.course_eta_title), style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onPrimaryContainer)
+                    Text(stringResource(R.string.eta_approx, etaText(detail.etaSec)), style = MaterialTheme.typography.headlineMedium,
                         fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onPrimaryContainer)
                     Spacer(Modifier.height(4.dp))
                     Text(
-                        if (detail.paceFactor != null) "오르막·내리막 반영 · 내 걷기 기록으로 보정(×%.2f)".format(detail.paceFactor)
-                        else "오르막·내리막을 반영한 보통 걸음 기준 (쉬는 시간 제외)",
+                        if (detail.paceFactor != null) stringResource(R.string.course_eta_adjusted).format(detail.paceFactor)
+                        else stringResource(R.string.course_eta_basis),
                         style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.75f)
                     )
                 }
             }
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                StatTile("거리", kmText(r.distanceM), Modifier.weight(1f))
-                StatTile("오르막", if (r.hasElevation) "%.0f m".format(r.ascentM) else "–", Modifier.weight(1f))
-                StatTile("최고 고도", r.maxElevationM?.let { "%.0f m".format(it) } ?: "–", Modifier.weight(1f))
+                StatTile(stringResource(R.string.stat_distance), kmText(r.distanceM), Modifier.weight(1f))
+                StatTile(stringResource(R.string.stat_climb), if (r.hasElevation) "%.0f m".format(r.ascentM) else "–", Modifier.weight(1f))
+                StatTile(stringResource(R.string.stat_max_elevation), r.maxElevationM?.let { "%.0f m".format(it) } ?: "–", Modifier.weight(1f))
             }
             if (r.hasElevation) {
                 SectionCard(
-                    "고도 프로파일",
-                    if (selectedKm != null) "고른 지점은 지도에도 표시돼요 · 탭하거나 드래그해 보세요"
-                    else "가로: 거리(km) · 세로: 고도(m) · 탭하면 지도에 표시"
+                    stringResource(R.string.elevation_profile),
+                    if (selectedKm != null) stringResource(R.string.elevation_hint_selected)
+                    else stringResource(R.string.elevation_hint)
                 ) {
                     ElevationChart(
                         loaded = listOf(GpxCompareEntry.Loaded(detail.id, r)),
@@ -466,10 +471,10 @@ fun CourseDetailScreen(
             } else {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(Icons.Outlined.WarningAmber, null, tint = WarningAmber, modifier = Modifier.size(18.dp)); Spacer(Modifier.width(6.dp))
-                    Text("이 GPX에는 고도 정보가 없어 평지로 계산했어요.", style = MaterialTheme.typography.bodySmall)
+                    Text(stringResource(R.string.course_no_elevation), style = MaterialTheme.typography.bodySmall)
                 }
             }
-            Text("난이도 점수 %.1f · 가파른 구간(15%% 이상) %.1f km".format(r.score, r.steepDistanceM / 1000),
+            Text(stringResource(R.string.course_score_line).format(r.score, r.steepDistanceM / 1000),
                 style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
             Spacer(Modifier.height(8.dp))
         }
@@ -499,18 +504,19 @@ fun FollowCourseCard(f: CourseFollowUi, onStop: () -> Unit, modifier: Modifier =
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(if (off) Icons.Outlined.WarningAmber else Icons.Outlined.Route, null, tint = fg, modifier = Modifier.size(18.dp))
                 Spacer(Modifier.width(6.dp))
-                Text(if (off) "코스에서 %.0f m 벗어났어요".format(f.offsetM ?: 0.0) else "따라 걷는 중 · ${f.name}",
+                Text(if (off) stringResource(R.string.follow_off_course).format(f.offsetM ?: 0.0) else stringResource(R.string.follow_following, f.name),
                     style = MaterialTheme.typography.labelLarge, color = fg, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
-                kr.co.nuni.gildam.ui.illustration.GildamTooltip("따라 걷기 그만두기") {
-                    IconButton(onClick = onStop, modifier = Modifier.semantics { contentDescription = "따라 걷기 그만두기" }) {
+                val stopLabel = stringResource(R.string.follow_stop)
+                kr.co.nuni.gildam.ui.illustration.GildamTooltip(stopLabel) {
+                    IconButton(onClick = onStop, modifier = Modifier.semantics { contentDescription = stopLabel }) {
                         Icon(Icons.Outlined.Close, contentDescription = null, tint = fg)
                     }
                 }
             }
             Row(horizontalArrangement = Arrangement.spacedBy(22.dp)) {
-                FollowStat("남은 거리", kmText(f.remainingM), fg)
-                FollowStat("남은 시간", HikingTimeEstimator.formatKo(f.etaSec), fg)
-                FollowStat("도착 예정", f.arrivalClock, fg)
+                FollowStat(stringResource(R.string.follow_remaining_distance), kmText(f.remainingM), fg)
+                FollowStat(stringResource(R.string.follow_remaining_time), etaText(f.etaSec), fg)
+                FollowStat(stringResource(R.string.follow_arrival), f.arrivalClock, fg)
             }
             val progress = if (f.totalM > 0) (1 - f.remainingM / f.totalM).toFloat().coerceIn(0f, 1f) else 0f
             Spacer(Modifier.height(10.dp))
@@ -583,7 +589,7 @@ private fun CourseMapFullscreen(
                         modifier = Modifier.weight(1f)
                     )
                     kr.co.nuni.gildam.ui.illustration.TooltipIconButton(
-                        Icons.Outlined.Close, "지도 닫기", onClose,
+                        Icons.Outlined.Close, stringResource(R.string.map_close), onClose,
                         style = kr.co.nuni.gildam.ui.illustration.IconButtonStyle.PLAIN,
                         visualSize = 36.dp, iconSize = 20.dp
                     )
@@ -598,7 +604,7 @@ private fun CourseMapFullscreen(
                         .padding(bottom = 26.dp)
                 ) {
                     Text(
-                        "두 손가락으로 돌리고, 벌려서 확대해 보세요",
+                        stringResource(R.string.map_gesture_hint),
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
@@ -640,14 +646,14 @@ private fun FollowActivitySheet(
                         overflow = TextOverflow.Ellipsis
                     )
                     Text(
-                        "어떤 활동으로 따라갈까요?",
+                        stringResource(R.string.follow_pick_activity),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
-                kr.co.nuni.gildam.ui.illustration.GildamTooltip("닫기") {
+                kr.co.nuni.gildam.ui.illustration.GildamTooltip(stringResource(R.string.action_close)) {
                     IconButton(onClick = onDismiss) {
-                        Icon(Icons.Outlined.Close, contentDescription = "닫기", modifier = Modifier.size(20.dp))
+                        Icon(Icons.Outlined.Close, contentDescription = stringResource(R.string.action_close), modifier = Modifier.size(20.dp))
                     }
                 }
             }
@@ -658,7 +664,8 @@ private fun FollowActivitySheet(
             ) {
                 TransportType.entries.forEach { t ->
                     val isSel = t == type
-                    kr.co.nuni.gildam.ui.illustration.GildamTooltip(t.labelKo) {
+                    kr.co.nuni.gildam.ui.illustration.GildamTooltip(t.label) {
+                        val tLabel = t.label
                         Box(
                             modifier = Modifier
                                 .size(52.dp)
@@ -673,7 +680,7 @@ private fun FollowActivitySheet(
                                 )
                                 .clickable { selected = t.name }
                                 .semantics {
-                                    contentDescription = t.labelKo
+                                    contentDescription = tLabel
                                     role = Role.RadioButton
                                     this.selected = isSel
                                 },
@@ -690,7 +697,7 @@ private fun FollowActivitySheet(
                 shape = RoundedCornerShape(14.dp),
                 modifier = Modifier.fillMaxWidth().height(52.dp)
             ) {
-                Text("이 활동으로 출발", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+                Text(stringResource(R.string.follow_start_activity), style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
             }
             Spacer(Modifier.height(20.dp))
         }

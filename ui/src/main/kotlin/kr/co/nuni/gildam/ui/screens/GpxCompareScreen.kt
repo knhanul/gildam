@@ -1,5 +1,8 @@
 package kr.co.nuni.gildam.ui.screens
 
+import kr.co.nuni.gildam.ui.l10n.*
+import androidx.compose.ui.res.stringResource
+import kr.co.nuni.gildam.ui.R
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -127,15 +130,15 @@ fun GpxCompareScreen(
     val loaded = entries.filterIsInstance<GpxCompareEntry.Loaded>()
     // 내 코스로만 채워졌으면 '코스 비교', GPX 파일이 섞이면 'GPX 길 비교'
     val title = if (entries.isNotEmpty() && loaded.size == entries.size &&
-        loaded.all { it.source == CompareSource.COURSE }) "코스 비교" else "GPX 길 비교"
+        loaded.all { it.source == CompareSource.COURSE }) stringResource(R.string.course_compare_short) else stringResource(R.string.gpx_compare_title)
     Scaffold(
         topBar = {
             TopAppBar(
                 title = { Text(title) },
                 navigationIcon = {
-                    if (!isTopLevelTab) IconButton(onClick = onNavigateBack) { Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = "뒤로") }
+                    if (!isTopLevelTab) IconButton(onClick = onNavigateBack) { Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = stringResource(R.string.action_back)) }
                 },
-                actions = { if (entries.isNotEmpty()) TextButton(onClick = onClear) { Text("모두 지우기") } }
+                actions = { if (entries.isNotEmpty()) TextButton(onClick = onClear) { Text(stringResource(R.string.clear_all)) } }
             )
         }
     ) { inner ->
@@ -147,13 +150,13 @@ fun GpxCompareScreen(
             if (entries.isEmpty()) IntroCard(maxFiles, onPickFiles)
             else {
                 FileList(entries, loaded, maxFiles, onPickFiles, onRemove)
-                if (loaded.size == 1) HintText("비교하려면 하나 더 불러오거나 코스를 골라 주세요.")
+                if (loaded.size == 1) HintText(stringResource(R.string.compare_need_more))
                 if (loaded.isNotEmpty()) {
                     if (loaded.size >= 2) VerdictCard(loaded)
                     val withEle = loaded.filter { it.result.hasElevation }
-                    if (withEle.isNotEmpty()) SectionCard("고도 프로파일", "가로: 거리(km) · 세로: 고도(m)") { ElevationChart(loaded) }
-                    SectionCard("한눈에 비교", null) { MetricTable(loaded) }
-                    if (withEle.isNotEmpty()) SectionCard("경사 분포", "길 전체에서 각 경사가 차지하는 거리 비율") { GradeDistribution(loaded) }
+                    if (withEle.isNotEmpty()) SectionCard(stringResource(R.string.elevation_profile), stringResource(R.string.elevation_axes)) { ElevationChart(loaded) }
+                    SectionCard(stringResource(R.string.compare_at_a_glance), null) { MetricTable(loaded) }
+                    if (withEle.isNotEmpty()) SectionCard(stringResource(R.string.grade_distribution), stringResource(R.string.grade_distribution_desc)) { GradeDistribution(loaded) }
                 }
                 FormulaCard()
             }
@@ -176,22 +179,22 @@ private fun IntroCard(maxFiles: Int, onPick: () -> Unit) {
                 contentAlignment = Alignment.Center
             ) { Icon(Icons.Outlined.Terrain, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(34.dp)) }
             Spacer(Modifier.height(14.dp))
-            Text("어느 길이 더 험할까?", style = MaterialTheme.typography.headlineSmall)
+            Text(stringResource(R.string.compare_empty_title), style = MaterialTheme.typography.headlineSmall)
             Spacer(Modifier.height(6.dp))
             Text(
-                "GPX 파일을 2~${maxFiles}개 불러오면 거리, 오르막·내리막, 경사, 고도 그래프를 나란히 비교하고 '쉬움'부터 '매우 험함'까지 등급을 매겨 드려요.",
+                stringResource(R.string.compare_empty_desc, maxFiles),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
             Spacer(Modifier.height(10.dp))
             Text(
-                "코스 목록에서 코스를 골라 들어오면 파일 없이 바로 비교할 수 있어요.",
+                stringResource(R.string.compare_empty_course_hint),
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
             Spacer(Modifier.height(12.dp))
             Button(onClick = onPick, shape = RoundedCornerShape(14.dp), modifier = Modifier.fillMaxWidth().height(52.dp)) {
-                Icon(Icons.Outlined.FileOpen, null); Spacer(Modifier.width(8.dp)); Text("GPX 파일 불러오기")
+                Icon(Icons.Outlined.FileOpen, null); Spacer(Modifier.width(8.dp)); Text(stringResource(R.string.gpx_import_file))
             }
         }
     }
@@ -215,15 +218,15 @@ private fun FileList(entries: List<GpxCompareEntry>, loaded: List<GpxCompareEntr
                                     if (e.source == CompareSource.COURSE) {
                                         Spacer(Modifier.width(6.dp))
                                         Surface(shape = RoundedCornerShape(50), color = MaterialTheme.colorScheme.primaryContainer) {
-                                            Text("코스", style = MaterialTheme.typography.labelSmall,
+                                            Text(stringResource(R.string.course_badge), style = MaterialTheme.typography.labelSmall,
                                                 color = MaterialTheme.colorScheme.onPrimaryContainer,
                                                 modifier = Modifier.padding(horizontal = 6.dp, vertical = 1.dp))
                                         }
                                     }
                                 }
                                 Text(
-                                    if (e.result.hasElevation) "%.2f km · 상승 %,d m".format(e.result.distanceM / 1000, e.result.ascentM.roundToInt())
-                                    else "%.2f km · 고도 정보 없음".format(e.result.distanceM / 1000),
+                                    if (e.result.hasElevation) stringResource(R.string.compare_entry_summary).format(e.result.distanceM / 1000, e.result.ascentM.roundToInt())
+                                    else stringResource(R.string.compare_entry_no_ele).format(e.result.distanceM / 1000),
                                     style = MaterialTheme.typography.labelMedium,
                                     color = if (e.result.hasElevation) MaterialTheme.colorScheme.onSurfaceVariant else Color(0xFFB0611A)
                                 )
@@ -239,14 +242,14 @@ private fun FileList(entries: List<GpxCompareEntry>, loaded: List<GpxCompareEntr
                             }
                         }
                     }
-                    IconButton(onClick = { onRemove(e.id) }) { Icon(Icons.Outlined.Close, contentDescription = "빼기", modifier = Modifier.size(18.dp)) }
+                    IconButton(onClick = { onRemove(e.id) }) { Icon(Icons.Outlined.Close, contentDescription = stringResource(R.string.action_remove), modifier = Modifier.size(18.dp)) }
                 }
             }
         }
         if (entries.size < maxFiles) {
             OutlinedButton(onClick = onPick, shape = RoundedCornerShape(14.dp), modifier = Modifier.fillMaxWidth()) {
                 Icon(Icons.Outlined.FileOpen, null, modifier = Modifier.size(18.dp)); Spacer(Modifier.width(6.dp))
-                Text("GPX 추가 (${entries.size}/$maxFiles)")
+                Text(stringResource(R.string.gpx_add, entries.size, maxFiles))
             }
         }
     }
@@ -256,7 +259,7 @@ private fun FileList(entries: List<GpxCompareEntry>, loaded: List<GpxCompareEntr
 internal fun GradeBadge(g: RuggednessGrade) {
     val (bg, fg) = gradeColor(g)
     Surface(shape = RoundedCornerShape(50), color = bg) {
-        Text(g.labelKo, color = fg, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold,
+        Text(g.label, color = fg, style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold,
             modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp))
     }
 }
@@ -271,7 +274,7 @@ private fun VerdictCard(loaded: List<GpxCompareEntry.Loaded>) {
     val ratio = if (easy.result.score > 0) top.result.score / easy.result.score else 1.0
     Surface(shape = RoundedCornerShape(20.dp), color = MaterialTheme.colorScheme.primaryContainer, modifier = Modifier.fillMaxWidth()) {
         Column(Modifier.padding(18.dp)) {
-            Text("가장 험한 길", style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onPrimaryContainer)
+            Text(stringResource(R.string.compare_hardest), style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onPrimaryContainer)
             Spacer(Modifier.height(4.dp))
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Box(Modifier.size(12.dp).clip(CircleShape).background(CompareColors[loaded.indexOf(top) % 4]))
@@ -297,7 +300,7 @@ private fun VerdictCard(loaded: List<GpxCompareEntry.Loaded>) {
             }
             if (sorted.size >= 2 && ratio >= 1.1) {
                 Spacer(Modifier.height(6.dp))
-                Text("'${easy.result.displayName}'보다 약 %.1f배 힘든 길이에요.".format(ratio),
+                Text(stringResource(R.string.gpx_compare_harder_than, easy.result.displayName, "%.1f".format(ratio)),
                     style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onPrimaryContainer)
             }
         }
@@ -412,7 +415,7 @@ internal fun ElevationChart(
     Legend(loaded)
     if (withEle.size < loaded.size) {
         Spacer(Modifier.height(6.dp))
-        Text("고도 정보가 없는 파일은 그래프에서 빠졌어요.", style = MaterialTheme.typography.labelSmall, color = Color(0xFFB0611A))
+        Text(stringResource(R.string.compare_no_ele_note), style = MaterialTheme.typography.labelSmall, color = Color(0xFFB0611A))
     }
 }
 
@@ -466,16 +469,16 @@ private fun MetricTable(loaded: List<GpxCompareEntry.Loaded>) {
     }
     fun ele(r: RuggednessResult, f: (RuggednessResult) -> String) = if (r.hasElevation) f(r) else "—"
     val rows = listOf(
-        Row_("난이도 점수", loaded.map { "%.1f".format(it.result.score) }, if (loaded.size > 1) loaded.indices.maxBy { loaded[it].result.score } else null),
-        Row_("총거리", loaded.map { "%.2f km".format(it.result.distanceM / 1000) }, if (loaded.size > 1) loaded.indices.maxBy { loaded[it].result.distanceM } else null),
-        Row_("누적 상승", loaded.map { ele(it.result) { r -> "%,d m".format(r.ascentM.roundToInt()) } }, worstIdx { it.ascentM }),
-        Row_("누적 하강", loaded.map { ele(it.result) { r -> "%,d m".format(r.descentM.roundToInt()) } }, worstIdx { it.descentM }),
-        Row_("최고 / 최저", loaded.map { ele(it.result) { r -> "${r.maxElevationM!!.roundToInt()} / ${r.minElevationM!!.roundToInt()}" } }, null),
-        Row_("최대 오르막", loaded.map { ele(it.result) { r -> "%.0f%%".format(r.maxUphillGradePct) } }, worstIdx { it.maxUphillGradePct }),
-        Row_("최대 내리막", loaded.map { ele(it.result) { r -> "%.0f%%".format(r.maxDownhillGradePct) } }, worstIdx { it.maxDownhillGradePct }),
-        Row_("평균 경사", loaded.map { ele(it.result) { r -> "%.1f%%".format(r.avgAbsGradePct) } }, worstIdx { it.avgAbsGradePct }),
-        Row_("가파른 구간", loaded.map { ele(it.result) { r -> "%.0f%% · %.1fkm".format(r.steepRatio * 100, r.steepDistanceM / 1000) } }, worstIdx { it.steepDistanceM }),
-        Row_("등가거리", loaded.map { "%.1f km".format(it.result.equivalentKm) }, null),
+        Row_(stringResource(R.string.metric_score), loaded.map { "%.1f".format(it.result.score) }, if (loaded.size > 1) loaded.indices.maxBy { loaded[it].result.score } else null),
+        Row_(stringResource(R.string.metric_total_distance), loaded.map { "%.2f km".format(it.result.distanceM / 1000) }, if (loaded.size > 1) loaded.indices.maxBy { loaded[it].result.distanceM } else null),
+        Row_(stringResource(R.string.metric_ascent), loaded.map { ele(it.result) { r -> "%,d m".format(r.ascentM.roundToInt()) } }, worstIdx { it.ascentM }),
+        Row_(stringResource(R.string.metric_descent), loaded.map { ele(it.result) { r -> "%,d m".format(r.descentM.roundToInt()) } }, worstIdx { it.descentM }),
+        Row_(stringResource(R.string.metric_max_min), loaded.map { ele(it.result) { r -> "${r.maxElevationM!!.roundToInt()} / ${r.minElevationM!!.roundToInt()}" } }, null),
+        Row_(stringResource(R.string.metric_max_uphill), loaded.map { ele(it.result) { r -> "%.0f%%".format(r.maxUphillGradePct) } }, worstIdx { it.maxUphillGradePct }),
+        Row_(stringResource(R.string.metric_max_downhill), loaded.map { ele(it.result) { r -> "%.0f%%".format(r.maxDownhillGradePct) } }, worstIdx { it.maxDownhillGradePct }),
+        Row_(stringResource(R.string.metric_avg_grade), loaded.map { ele(it.result) { r -> "%.1f%%".format(r.avgAbsGradePct) } }, worstIdx { it.avgAbsGradePct }),
+        Row_(stringResource(R.string.metric_steep), loaded.map { ele(it.result) { r -> "%.0f%% · %.1fkm".format(r.steepRatio * 100, r.steepDistanceM / 1000) } }, worstIdx { it.steepDistanceM }),
+        Row_(stringResource(R.string.metric_equiv), loaded.map { "%.1f km".format(it.result.equivalentKm) }, null),
     )
     Column {
         Row(Modifier.padding(bottom = 6.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -506,15 +509,16 @@ private fun MetricTable(loaded: List<GpxCompareEntry.Loaded>) {
             }
         }
         Spacer(Modifier.height(6.dp))
-        Text("굵은 색 글씨 = 그 항목에서 가장 힘든 길 · 가파른 구간 = 경사 ${GpxRuggedness.STEEP_PCT.toInt()}% 이상",
+        Text(stringResource(R.string.compare_table_legend, GpxRuggedness.STEEP_PCT.toInt()),
             style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
 
 @Composable
 private fun GradeDistribution(loaded: List<GpxCompareEntry.Loaded>) {
+    val context = androidx.compose.ui.platform.LocalContext.current
     val withEle = loaded.withIndex().filter { it.value.result.hasElevation }
-    val labels = withEle.first().value.result.gradeBuckets.map { it.labelKo }
+    val labels = withEle.first().value.result.gradeBuckets.map { it.label(context) }
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         withEle.forEach { (i, e) ->
             Column {
@@ -547,14 +551,14 @@ private fun FormulaCard() {
     Surface(shape = RoundedCornerShape(18.dp), color = MaterialTheme.colorScheme.surface,
         modifier = Modifier.fillMaxWidth().border(1.dp, MaterialTheme.colorScheme.outlineVariant, RoundedCornerShape(18.dp))) {
         Column(Modifier.padding(16.dp)) {
-            Text("난이도 점수는 이렇게 계산해요", style = MaterialTheme.typography.titleMedium)
+            Text(stringResource(R.string.score_explain_title), style = MaterialTheme.typography.titleMedium)
             Spacer(Modifier.height(8.dp))
-            Text("점수 = 거리(km) + 오르막(m) ÷ 100 + 가파른 구간(km) × 2", style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.SemiBold)
+            Text(stringResource(R.string.score_formula), style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.SemiBold)
             Spacer(Modifier.height(6.dp))
             Text(
-                "• 100m 오르는 힘 ≈ 평지 1km 걷는 힘으로 봐요 (등가거리).\n" +
-                    "• 경사 ${GpxRuggedness.STEEP_PCT.toInt()}% 이상 구간은 1km마다 2점을 더해요.\n" +
-                    "• GPS 고도 잡음은 ${GpxRuggedness.SMOOTH_WINDOW_M.toInt()}m 평균으로 다듬고, ${GpxRuggedness.HYSTERESIS_M.toInt()}m 미만 출렁임은 세지 않아요.",
+                stringResource(R.string.score_explain_1) +
+                    stringResource(R.string.score_explain_2, GpxRuggedness.STEEP_PCT.toInt()) +
+                    stringResource(R.string.score_explain_3, GpxRuggedness.SMOOTH_WINDOW_M.toInt(), GpxRuggedness.HYSTERESIS_M.toInt()),
                 style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant
             )
             Spacer(Modifier.height(10.dp))
@@ -564,7 +568,7 @@ private fun FormulaCard() {
                     val (bg, fg) = gradeColor(g)
                     Column(Modifier.weight(1f).clip(RoundedCornerShape(10.dp)).background(bg).padding(vertical = 6.dp),
                         horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text(g.labelKo, color = fg, style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold, maxLines = 1)
+                        Text(g.label, color = fg, style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold, maxLines = 1)
                         Text(range, color = fg, style = MaterialTheme.typography.labelSmall)
                     }
                 }
@@ -578,7 +582,7 @@ private fun PrivacyNote() {
     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(horizontal = 4.dp)) {
         Icon(Icons.Outlined.Lock, null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(14.dp))
         Spacer(Modifier.width(6.dp))
-        Text("파일은 읽기만 해요. 기록·메모·사진·시간은 저장하거나 동기화하지 않아요.",
+        Text(stringResource(R.string.compare_privacy),
             style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }

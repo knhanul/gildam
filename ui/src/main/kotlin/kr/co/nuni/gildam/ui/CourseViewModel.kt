@@ -1,5 +1,6 @@
 package kr.co.nuni.gildam.ui
 
+import kr.co.nuni.gildam.ui.l10n.*
 import android.content.Context
 import android.net.Uri
 import android.os.Build
@@ -292,11 +293,11 @@ class CourseViewModel @Inject constructor(
         if (points.size < 2) return null
         val r = runCatching { GpxRuggedness.analyze("", points.map { GpxPoint(it.latitude, it.longitude, it.altitudeMeters?.toDouble()) }) }.getOrNull() ?: return null
         if (r.distanceM < 50) return null
-        return HikingTimeEstimator.formatKo(HikingTimeEstimator.estimateSeconds(r.profile, r.distanceM, _paceFactor.value ?: 1.0))
+        return formatEta(appContext, HikingTimeEstimator.estimateSeconds(r.profile, r.distanceM, _paceFactor.value ?: 1.0))
     }
 
     private fun arrivalClock(etaSec: Double): String =
-        LocalTime.now().plusSeconds(etaSec.toLong()).format(DateTimeFormatter.ofPattern("a h:mm", Locale.KOREAN))
+        formatClock(appContext, LocalTime.now().plusSeconds(etaSec.toLong()))
 
     private fun vibrateOffCourse() {
         val v: Vibrator? = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S)

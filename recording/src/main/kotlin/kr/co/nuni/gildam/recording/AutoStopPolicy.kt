@@ -90,12 +90,4 @@ object AutoStopPolicy {
             lastMovementAtMs = continueAtMs,
             warningShownAtMs = null
         )
-
-    fun formatMaxDurationLabel(durationMs: Long?): String =
-        if (durationMs == null) "사용 안 함" else "${durationMs / HOUR_MS}시간"
-
-    fun formatIdleLimitLabel(limitMs: Long?): String =
-        if (limitMs == null) "사용 안 함" else "${limitMs / MINUTE_MS}분"
-
-    fun formatGraceLabel(graceMs: Long): String = "${graceMs / MINUTE_MS}분"
 }

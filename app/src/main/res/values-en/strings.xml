@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Gildam</string>
+    <string name="login_cancelled">Kakao sign-in was canceled.</string>
+    <string name="login_failed">Sign-in failed.</string>
+</resources>

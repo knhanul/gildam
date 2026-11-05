@@ -1,5 +1,8 @@
 package kr.co.nuni.gildam.ui.screens
 
+import kr.co.nuni.gildam.ui.l10n.*
+import androidx.compose.ui.res.stringResource
+import kr.co.nuni.gildam.ui.R
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -91,11 +94,11 @@ fun SettingsScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("설정") },
+                title = { Text(stringResource(R.string.settings_title)) },
                 navigationIcon = {
                     if (!isTopLevelTab) {
                         IconButton(onClick = onNavigateBack) {
-                            Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = "뒤로")
+                            Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = stringResource(R.string.action_back))
                         }
                     }
                 }
@@ -131,26 +134,26 @@ fun SettingsScreen(
             Spacer(Modifier.height(16.dp))
 
             // 2. 기록 설정
-            SettingsGroupLabel("기록 설정")
+            SettingsGroupLabel(stringResource(R.string.settings_group_recording))
             SettingsListCard {
                 SettingsListItem(
-                    title = "화면 꺼짐 중 기록",
-                    supportingText = "위치 권한과 배터리 설정을 확인해요.",
-                    valueText = screenOffStatus.labelKo,
+                    title = stringResource(R.string.settings_screen_off_title),
+                    supportingText = stringResource(R.string.settings_screen_off_desc),
+                    valueText = screenOffStatus.label,
                     valueEmphasis = screenOffStatus.warn,
                     icon = Icons.Outlined.NightsStay,
                     onClick = onOpenRecordingStatus
                 )
                 SettingsItemDivider()
                 SettingsListItem(
-                    title = "지도 강조 지표",
-                    supportingText = "활동별로 지도에 크게 표시할 값을 선택해요.",
+                    title = stringResource(R.string.gauge_highlight_title),
+                    supportingText = stringResource(R.string.settings_gauge_desc),
                     icon = Icons.Outlined.Map,
                     onClick = onOpenGaugeEditor
                 )
                 SettingsItemDivider()
                 SettingsListItem(
-                    title = "기록 중 화면·자동 종료",
+                    title = stringResource(R.string.recording_screen_autostop_title),
                     supportingText = recordingAutoStopSummary(keepScreenOn, maxDurationMs, idleLimitMs),
                     icon = Icons.Outlined.Timer,
                     onClick = onOpenRecordingAutoStop
@@ -160,11 +163,11 @@ fun SettingsScreen(
             Spacer(Modifier.height(16.dp))
 
             // 3. 데이터 보관
-            SettingsGroupLabel("데이터 보관")
+            SettingsGroupLabel(stringResource(R.string.settings_group_data))
             SettingsListCard {
                 SettingsListItem(
-                    title = "사진 보관 안내",
-                    supportingText = "사진 파일은 길담에서 동기화하지 않아요.",
+                    title = stringResource(R.string.photo_storage_title),
+                    supportingText = stringResource(R.string.settings_photo_desc),
                     icon = Icons.Outlined.PhotoLibrary,
                     onClick = onOpenPhotoStorage
                 )
@@ -173,20 +176,20 @@ fun SettingsScreen(
             Spacer(Modifier.height(16.dp))
 
             // 4. 화면 설정
-            SettingsGroupLabel("화면 설정")
+            SettingsGroupLabel(stringResource(R.string.settings_group_display))
             SettingsListCard {
                 SettingsListItem(
-                    title = "테마 색",
+                    title = stringResource(R.string.settings_theme),
                     icon = Icons.Outlined.Palette,
-                    valueText = palette.labelKo,
+                    valueText = palette.label,
                     trailingContent = { PaletteDots(palette) },
                     onClick = { showThemeSheet = true }
                 )
                 SettingsItemDivider()
                 SettingsListItem(
-                    title = "화면 모드",
+                    title = stringResource(R.string.settings_dark_mode),
                     icon = Icons.Outlined.DarkMode,
-                    valueText = darkMode.labelKo,
+                    valueText = darkMode.label,
                     onClick = { showModeSheet = true }
                 )
             }
@@ -198,7 +201,7 @@ fun SettingsScreen(
     if (showThemeSheet) {
         ModalBottomSheet(onDismissRequest = { showThemeSheet = false }) {
             Column(Modifier.padding(horizontal = 20.dp)) {
-                Text("테마 색", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                Text(stringResource(R.string.settings_theme), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
                 Spacer(Modifier.height(12.dp))
                 ThemePickerSheetContent(palette = palette, onSelectPalette = {
                     onSelectPalette(it)
@@ -211,7 +214,7 @@ fun SettingsScreen(
     if (showModeSheet) {
         ModalBottomSheet(onDismissRequest = { showModeSheet = false }) {
             Column(Modifier.padding(horizontal = 20.dp)) {
-                Text("화면 모드", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                Text(stringResource(R.string.settings_dark_mode), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
                 Spacer(Modifier.height(8.dp))
                 DarkModeSheetContent(darkMode = darkMode, onSelectDarkMode = {
                     onSelectDarkMode(it)

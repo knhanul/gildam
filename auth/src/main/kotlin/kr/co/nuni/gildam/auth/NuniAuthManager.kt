@@ -66,7 +66,8 @@ class NuniAuthManager @Inject constructor(
         val result = runCatching {
             when (val cb = NuniOidc.validateCallback(callbackUri::getQueryParameter, pending?.state)) {
                 is NuniOidc.CallbackResult.Error -> throw AuthException(
-                    if (cb.error == "access_denied") "카카오 로그인이 취소됐어요." else (cb.description ?: "로그인에 실패했어요 (${cb.error}).")
+                    cb.description ?: "login failed (${cb.error})",
+                    userCancelled = cb.error == "access_denied"
                 )
                 is NuniOidc.CallbackResult.Code -> {
                     val token = postToken(
@@ -78,11 +79,11 @@ class NuniAuthManager @Inject constructor(
                             "code_verifier" to pending!!.codeVerifier
                         )
                     )
-                    val idToken = token.idToken ?: throw AuthException("id_token 이 없어요.")
+                    val idToken = token.idToken ?: throw AuthException("missing id_token")
                     val claims = try {
                         NuniOidc.validateIdToken(idToken, NuniAuthConfig.CLIENT_ID, pending.nonce, System.currentTimeMillis() / 1000)
                     } catch (e: IllegalArgumentException) {
-                        throw AuthException("로그인 응답 검증에 실패했어요.", e)
+                        throw AuthException("id_token validation failed", e)
                     }
                     save(token, claims.sub)
                 }
@@ -90,7 +91,7 @@ class NuniAuthManager @Inject constructor(
         }
         // state 가 맞지 않은(남의) 콜백이면 진행 중인 요청은 그대로 둔다
         if (pending != null && callbackUri.getQueryParameter("state") == pending.state) tokenStore.clearPendingAuth()
-        result.onFailure { _lastError.value = it.message ?: "로그인에 실패했어요." }.onSuccess { _lastError.value = null }
+        result.onFailure { _lastError.value = it.message ?: "login failed" }.onSuccess { _lastError.value = null }
     }
 
     /**
@@ -179,10 +180,15 @@ class NuniAuthManager @Inject constructor(
             .build()
         http.newCall(req).execute().use { res ->
             val body = res.body?.string().orEmpty()
-            if (!res.isSuccessful) throw AuthException("토큰 발급 실패 (HTTP ${res.code})")
+            if (!res.isSuccessful) throw AuthException("token request failed (HTTP ${res.code})")
             return NuniOidc.parseTokenResponse(body)
         }
     }
 }
 
-class AuthException(message: String, cause: Throwable? = null) : Exception(message, cause)
+/** message 는 로그용(영어). 화면 글자는 앱이 [userCancelled] 로 골라 보여 줍니다. */
+class AuthException(
+    message: String,
+    cause: Throwable? = null,
+    val userCancelled: Boolean = false
+) : Exception(message, cause)

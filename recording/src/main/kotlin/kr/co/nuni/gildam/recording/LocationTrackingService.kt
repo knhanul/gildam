@@ -95,7 +95,7 @@ class LocationTrackingService : LifecycleService() {
         when (intent?.action) {
             ACTION_START -> {
                 val typeName = intent.getStringExtra(EXTRA_TRANSPORT_TYPE) ?: TransportType.WALK.name
-                val title = intent.getStringExtra(EXTRA_TITLE) ?: "길 위의 이야기"
+                val title = intent.getStringExtra(EXTRA_TITLE) ?: getString(R.string.rec_default_title)
                 startTracking(TransportType.valueOf(typeName), title)
             }
             ACTION_RESUME_EXISTING -> {
@@ -609,9 +609,9 @@ class LocationTrackingService : LifecycleService() {
         val hours = elapsedSec / 3600
         val minutes = (elapsedSec % 3600) / 60
         val seconds = elapsedSec % 60
-        val timeText = String.format("%02d:%02d:%02d", hours, minutes, seconds)
-        val distText = String.format("%.2f km", distanceKm)
-        val statusPrefix = if (paused) "일시정지됨" else "길 기록 중"
+        val timeText = String.format(java.util.Locale.ROOT, "%02d:%02d:%02d", hours, minutes, seconds)
+        val distText = String.format(java.util.Locale.ROOT, "%.2f km", distanceKm)
+        val statusPrefix = getString(if (paused) R.string.rec_notif_paused else R.string.rec_notif_recording)
 
         val toggleIntent = Intent(this, LocationTrackingService::class.java).apply {
             action = if (paused) ACTION_RESUME else ACTION_PAUSE
@@ -625,13 +625,13 @@ class LocationTrackingService : LifecycleService() {
 
         return NotificationCompat.Builder(this, CHANNEL_ID)
             .setSmallIcon(android.R.drawable.ic_menu_mylocation)
-            .setContentTitle("길담 · $statusPrefix ($distText)")
-            .setContentText("경과 시간 $timeText · 화면이 꺼져도 안전하게 궤적을 기록합니다")
+            .setContentTitle(getString(R.string.rec_notif_title, statusPrefix, distText))
+            .setContentText(getString(R.string.rec_notif_text, timeText))
             .setOngoing(true)
             .setOnlyAlertOnce(true)
             .addAction(
                 android.R.drawable.ic_media_pause,
-                if (paused) "재개" else "일시정지",
+                getString(if (paused) R.string.rec_action_resume else R.string.rec_action_pause),
                 togglePendingIntent
             )
             .build()
@@ -647,11 +647,11 @@ class LocationTrackingService : LifecycleService() {
         val contentText = when (reason) {
             StopReason.IDLE -> {
                 val idleMinutes = ((idleLimitMs ?: AutoStopPolicy.DEFAULT_IDLE_LIMIT_MS) / AutoStopPolicy.MINUTE_MS).coerceAtLeast(1L)
-                "${idleMinutes}분째 움직임이 없어요. ${graceMinutes}분 뒤 자동으로 기록을 마칩니다."
+                getString(R.string.rec_alert_idle, minutesText(idleMinutes), minutesText(graceMinutes))
             }
             StopReason.MAX_DURATION -> {
                 val maxHours = ((maxDurationMs ?: AutoStopPolicy.DEFAULT_MAX_DURATION_MS) / AutoStopPolicy.HOUR_MS).coerceAtLeast(1L)
-                "기록한 지 ${maxHours}시간이 지났어요. ${graceMinutes}분 뒤 자동으로 기록을 마칩니다."
+                getString(R.string.rec_alert_max, resources.getQuantityString(R.plurals.rec_hours, maxHours.toInt(), maxHours.toInt()), minutesText(graceMinutes))
             }
             StopReason.MANUAL -> return
         }
@@ -679,18 +679,20 @@ class LocationTrackingService : LifecycleService() {
 
         val alertNotification = NotificationCompat.Builder(this, ALERT_CHANNEL_ID)
             .setSmallIcon(android.R.drawable.ic_dialog_info)
-            .setContentTitle("기록을 계속할까요?")
+            .setContentTitle(getString(R.string.rec_alert_title))
             .setContentText(contentText)
             .setStyle(NotificationCompat.BigTextStyle().bigText(contentText))
             .setPriority(NotificationCompat.PRIORITY_DEFAULT)
             .setAutoCancel(true)
-            .addAction(android.R.drawable.ic_media_play, "계속 기록", continuePendingIntent)
-            .addAction(android.R.drawable.ic_delete, "지금 종료", stopPendingIntent)
+            .addAction(android.R.drawable.ic_media_play, getString(R.string.rec_alert_continue), continuePendingIntent)
+            .addAction(android.R.drawable.ic_delete, getString(R.string.rec_alert_stop), stopPendingIntent)
             .build()
 
         val manager = getSystemService(NotificationManager::class.java)
         manager.notify(ALERT_NOTIFICATION_ID, alertNotification)
     }
+
+    private fun minutesText(m: Long): String = resources.getQuantityString(R.plurals.rec_minutes, m.toInt(), m.toInt())
 
     private fun cancelAutoStopAlertNotification() {
         val manager = getSystemService(NotificationManager::class.java)
@@ -702,19 +704,19 @@ class LocationTrackingService : LifecycleService() {
             val manager = getSystemService(NotificationManager::class.java)
             val channel = NotificationChannel(
                 CHANNEL_ID,
-                "길담 실시간 여정 기록",
+                getString(R.string.rec_channel_name),
                 NotificationManager.IMPORTANCE_LOW
             ).apply {
-                description = "화면이 꺼져 있을 때도 GPS 궤적을 끊김 없이 기록하기 위한 상시 알림입니다."
+                description = getString(R.string.rec_channel_desc)
             }
             manager.createNotificationChannel(channel)
 
             val alertChannel = NotificationChannel(
                 ALERT_CHANNEL_ID,
-                "길담 자동 종료 확인 알림",
+                getString(R.string.rec_alert_channel_name),
                 NotificationManager.IMPORTANCE_DEFAULT
             ).apply {
-                description = "최대 기록 시간이나 오래 멈춤 기준에 도달했을 때 계속 기록할지 묻는 알림입니다."
+                description = getString(R.string.rec_alert_channel_desc)
             }
             manager.createNotificationChannel(alertChannel)
         }

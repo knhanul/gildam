@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="rec_default_title">Route story</string>
+    <string name="rec_notif_paused">Paused</string>
+    <string name="rec_notif_recording">Recording</string>
+    <string name="rec_notif_title">Gildam · %1$s (%2$s)</string>
+    <string name="rec_notif_text">Elapsed %1$s · keeps tracking even with the screen off</string>
+    <string name="rec_action_resume">Resume</string>
+    <string name="rec_action_pause">Pause</string>
+    <string name="rec_alert_idle">No movement for %1$s. Recording will stop in %2$s.</string>
+    <string name="rec_alert_max">You\'ve been recording for %1$s. Recording will stop in %2$s.</string>
+    <string name="rec_alert_title">Keep recording?</string>
+    <string name="rec_alert_continue">Keep recording</string>
+    <string name="rec_alert_stop">Stop now</string>
+    <string name="rec_channel_name">Gildam live recording</string>
+    <string name="rec_channel_desc">Ongoing notification that keeps GPS tracking while the screen is off.</string>
+    <string name="rec_alert_channel_name">Gildam auto-stop alerts</string>
+    <string name="rec_alert_channel_desc">Asks whether to keep recording when the time limit or idle limit is reached.</string>
+    <plurals name="rec_minutes">
+        <item quantity="one">%1$d minute</item>
+        <item quantity="other">%1$d minutes</item>
+    </plurals>
+    <plurals name="rec_hours">
+        <item quantity="one">%1$d hour</item>
+        <item quantity="other">%1$d hours</item>
+    </plurals>
+</resources>

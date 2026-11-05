@@ -1,5 +1,9 @@
 package kr.co.nuni.gildam.ui.screens
 
+import androidx.compose.ui.platform.LocalContext
+import kr.co.nuni.gildam.ui.l10n.*
+import androidx.compose.ui.res.stringResource
+import kr.co.nuni.gildam.ui.R
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -44,10 +48,11 @@ import androidx.compose.material3.TopAppBar
 import kr.co.nuni.gildam.recording.AutoStopPolicy
 
 /** 설정 목록 행에 보여 줄 한 줄 요약 (예: "화면 켜 두기 꺼짐 · 최대 4시간 · 멈춤 20분") */
+@androidx.compose.runtime.Composable
 internal fun recordingAutoStopSummary(keepScreenOn: Boolean, maxDurationMs: Long?, idleLimitMs: Long?): String {
-    val screen = if (keepScreenOn) "화면 켜 두기 켜짐" else "화면 켜 두기 꺼짐"
-    val max = if (maxDurationMs == null) "최대 시간 끔" else "최대 ${AutoStopPolicy.formatMaxDurationLabel(maxDurationMs)}"
-    val idle = if (idleLimitMs == null) "멈춤 끔" else "멈춤 ${AutoStopPolicy.formatIdleLimitLabel(idleLimitMs)}"
+    val screen = if (keepScreenOn) stringResource(R.string.settings_summary_screen_on) else stringResource(R.string.settings_summary_screen_off)
+    val max = if (maxDurationMs == null) stringResource(R.string.settings_summary_max_off) else stringResource(R.string.settings_summary_max, maxDurationLabel(LocalContext.current, maxDurationMs))
+    val idle = if (idleLimitMs == null) stringResource(R.string.settings_summary_idle_off) else stringResource(R.string.settings_summary_idle, idleLimitLabel(LocalContext.current, idleLimitMs))
     return "$screen · $max · $idle"
 }
 
@@ -68,10 +73,10 @@ fun RecordingAutoStopScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("기록 중 화면·자동 종료") },
+                title = { Text(stringResource(R.string.recording_screen_autostop_title)) },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
-                        Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = "뒤로")
+                        Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = stringResource(R.string.action_back))
                     }
                 }
             )
@@ -86,7 +91,7 @@ fun RecordingAutoStopScreen(
         ) {
             Spacer(Modifier.height(4.dp))
             Text(
-                text = "깜빡하고 기록을 끄지 않았을 때, 알림으로 먼저 물어본 뒤 기록을 마쳐요.",
+                text = stringResource(R.string.autostop_intro),
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(horizontal = 4.dp, vertical = 8.dp)
@@ -137,55 +142,57 @@ fun RecordingSettingsItems(
         Spacer(Modifier.width(12.dp))
         Column(modifier = Modifier.weight(1f)) {
             Text(
-                text = "기록 중 화면 켜 두기",
+                text = stringResource(R.string.keep_screen_on_title),
                 style = MaterialTheme.typography.bodyMedium,
                 fontWeight = FontWeight.SemiBold,
                 color = MaterialTheme.colorScheme.onSurface
             )
             Text(
-                text = "기록 화면을 보는 동안 화면이 꺼지지 않아요.",
+                text = stringResource(R.string.keep_screen_on_desc),
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
+        val keepScreenOnCd = stringResource(R.string.keep_screen_on_title)
         Switch(
             checked = keepScreenOn,
             onCheckedChange = onKeepScreenOnChange,
-            modifier = Modifier.semantics { contentDescription = "기록 중 화면 켜 두기" }
+            modifier = Modifier.semantics { contentDescription = keepScreenOnCd }
         )
     }
     SettingsItemDivider()
     SettingsListItem(
-        title = "최대 기록 시간",
-        supportingText = "이 시간이 지나면 알림으로 묻고 기록을 마쳐요.",
-        valueText = AutoStopPolicy.formatMaxDurationLabel(maxDurationMs),
+        title = stringResource(R.string.max_duration_title),
+        supportingText = stringResource(R.string.max_duration_desc),
+        valueText = maxDurationLabel(LocalContext.current, maxDurationMs),
         icon = Icons.Outlined.Timer,
         onClick = { sheet = "max" }
     )
     SettingsItemDivider()
     SettingsListItem(
-        title = "오래 멈춤 기준",
-        supportingText = "오래 움직이지 않으면 알림으로 물어봐요.",
-        valueText = AutoStopPolicy.formatIdleLimitLabel(idleLimitMs),
+        title = stringResource(R.string.idle_limit_title),
+        supportingText = stringResource(R.string.idle_limit_desc),
+        valueText = idleLimitLabel(LocalContext.current, idleLimitMs),
         icon = Icons.Outlined.PauseCircle,
         onClick = { sheet = "idle" }
     )
     SettingsItemDivider()
     SettingsListItem(
-        title = "확인 대기 시간",
-        supportingText = "알림에 답이 없으면 이 시간 뒤 기록을 마쳐요.",
-        valueText = AutoStopPolicy.formatGraceLabel(graceMs),
+        title = stringResource(R.string.grace_title),
+        supportingText = stringResource(R.string.grace_desc),
+        valueText = graceLabel(LocalContext.current, graceMs),
         icon = Icons.Outlined.HourglassBottom,
         onClick = { sheet = "grace" }
     )
 
+    val ctx = LocalContext.current
     when (sheet) {
-        "max" -> OptionSheet("최대 기록 시간", AutoStopPolicy.MAX_DURATION_OPTIONS_MS,
-            AutoStopPolicy::formatMaxDurationLabel, maxDurationMs, onSelectMaxDurationMs) { sheet = null }
-        "idle" -> OptionSheet("오래 멈춤 기준", AutoStopPolicy.IDLE_LIMIT_OPTIONS_MS,
-            AutoStopPolicy::formatIdleLimitLabel, idleLimitMs, onSelectIdleLimitMs) { sheet = null }
-        "grace" -> OptionSheet("확인 대기 시간", AutoStopPolicy.GRACE_OPTIONS_MS,
-            AutoStopPolicy::formatGraceLabel, graceMs, onSelectGraceMs) { sheet = null }
+        "max" -> OptionSheet(stringResource(R.string.max_duration_title), AutoStopPolicy.MAX_DURATION_OPTIONS_MS,
+            { ms: Long? -> maxDurationLabel(ctx, ms) }, maxDurationMs, onSelectMaxDurationMs) { sheet = null }
+        "idle" -> OptionSheet(stringResource(R.string.idle_limit_title), AutoStopPolicy.IDLE_LIMIT_OPTIONS_MS,
+            { ms: Long? -> idleLimitLabel(ctx, ms) }, idleLimitMs, onSelectIdleLimitMs) { sheet = null }
+        "grace" -> OptionSheet(stringResource(R.string.grace_title), AutoStopPolicy.GRACE_OPTIONS_MS,
+            { ms: Long -> graceLabel(ctx, ms) }, graceMs, onSelectGraceMs) { sheet = null }
     }
 }
 
@@ -219,7 +226,7 @@ private fun <T> OptionSheet(
                         fontWeight = if (isSel) FontWeight.SemiBold else FontWeight.Normal,
                         modifier = Modifier.weight(1f)
                     )
-                    if (isSel) Icon(Icons.Filled.Check, contentDescription = "선택됨",
+                    if (isSel) Icon(Icons.Filled.Check, contentDescription = stringResource(R.string.state_selected),
                         tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(20.dp))
                 }
             }

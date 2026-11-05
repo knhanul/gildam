@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="rec_default_title">길 위의 이야기</string>
+    <string name="rec_notif_paused">일시정지됨</string>
+    <string name="rec_notif_recording">길 기록 중</string>
+    <string name="rec_notif_title">길담 · %1$s (%2$s)</string>
+    <string name="rec_notif_text">경과 시간 %1$s · 화면이 꺼져도 안전하게 궤적을 기록합니다</string>
+    <string name="rec_action_resume">재개</string>
+    <string name="rec_action_pause">일시정지</string>
+    <string name="rec_alert_idle">%1$s째 움직임이 없어요. %2$s 뒤 자동으로 기록을 마칩니다.</string>
+    <string name="rec_alert_max">기록한 지 %1$s이 지났어요. %2$s 뒤 자동으로 기록을 마칩니다.</string>
+    <string name="rec_alert_title">기록을 계속할까요?</string>
+    <string name="rec_alert_continue">계속 기록</string>
+    <string name="rec_alert_stop">지금 종료</string>
+    <string name="rec_channel_name">길담 실시간 여정 기록</string>
+    <string name="rec_channel_desc">화면이 꺼져 있을 때도 GPS 궤적을 끊김 없이 기록하기 위한 상시 알림입니다.</string>
+    <string name="rec_alert_channel_name">길담 자동 종료 확인 알림</string>
+    <string name="rec_alert_channel_desc">최대 기록 시간이나 오래 멈춤 기준에 도달했을 때 계속 기록할지 묻는 알림입니다.</string>
+    <plurals name="rec_minutes">
+        <item quantity="other">%1$d분</item>
+    </plurals>
+    <plurals name="rec_hours">
+        <item quantity="other">%1$d시간</item>
+    </plurals>
+</resources>

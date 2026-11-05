@@ -1,5 +1,9 @@
 package kr.co.nuni.gildam.ui.screens
 
+import androidx.compose.ui.platform.LocalContext
+import kr.co.nuni.gildam.ui.l10n.*
+import androidx.compose.ui.res.stringResource
+import kr.co.nuni.gildam.ui.R
 import android.net.Uri
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -75,13 +79,13 @@ internal fun RecordPhotoSection(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
-                "이 기록의 사진",
+                stringResource(R.string.record_photos_title),
                 style = MaterialTheme.typography.titleLarge,
                 modifier = Modifier.weight(1f)
             )
             if (!loading && !permissionDenied && photos.isNotEmpty()) {
                 Text(
-                    "${photos.size}장",
+                    stringResource(R.string.record_photos_count, photos.size),
                     style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -94,12 +98,12 @@ internal fun RecordPhotoSection(
             ) {
                 CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
                 Spacer(Modifier.width(10.dp))
-                Text("기기 사진에서 같은 시간·자리의 사진을 찾는 중…",
+                Text(stringResource(R.string.record_photos_searching),
                     style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
             permissionDenied -> PermissionsAskRow(onRequestPermission)
             photos.isEmpty() -> Text(
-                "이 기록과 맞는 사진을 찾지 못했어요",
+                stringResource(R.string.record_photos_none),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
@@ -121,7 +125,7 @@ internal fun RecordPhotoSection(
                 }
                 if (truncated) {
                     Text(
-                        "사진이 많아 앞쪽 ${photos.size}장만 확인했어요",
+                        stringResource(R.string.record_photos_capped, photos.size),
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
@@ -138,7 +142,7 @@ internal fun RecordPhotoSection(
                     tint = MaterialTheme.colorScheme.onSurfaceVariant)
                 Spacer(Modifier.width(6.dp))
                 Text(
-                    "사진은 이 기기에만 있고, 동기화되지 않아요",
+                    stringResource(R.string.record_photos_local_only),
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -163,7 +167,7 @@ private fun PermissionsAskRow(onRequestPermission: () -> Unit) {
             Icon(Icons.Outlined.ImageSearch, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(20.dp))
             Spacer(Modifier.width(10.dp))
             Text(
-                "사진 접근을 허용하면 이 기록과 같은 시간·자리의 사진을 찾아 드려요.",
+                stringResource(R.string.record_photos_permission_desc),
                 style = MaterialTheme.typography.labelMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.weight(1f)
@@ -176,7 +180,7 @@ private fun PermissionsAskRow(onRequestPermission: () -> Unit) {
                 contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
                 modifier = Modifier.height(34.dp)
             ) {
-                Text("사진 접근 허용", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.SemiBold)
+                Text(stringResource(R.string.record_photos_permission_allow), style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.SemiBold)
             }
         }
     }
@@ -193,7 +197,7 @@ private fun PhotoThumb(p: MatchedPhoto, onClick: () -> Unit) {
     ) {
         AsyncImage(
             model = Uri.parse(p.uri),
-            contentDescription = "기록 사진",
+            contentDescription = stringResource(R.string.record_photo_cd),
             contentScale = ContentScale.Crop,
             modifier = Modifier.fillMaxSize()
         )
@@ -208,7 +212,7 @@ private fun PhotoThumb(p: MatchedPhoto, onClick: () -> Unit) {
                     Icon(Icons.Outlined.LocationOff, null, modifier = Modifier.size(10.dp),
                         tint = MaterialTheme.colorScheme.onSurfaceVariant)
                     Spacer(Modifier.width(3.dp))
-                    Text("위치 정보 없음", style = MaterialTheme.typography.labelSmall,
+                    Text(stringResource(R.string.photo_no_location), style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
                 }
             }
@@ -224,7 +228,7 @@ internal fun PhotoViewerDialog(p: MatchedPhoto, onClose: () -> Unit) {
             Box(Modifier.fillMaxSize()) {
                 AsyncImage(
                     model = Uri.parse(p.uri),
-                    contentDescription = "사진 크게 보기",
+                    contentDescription = stringResource(R.string.photo_enlarge_cd),
                     contentScale = ContentScale.Fit,
                     modifier = Modifier.fillMaxSize().padding(vertical = 56.dp)
                 )
@@ -233,16 +237,16 @@ internal fun PhotoViewerDialog(p: MatchedPhoto, onClose: () -> Unit) {
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Column(Modifier.weight(1f).padding(start = 8.dp)) {
-                        Text(RecordPhotoMatcher.timeLabel(p.takenAtMs), style = MaterialTheme.typography.titleSmall, color = Color.White)
+                        Text(formatShortTime(LocalContext.current, p.takenAtMs), style = MaterialTheme.typography.titleSmall, color = Color.White)
                         Text(
-                            RecordPhotoMatcher.describePosition(p)?.let { pos ->
-                                if (p.timeOnly) "$pos · 위치 정보 없음" else pos
-                            } ?: "위치 정보 없음",
+                            describePhotoPosition(LocalContext.current, p.alongTrackM, p.offsetM)?.let { pos ->
+                                if (p.timeOnly) stringResource(R.string.photo_pos_no_location, pos) else pos
+                            } ?: stringResource(R.string.photo_no_location),
                             style = MaterialTheme.typography.labelSmall, color = Color.White.copy(alpha = 0.8f)
                         )
                     }
                     TooltipIconButton(
-                        Icons.Outlined.Close, "닫기", onClose,
+                        Icons.Outlined.Close, stringResource(R.string.action_close), onClose,
                         style = IconButtonStyle.PLAIN, visualSize = 34.dp, iconSize = 20.dp
                     )
                 }

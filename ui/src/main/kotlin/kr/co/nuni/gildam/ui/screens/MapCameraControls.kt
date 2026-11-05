@@ -1,5 +1,7 @@
 package kr.co.nuni.gildam.ui.screens
 
+import androidx.compose.ui.res.stringResource
+import kr.co.nuni.gildam.ui.R
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -55,11 +57,14 @@ import kr.co.nuni.gildam.ui.illustration.IconButtonStyle
 import kr.co.nuni.gildam.ui.illustration.TooltipIconButton
 
 /** 기록 상태 점: 초록=정상 기록 중, 회색=일시정지, 주황=GPS 약함 같은 문제 */
-enum class RecordingStatus(val color: Color, val title: String, val detail: String) {
-    RECORDING(Color(0xFF2E9E5B), "기록 중", "백그라운드 보호 활성 · 화면이 꺼져도 1초 주기로 궤적을 기록합니다"),
-    PAUSED(Color(0xFF8A8F8C), "일시정지됨", "다시 시작하면 이어서 기록합니다"),
-    GPS_WEAK(Color(0xFFE8831A), "GPS 신호 약함", "GPS 신호를 찾고 있어요. 마지막 확인 위치부터 이어집니다.");
+enum class RecordingStatus(val color: Color, val titleRes: Int, val detailRes: Int) {
+    RECORDING(Color(0xFF2E9E5B), R.string.status_recording, R.string.status_recording_desc),
+    PAUSED(Color(0xFF8A8F8C), R.string.status_paused, R.string.status_paused_desc),
+    GPS_WEAK(Color(0xFFE8831A), R.string.status_gps_weak, R.string.gps_searching_desc);
 
+
+    val title: String @Composable get() = stringResource(titleRes)
+    val detail: String @Composable get() = stringResource(detailRes)
     companion object {
         fun of(isPaused: Boolean, gpsWeak: Boolean): RecordingStatus = when {
             gpsWeak -> GPS_WEAK
@@ -104,13 +109,13 @@ fun MapCameraControls(
             }
         }
         AnimatedVisibility(paused, enter = fadeIn() + scaleIn(), exit = fadeOut() + scaleOut()) {
-            TooltipIconButton(Icons.Outlined.CenterFocusStrong, "다시 맞추기", onRecenter, style = IconButtonStyle.BRAND, visualSize = 40.dp, iconSize = 20.dp)
+            TooltipIconButton(Icons.Outlined.CenterFocusStrong, stringResource(R.string.map_recenter), onRecenter, style = IconButtonStyle.BRAND, visualSize = 40.dp, iconSize = 20.dp)
         }
         Spacer(Modifier.width(6.dp))
         Surface(shape = RoundedCornerShape(50), color = MaterialTheme.colorScheme.surface.copy(alpha = 0.95f), shadowElevation = 6.dp) {
             Row(Modifier.padding(horizontal = 2.dp)) {
-                Seg(Icons.Outlined.Route, "전체 경로 보기", mode == MapCameraMode.OVERVIEW && !paused) { onSelect(MapCameraMode.OVERVIEW) }
-                Seg(Icons.Outlined.MyLocation, "현재 경로 보기", mode.isFollow && !paused) {
+                Seg(Icons.Outlined.Route, stringResource(R.string.map_mode_overview), mode == MapCameraMode.OVERVIEW && !paused) { onSelect(MapCameraMode.OVERVIEW) }
+                Seg(Icons.Outlined.MyLocation, stringResource(R.string.map_mode_follow), mode.isFollow && !paused) {
                     onSelect(if (allowNorthUp) followMode else MapCameraMode.HEADING)
                 }
             }
@@ -139,7 +144,7 @@ private fun Seg(icon: androidx.compose.ui.graphics.vector.ImageVector, label: St
 @Composable
 fun CompassToggle(northUp: Boolean, mapBearingDeg: Float, onClick: () -> Unit) {
     val cs = MaterialTheme.colorScheme
-    val label = if (northUp) "북쪽 위 · 누르면 주행 방향 위로" else "주행 방향 위 · 누르면 북쪽 위로"
+    val label = if (northUp) stringResource(R.string.compass_north_up) else stringResource(R.string.compass_heading_up)
     GildamTooltip(label) {
         Surface(
             shape = CircleShape,
@@ -177,6 +182,7 @@ fun CompassToggle(northUp: Boolean, mapBearingDeg: Float, onClick: () -> Unit) {
 @Composable
 fun RecordingStatusDot(status: RecordingStatus, modifier: Modifier = Modifier) {
     val cs = MaterialTheme.colorScheme
+    val statusCd = "${status.title}. ${status.detail}"
     val previewOpen = kr.co.nuni.gildam.ui.illustration.LocalTooltipPreviewLabel.current == status.title
     val tip = rememberTooltipState(initialIsVisible = previewOpen, isPersistent = true)
     val scope = rememberCoroutineScope()
@@ -197,7 +203,7 @@ fun RecordingStatusDot(status: RecordingStatus, modifier: Modifier = Modifier) {
                 .size(40.dp)
                 .clip(CircleShape)
                 .clickable(role = Role.Button) { scope.launch { tip.show() } }
-                .semantics { contentDescription = "${status.title}. ${status.detail}" },
+                .semantics { contentDescription = statusCd },
             contentAlignment = Alignment.Center
         ) {
             Box(
@@ -237,6 +243,7 @@ fun IssueDotWithText(issues: List<RecordingIssue>, onClick: () -> Unit, modifier
     val cs = MaterialTheme.colorScheme
     val color = issues.dotColor()
     val summary = issues.shortSummary() ?: return
+    val badgeCd = stringResource(R.string.health_badge_cd, summary)
     Surface(
         shape = RoundedCornerShape(50),
         color = cs.surface.copy(alpha = 0.95f),
@@ -245,7 +252,7 @@ fun IssueDotWithText(issues: List<RecordingIssue>, onClick: () -> Unit, modifier
             .padding(end = 6.dp)
             .clip(RoundedCornerShape(50))
             .clickable(role = Role.Button, onClick = onClick)
-            .semantics { contentDescription = "기록 점검 필요: $summary. 눌러서 자세히 보기" }
+            .semantics { contentDescription = badgeCd }
     ) {
         Row(Modifier.padding(start = 7.dp, end = 10.dp, top = 6.dp, bottom = 6.dp), verticalAlignment = Alignment.CenterVertically) {
             Box(Modifier.size(14.dp).background(color, CircleShape))
@@ -267,10 +274,10 @@ fun IssueDotWithText(issues: List<RecordingIssue>, onClick: () -> Unit, modifier
 fun RecordingIssuesDetail(issues: List<RecordingIssue>, onOpenSettings: (RecordingIssue) -> Unit, modifier: Modifier = Modifier) {
     val cs = MaterialTheme.colorScheme
     Column(modifier.padding(horizontal = 20.dp, vertical = 8.dp)) {
-        Text("기록 점검", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+        Text(stringResource(R.string.health_sheet_title), style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
         Spacer(Modifier.size(4.dp))
         Text(
-            "아래 항목을 고치면 기록이 끊기지 않아요. 기록은 지금도 계속돼요.",
+            stringResource(R.string.health_sheet_desc),
             style = MaterialTheme.typography.bodySmall, color = cs.onSurfaceVariant
         )
         Spacer(Modifier.size(12.dp))
@@ -288,7 +295,7 @@ fun RecordingIssuesDetail(issues: List<RecordingIssue>, onOpenSettings: (Recordi
                             androidx.compose.material3.FilledTonalButton(
                                 onClick = { onOpenSettings(issue) },
                                 contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 14.dp, vertical = 4.dp)
-                            ) { Text("설정으로 가기", style = MaterialTheme.typography.labelMedium) }
+                            ) { Text(stringResource(R.string.health_go_settings), style = MaterialTheme.typography.labelMedium) }
                         }
                     }
                 }

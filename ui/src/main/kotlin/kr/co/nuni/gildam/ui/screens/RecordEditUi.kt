@@ -1,5 +1,8 @@
 package kr.co.nuni.gildam.ui.screens
 
+import kr.co.nuni.gildam.ui.l10n.*
+import androidx.compose.ui.res.stringResource
+import kr.co.nuni.gildam.ui.R
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -53,12 +56,14 @@ import kr.co.nuni.gildam.ui.illustration.IconButtonStyle
 import kr.co.nuni.gildam.ui.illustration.TooltipIconButton
 
 /** 화면에 보이는 클라우드 상태 */
-enum class CloudStatus(val label: String) {
-    NOT_UPLOADED("미업로드"),
-    UPLOADING("올리는 중"),
-    DONE("올리기 완료"),
-    FAILED("올리기 실패"),
-    DELETING("삭제 반영 중");
+enum class CloudStatus(val labelRes: Int) {
+    NOT_UPLOADED(R.string.upload_not_uploaded),
+    UPLOADING(R.string.upload_uploading),
+    DONE(R.string.upload_done),
+    FAILED(R.string.upload_failed),
+    DELETING(R.string.upload_deleting);
+    val label: String @Composable get() = stringResource(labelRes)
+
 
     companion object {
         fun of(s: SyncState): CloudStatus = when (s) {
@@ -106,12 +111,12 @@ fun RecordActionButtons(
             val failed = activity.syncState == SyncState.SYNC_ERROR
             TooltipIconButton(
                 icon = Icons.Outlined.CloudUpload,
-                label = if (failed) "클라우드에 다시 올리기" else "클라우드에 올리기",
+                label = if (failed) stringResource(R.string.upload_retry) else stringResource(R.string.upload_now),
                 onClick = onUpload, style = IconButtonStyle.BRAND, visualSize = vs, iconSize = ic
             )
         }
-        TooltipIconButton(icon = Icons.Outlined.Edit, label = "제목·활동 구분 수정", onClick = onEdit, style = IconButtonStyle.TONAL, visualSize = vs, iconSize = ic)
-        TooltipIconButton(icon = Icons.Outlined.Delete, label = "기록 삭제", onClick = onDelete, style = IconButtonStyle.OUTLINED, visualSize = vs, iconSize = ic)
+        TooltipIconButton(icon = Icons.Outlined.Edit, label = stringResource(R.string.edit_title_activity), onClick = onEdit, style = IconButtonStyle.TONAL, visualSize = vs, iconSize = ic)
+        TooltipIconButton(icon = Icons.Outlined.Delete, label = stringResource(R.string.record_delete), onClick = onDelete, style = IconButtonStyle.OUTLINED, visualSize = vs, iconSize = ic)
     }
 }
 
@@ -128,24 +133,24 @@ fun RecordEditForm(
     var type by remember(initialType) { mutableStateOf(initialType) }
     val valid = RecordEditPolicy.cleanTitle(title) != null
     Column(Modifier.fillMaxWidth().padding(horizontal = 20.dp).padding(bottom = 24.dp)) {
-        Text("기록 수정", style = MaterialTheme.typography.titleLarge)
+        Text(stringResource(R.string.edit_record_title), style = MaterialTheme.typography.titleLarge)
         Spacer(Modifier.height(14.dp))
         OutlinedTextField(
             value = title,
             onValueChange = { if (it.length <= RecordEditPolicy.MAX_TITLE) title = it },
-            label = { Text("제목") },
+            label = { Text(stringResource(R.string.edit_title_label)) },
             singleLine = true,
             isError = !valid,
-            supportingText = { if (!valid) Text("제목을 입력해 주세요") },
+            supportingText = { if (!valid) Text(stringResource(R.string.edit_title_required)) },
             shape = RoundedCornerShape(14.dp),
             modifier = Modifier.fillMaxWidth()
         )
         Spacer(Modifier.height(6.dp))
-        Text("활동 구분", style = MaterialTheme.typography.labelLarge)
+        Text(stringResource(R.string.edit_activity_label), style = MaterialTheme.typography.labelLarge)
         Spacer(Modifier.height(6.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.horizontalScroll(rememberScrollState())) {
             TransportType.entries.forEach { t ->
-                FilterChip(selected = type == t, onClick = { type = t }, label = { Text(t.labelKo) })
+                FilterChip(selected = type == t, onClick = { type = t }, label = { Text(t.label) })
             }
         }
         Spacer(Modifier.height(10.dp))
@@ -153,15 +158,15 @@ fun RecordEditForm(
             Icon(if (willSyncToServer) Icons.Outlined.CloudSync else Icons.Outlined.Lock, null, Modifier.size(16.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
             Spacer(Modifier.width(6.dp))
             Text(
-                if (willSyncToServer) "저장하면 클라우드 기록에도 반영돼요" else "이 기기에만 저장돼요 · 기록은 비공개",
+                if (willSyncToServer) stringResource(R.string.edit_sync_note) else stringResource(R.string.edit_local_note),
                 style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
         Spacer(Modifier.height(16.dp))
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-            TextButton(onClick = onCancel) { Text("취소") }
+            TextButton(onClick = onCancel) { Text(stringResource(R.string.action_cancel)) }
             Spacer(Modifier.width(8.dp))
-            Button(onClick = { onSave(title, type) }, enabled = valid) { Text("저장") }
+            Button(onClick = { onSave(title, type) }, enabled = valid) { Text(stringResource(R.string.action_save)) }
         }
     }
 }
@@ -186,20 +191,20 @@ fun DeleteRecordContent(activity: ActivityEntity, onConfirm: () -> Unit, onCance
         Column(Modifier.padding(24.dp)) {
             Icon(Icons.Outlined.Delete, null, tint = MaterialTheme.colorScheme.error, modifier = Modifier.align(Alignment.CenterHorizontally))
             Spacer(Modifier.height(12.dp))
-            Text("이 기록을 삭제할까요?", style = MaterialTheme.typography.titleLarge, modifier = Modifier.align(Alignment.CenterHorizontally))
+            Text(stringResource(R.string.delete_confirm_title), style = MaterialTheme.typography.titleLarge, modifier = Modifier.align(Alignment.CenterHorizontally))
             Spacer(Modifier.height(10.dp))
             Text("‘${activity.title}’", style = MaterialTheme.typography.bodyLarge)
             Spacer(Modifier.height(6.dp))
             Text(
-                if (onServer) "기기와 클라우드에서 모두 지워져요. 되돌릴 수 없어요." else "이 기기에서 지워져요. 되돌릴 수 없어요.",
+                if (onServer) stringResource(R.string.delete_confirm_server) else stringResource(R.string.delete_confirm_local),
                 style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant
             )
-            Text("갤러리의 사진은 지우지 않아요.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(stringResource(R.string.delete_keeps_gallery), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
             Spacer(Modifier.height(18.dp))
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                TextButton(onClick = onCancel) { Text("취소") }
+                TextButton(onClick = onCancel) { Text(stringResource(R.string.action_cancel)) }
                 Spacer(Modifier.width(8.dp))
-                Button(onClick = onConfirm, colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error, contentColor = MaterialTheme.colorScheme.onError)) { Text("삭제") }
+                Button(onClick = onConfirm, colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error, contentColor = MaterialTheme.colorScheme.onError)) { Text(stringResource(R.string.action_delete)) }
             }
         }
     }

@@ -1,5 +1,7 @@
 package kr.co.nuni.gildam.ui.theme
 
+import androidx.compose.ui.res.stringResource
+import kr.co.nuni.gildam.ui.R
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
@@ -40,11 +42,13 @@ private val DarkNightOledScheme = darkColorScheme(
 )
 
 /** 사용자가 고르는 테마 색. 기본은 A 햇살 산책. CLASSIC 은 이전 숲길 색(설정 목록에는 안 보임). */
-enum class GildamPalette(val labelKo: String, val moodKo: String) {
-    CLASSIC("숲길", "차분한 숲색"),
-    SUNNY("햇살 산책", "따뜻하고 경쾌한 주말 산책"),
-    MINT("민트 소풍", "시원하고 상쾌한 물가 소풍"),
-    SUNSET("노을 러닝", "에너지 넘치는 저녁 러닝");
+enum class GildamPalette(val labelKoRes: Int, val moodKoRes: Int) {
+    CLASSIC(R.string.palette_classic, R.string.palette_classic_mood),
+    SUNNY(R.string.palette_sunny, R.string.palette_sunny_mood),
+    MINT(R.string.palette_mint, R.string.palette_mint_mood),
+    SUNSET(R.string.palette_sunset, R.string.palette_sunset_mood);
+    val label: String @Composable get() = stringResource(labelKoRes)
+    val mood: String @Composable get() = stringResource(moodKoRes)
     companion object {
         val DEFAULT = SUNNY
         val selectable = listOf(SUNNY, MINT, SUNSET)
@@ -52,7 +56,9 @@ enum class GildamPalette(val labelKo: String, val moodKo: String) {
 }
 
 /** 밝기 모드 */
-enum class DarkModePref(val labelKo: String) { SYSTEM("시스템"), LIGHT("밝게"), DARK("어둡게") }
+enum class DarkModePref(val labelKoRes: Int) { SYSTEM(R.string.dark_mode_system), LIGHT(R.string.dark_mode_light), DARK(R.string.dark_mode_dark);
+    val label: String @Composable get() = stringResource(labelKoRes)
+}
 
 private val SunnyLight = lightColorScheme(
     primary = Color(0xFFF2552C), onPrimary = Color.White,

@@ -1,5 +1,8 @@
 package kr.co.nuni.gildam.ui.screens
 
+import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.res.stringResource
+import kr.co.nuni.gildam.ui.R
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
@@ -99,7 +102,7 @@ internal fun RecordMapFullscreen(
                         )
                         if (pins.isNotEmpty()) {
                             Text(
-                                "사진 ${pins.size}장 표시 · 핀을 누르면 크게 볼 수 있어요",
+                                pluralStringResource(R.plurals.fullmap_photo_pins, pins.size, pins.size),
                                 style = MaterialTheme.typography.labelSmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 maxLines = 1
@@ -107,7 +110,7 @@ internal fun RecordMapFullscreen(
                         }
                     }
                     TooltipIconButton(
-                        Icons.Outlined.Close, "지도 닫기", onClose,
+                        Icons.Outlined.Close, stringResource(R.string.map_close), onClose,
                         style = IconButtonStyle.PLAIN, visualSize = 36.dp, iconSize = 20.dp
                     )
                 }
@@ -118,7 +121,7 @@ internal fun RecordMapFullscreen(
                     modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 26.dp)
                 ) {
                     Text(
-                        "두 손가락으로 돌리고, 벌려서 확대해 보세요",
+                        stringResource(R.string.map_gesture_hint),
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)

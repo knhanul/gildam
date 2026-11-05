@@ -45,13 +45,13 @@ object NuniOidc {
     /** 콜백 쿼리 검증: state 일치, iss(RFC 9207) 일치, error 처리. */
     fun validateCallback(query: (String) -> String?, expectedState: String?): CallbackResult {
         val state = query("state")
-        if (expectedState == null || state != expectedState) return CallbackResult.Error("state_mismatch", "로그인 요청 정보가 맞지 않아요. 다시 시도해 주세요.")
+        if (expectedState == null || state != expectedState) return CallbackResult.Error("state_mismatch", "state mismatch")
         val iss = query("iss")
-        if (iss != null && iss != NuniAuthConfig.ISSUER) return CallbackResult.Error("iss_mismatch", "알 수 없는 로그인 서버 응답이에요.")
+        if (iss != null && iss != NuniAuthConfig.ISSUER) return CallbackResult.Error("iss_mismatch", "unexpected issuer")
         query("error")?.let { return CallbackResult.Error(it, query("error_description")) }
-        if (iss == null) return CallbackResult.Error("iss_missing", "로그인 서버 응답에 발급자 정보가 없어요.")
+        if (iss == null) return CallbackResult.Error("iss_missing", "missing issuer")
         val code = query("code")
-        if (code.isNullOrBlank()) return CallbackResult.Error("missing_code", "인가 코드가 없어요.")
+        if (code.isNullOrBlank()) return CallbackResult.Error("missing_code", "missing authorization code")
         return CallbackResult.Code(code)
     }
 
@@ -69,7 +69,7 @@ object NuniOidc {
 
     fun decodeJwtPayload(jwt: String): JsonObject {
         val parts = jwt.split(".")
-        require(parts.size == 3) { "JWT 형식이 아니에요" }
+        require(parts.size == 3) { "not a JWT" }
         return json.parseToJsonElement(String(Base64.getUrlDecoder().decode(parts[1]), Charsets.UTF_8)).jsonObject
     }
 
@@ -82,19 +82,19 @@ object NuniOidc {
     fun validateIdToken(idToken: String, clientId: String, expectedNonce: String?, nowEpochSec: Long, skewSec: Long = 120): IdTokenClaims {
         val c = decodeJwtPayload(idToken)
         fun str(k: String) = (c[k] as? JsonPrimitive)?.contentOrNull
-        require(str("iss") == NuniAuthConfig.ISSUER) { "id_token iss 불일치" }
+        require(str("iss") == NuniAuthConfig.ISSUER) { "id_token iss mismatch" }
         val aud = when (val a = c["aud"]) {
             is JsonPrimitive -> listOfNotNull(a.contentOrNull)
             is JsonArray -> a.mapNotNull { (it as? JsonPrimitive)?.contentOrNull }
             else -> emptyList()
         }
-        require(clientId in aud) { "id_token aud 불일치" }
-        if (aud.size > 1) require(str("azp") == clientId) { "id_token azp 불일치" }
-        if (expectedNonce != null) require(str("nonce") == expectedNonce) { "id_token nonce 불일치" }
-        val exp = (c["exp"] as? JsonPrimitive)?.longOrNull ?: error("id_token exp 없음")
-        require(exp + skewSec > nowEpochSec) { "id_token 만료" }
+        require(clientId in aud) { "id_token aud mismatch" }
+        if (aud.size > 1) require(str("azp") == clientId) { "id_token azp mismatch" }
+        if (expectedNonce != null) require(str("nonce") == expectedNonce) { "id_token nonce mismatch" }
+        val exp = (c["exp"] as? JsonPrimitive)?.longOrNull ?: error("id_token exp missing")
+        require(exp + skewSec > nowEpochSec) { "id_token expired" }
         val sub = str("sub")
-        require(!sub.isNullOrBlank()) { "id_token sub 없음" }
+        require(!sub.isNullOrBlank()) { "id_token sub missing" }
         return IdTokenClaims(sub = sub, brandId = str("brand_id"))
     }
 }

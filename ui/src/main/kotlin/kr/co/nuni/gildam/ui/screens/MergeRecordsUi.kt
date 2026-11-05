@@ -1,5 +1,7 @@
 package kr.co.nuni.gildam.ui.screens
 
+import androidx.compose.ui.res.stringResource
+import kr.co.nuni.gildam.ui.R
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -58,7 +60,7 @@ fun MergeRecordsContent(
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(Icons.AutoMirrored.Outlined.CallMerge, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(22.dp))
                 Spacer(Modifier.width(8.dp))
-                Text("${sorted.size}개 기록을 하나로 합칠까요?", style = MaterialTheme.typography.titleLarge)
+                Text(stringResource(R.string.merge_dialog_title, sorted.size), style = MaterialTheme.typography.titleLarge)
             }
             Spacer(Modifier.height(12.dp))
             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -75,7 +77,7 @@ fun MergeRecordsContent(
             Spacer(Modifier.height(12.dp))
             Surface(shape = RoundedCornerShape(14.dp), color = MaterialTheme.colorScheme.surfaceVariant, modifier = Modifier.fillMaxWidth()) {
                 Row(modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 10.dp), horizontalArrangement = Arrangement.SpaceBetween) {
-                    Text("합계", style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold)
+                    Text(stringResource(R.string.merge_total), style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold)
                     Text(
                         "%.2f km · %s".format(totalDistanceM / 1000.0, formatDurationHms(totalDurationMs)),
                         style = MaterialTheme.typography.labelLarge,
@@ -87,29 +89,29 @@ fun MergeRecordsContent(
             OutlinedTextField(
                 value = title,
                 onValueChange = { if (it.length <= RecordEditPolicy.MAX_TITLE) title = it },
-                label = { Text("합친 기록 제목") },
+                label = { Text(stringResource(R.string.merge_title_label)) },
                 singleLine = true,
                 shape = RoundedCornerShape(14.dp),
                 modifier = Modifier.fillMaxWidth()
             )
             Spacer(Modifier.height(10.dp))
             Text(
-                if (anyOnServer) "합친 기록은 새 기록으로 만들어져요. 원본은 기기와 클라우드에서 지워지고, 사진 파일은 그대로 남아요."
-                else "합친 기록은 이 기기에 새로 만들어져요. 원본 기록은 지워지고, 사진 파일은 그대로 남아요.",
+                if (anyOnServer) stringResource(R.string.merge_desc_server)
+                else stringResource(R.string.merge_desc_local),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
             Spacer(Modifier.height(18.dp))
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                TextButton(onClick = onCancel, enabled = !merging) { Text("취소") }
+                TextButton(onClick = onCancel, enabled = !merging) { Text(stringResource(R.string.action_cancel)) }
                 Spacer(Modifier.width(8.dp))
                 Button(onClick = { onConfirm(title) }, enabled = valid && !merging) {
                     if (merging) {
                         CircularProgressIndicator(Modifier.size(16.dp), strokeWidth = 2.dp)
                         Spacer(Modifier.width(8.dp))
-                        Text("합치는 중")
+                        Text(stringResource(R.string.merge_in_progress))
                     } else {
-                        Text("하나로 합치기")
+                        Text(stringResource(R.string.merge_confirm))
                     }
                 }
             }

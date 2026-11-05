@@ -1,5 +1,7 @@
 package kr.co.nuni.gildam.ui.screens
 
+import androidx.compose.ui.res.stringResource
+import kr.co.nuni.gildam.ui.R
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -82,7 +84,7 @@ fun SafeShareExportScreen(
             }.isSuccess
             Toast.makeText(
                 context,
-                if (saved) "GPX 파일을 저장했어요" else "GPX 저장에 실패했어요",
+                context.getString(if (saved) R.string.gpx_saved else R.string.gpx_save_failed),
                 Toast.LENGTH_SHORT
             ).show()
         }
@@ -95,10 +97,10 @@ fun SafeShareExportScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("안전 공유 & GPX 내보내기") },
+                title = { Text(stringResource(R.string.share_title)) },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
-                        Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = "뒤로")
+                        Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = stringResource(R.string.action_back))
                     }
                 }
             )
@@ -118,13 +120,13 @@ fun SafeShareExportScreen(
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
                     Text(
-                        text = "🔒 화이트리스트 기반 GPX 내보내기",
+                        text = stringResource(R.string.share_whitelist_title),
                         style = MaterialTheme.typography.titleMedium,
                         color = MaterialTheme.colorScheme.onPrimaryContainer
                     )
                     Spacer(modifier = Modifier.height(4.dp))
                     Text(
-                        text = "메모를 지워도 반복되는 출발·도착 좌표만으로 집 위치가 노출될 수 있습니다. 출발·도착 반경 마스킹과 포함할 항목을 직접 선택한 뒤 새로 만든 GPX만 내보냅니다. (사진 파일은 절대 포함되지 않습니다)",
+                        text = stringResource(R.string.share_whitelist_desc),
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onPrimaryContainer
                     )
@@ -141,7 +143,7 @@ fun SafeShareExportScreen(
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
                     Text(
-                        text = "출발·도착지(집 근처) 마스킹 반경: ${maskRadiusMeters.toInt()} m",
+                        text = stringResource(R.string.share_mask_radius, maskRadiusMeters.toInt()),
                         style = MaterialTheme.typography.titleMedium
                     )
                     Slider(
@@ -151,14 +153,14 @@ fun SafeShareExportScreen(
                         steps = 9
                     )
                     Text(
-                        text = "전체 ${preview.totalPointsCount}개 포인트 중 출발 ${preview.maskedStartCount}개 · 도착 ${preview.maskedEndCount}개 제외 → ${preview.visiblePoints.size}개 공개",
+                        text = stringResource(R.string.share_mask_preview, preview.totalPointsCount, preview.maskedStartCount, preview.maskedEndCount, preview.visiblePoints.size),
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     if (preview.isOverMaskedWarning) {
                         Spacer(modifier = Modifier.height(6.dp))
                         Text(
-                            text = "⚠️ 마스킹 구간이 전체 경로의 80% 이상을 가립니다. 반경을 조금 줄여주세요.",
+                            text = stringResource(R.string.share_mask_warning),
                             style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.error
                         )
@@ -178,25 +180,25 @@ fun SafeShareExportScreen(
                     modifier = Modifier.padding(16.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    Text("포함할 선택 항목 (기본 전부 제외)", style = MaterialTheme.typography.titleMedium)
+                    Text(stringResource(R.string.share_optional_items), style = MaterialTheme.typography.titleMedium)
 
                     ToggleOptionRow(
-                        title = "길 위의 메모 (<wpt><desc>) 포함",
-                        subtitle = "체크 해제 시 궤적(<trkpt>)만 내보냅니다",
+                        title = stringResource(R.string.share_include_notes),
+                        subtitle = stringResource(R.string.share_include_notes_desc),
                         checked = includeWaypointsAndMemos,
                         onCheckedChange = { includeWaypointsAndMemos = it }
                     )
 
                     ToggleOptionRow(
-                        title = "사진 캡션 (<wpt><name>) 포함",
-                        subtitle = "사진 파일 자체는 어떤 경우에도 미포함됩니다",
+                        title = stringResource(R.string.share_include_captions),
+                        subtitle = stringResource(R.string.share_include_captions_desc),
                         checked = includeCaptions,
                         onCheckedChange = { includeCaptions = it }
                     )
 
                     ToggleOptionRow(
-                        title = "포인트별 촬영·기록 시각 (<time>) 포함",
-                        subtitle = "생활 시간대 루틴 노출을 막으려면 끄기를 권장합니다",
+                        title = stringResource(R.string.share_include_times),
+                        subtitle = stringResource(R.string.share_include_times_desc),
                         checked = includeTimestamps,
                         onCheckedChange = { includeTimestamps = it }
                     )
@@ -222,7 +224,7 @@ fun SafeShareExportScreen(
                             pendingExport = payload
                             saveLauncher.launch(payload.suggestedFileName)
                         } else {
-                            Toast.makeText(context, "내보낼 기록을 찾지 못했어요", Toast.LENGTH_SHORT).show()
+                            Toast.makeText(context, context.getString(R.string.share_record_not_found), Toast.LENGTH_SHORT).show()
                         }
                     }
                 },
@@ -232,7 +234,7 @@ fun SafeShareExportScreen(
                     .height(54.dp),
                 shape = RoundedCornerShape(16.dp)
             ) {
-                Text(if (exporting) "GPX 만드는 중…" else "GPX 파일로 저장")
+                Text(if (exporting) stringResource(R.string.gpx_exporting) else stringResource(R.string.gpx_export_save))
             }
         }
     }

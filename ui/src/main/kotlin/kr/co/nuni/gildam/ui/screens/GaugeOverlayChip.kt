@@ -1,5 +1,8 @@
 package kr.co.nuni.gildam.ui.screens
 
+import kr.co.nuni.gildam.ui.l10n.*
+import androidx.compose.ui.res.stringResource
+import kr.co.nuni.gildam.ui.R
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
@@ -56,7 +59,8 @@ val GaugeMetric.icon: ImageVector
     }
 
 /** 말풍선에 쓰는 계기판 이름 (테스트에서 라벨로 찾음) */
-fun GaugeMetric.tooltipLabel(): String = "지도 위 계기판 · ${labelKo}"
+@androidx.compose.runtime.Composable
+fun GaugeMetric.tooltipLabel(): String = stringResource(R.string.gauge_tooltip, label)
 
 /**
  * 지도 위(지도 하단)에 겹쳐 보이는 계기판 숫자.
@@ -72,8 +76,8 @@ fun GaugeOverlayChip(
 ) {
     val label = metric.tooltipLabel()
     val value = gaugeValue(metric, live, clockTick.value)
-    val spoken = "${metric.labelKo} $value${metric.unit?.let { " $it" } ?: ""}"
-    GildamTooltip(label, detail = metric.descKo) {
+    val spoken = "${metric.label} $value${metric.unit?.let { " $it" } ?: ""}"
+    GildamTooltip(label, detail = metric.desc) {
         Row(
             modifier = modifier
                 .semantics { contentDescription = spoken }

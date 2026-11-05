@@ -1,4 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">길담 (길이야기)</string>
+    <string name="login_cancelled">카카오 로그인이 취소됐어요.</string>
+    <string name="login_failed">로그인에 실패했어요.</string>
 </resources>

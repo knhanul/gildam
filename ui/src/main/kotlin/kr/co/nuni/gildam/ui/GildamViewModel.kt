@@ -1,5 +1,6 @@
 package kr.co.nuni.gildam.ui
 
+import kr.co.nuni.gildam.ui.l10n.*
 import android.content.Context
 import android.net.Uri
 import androidx.lifecycle.ViewModel
@@ -187,7 +188,7 @@ class GildamViewModel @Inject constructor(
                 val filled = try {
                     repository.resolveMissingRegions(limit = 8)
                 } catch (t: Throwable) {
-                    android.util.Log.w("GildamViewModel", "지역 이름 채우기 실패", t)
+                    android.util.Log.w("GildamViewModel", "region fill failed", t)
                     0
                 }
                 if (filled < 8) break
@@ -240,8 +241,8 @@ class GildamViewModel @Inject constructor(
         // 방금 고른 활동(코스 따라 걷기 시트 등)이 있으면 그것으로, 없으면 화면에 보이는 이동 수단으로
         val transport = pendingTransportForNew ?: selectedTransportForNewRecording.value
         pendingTransportForNew = null
-        val nowStr = LocalDateTime.now().format(DateTimeFormatter.ofPattern("M월 d일 HH:mm"))
-        val defaultTitle = "$nowStr ${transport.labelKo} 길이야기"
+        val nowStr = LocalDateTime.now().format(shortDateTimeFormatter(appContext.currentLocale()))
+        val defaultTitle = appContext.getString(R.string.default_record_title, nowStr, appContext.getString(transport.labelRes()))
         recordingController.startRecordingService(transport, defaultTitle)
     }
 

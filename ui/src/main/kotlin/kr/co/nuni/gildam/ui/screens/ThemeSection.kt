@@ -1,5 +1,8 @@
 package kr.co.nuni.gildam.ui.screens
 
+import kr.co.nuni.gildam.ui.l10n.*
+import androidx.compose.ui.res.stringResource
+import kr.co.nuni.gildam.ui.R
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -56,7 +59,7 @@ internal fun ThemePickerSheetContent(
             }
         }
         Text(
-            palette.moodKo,
+            palette.mood,
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
@@ -83,7 +86,7 @@ internal fun DarkModeSheetContent(
                 androidx.compose.material3.RadioButton(selected = selected, onClick = null)
                 Spacer(Modifier.width(4.dp))
                 Text(
-                    mode.labelKo,
+                    mode.label,
                     style = MaterialTheme.typography.bodyMedium,
                     fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal
                 )
@@ -115,14 +118,14 @@ private fun PaletteCard(p: GildamPalette, letter: String, selected: Boolean, onC
             if (selected) Box(
                 Modifier.align(Alignment.TopStart).padding(4.dp).size(18.dp).clip(CircleShape).background(cs.primary),
                 contentAlignment = Alignment.Center
-            ) { Icon(Icons.Filled.Check, contentDescription = "선택됨", tint = cs.onPrimary, modifier = Modifier.size(12.dp)) }
+            ) { Icon(Icons.Filled.Check, contentDescription = stringResource(R.string.state_selected), tint = cs.onPrimary, modifier = Modifier.size(12.dp)) }
         }
         Column(Modifier.padding(horizontal = 8.dp, vertical = 5.dp)) {
             Row(horizontalArrangement = Arrangement.spacedBy(3.dp)) {
                 listOf(cs.primary, cs.secondary, cs.tertiary).forEach { Box(Modifier.size(10.dp).clip(CircleShape).background(it)) }
             }
             Spacer(Modifier.height(3.dp))
-            Text("$letter · ${p.labelKo}", style = MaterialTheme.typography.labelMedium, fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
+            Text("$letter · ${p.label}", style = MaterialTheme.typography.labelMedium, fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
                 color = cs.onSurface, maxLines = 1)
         }
     }
