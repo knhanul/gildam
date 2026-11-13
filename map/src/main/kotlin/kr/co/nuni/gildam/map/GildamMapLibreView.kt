@@ -229,6 +229,9 @@ fun GildamMapLibreView(
                         val d = view.resources.displayMetrics.density
                         val side = (12 * d).toInt(); val top = (76 * d).toInt()
                         ui.setCompassMargins(side, top, side, side)
+                    } else {
+                        // 기록·상세 화면은 앱 자체 나침반 버튼을 쓰므로 지도 기본 나침반은 끈다 (두 개 겹침 방지)
+                        map.uiSettings.isCompassEnabled = false
                     }
 
                     if (!camState.listener) {
