@@ -184,8 +184,8 @@ fun LiveRecordingScreen(
             onUserGesture = { cameraPaused = true },
             recenterKey = recenterKey,
             routeOpacity = if (liveState.isRecording) 1.0f else 0.6f,
-            // 기록 중에만 진행 방향 화살표, 끝난 뒤에는 출발·도착 점만
-            showDirectionArrow = liveState.isRecording && !liveState.isPaused,
+            // 기록·일시정지 중에는 현재 위치를 진행 방향 화살표로. 끝난 뒤에는 출발·도착 점만
+            showDirectionArrow = liveState.isRecording,
             offCourse = follow?.isOffCourse == true,
             followingCourse = followingCourse,
             onMapBearingChanged = { mapBearing = it }

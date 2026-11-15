@@ -42,13 +42,12 @@ import org.maplibre.android.style.expressions.Expression
 import org.maplibre.android.style.layers.SymbolLayer
 import android.content.Context
 import org.maplibre.android.style.layers.CircleLayer
-import org.maplibre.android.style.layers.FillLayer
 import org.maplibre.android.style.layers.LineLayer
 import org.maplibre.android.style.layers.Property
 import org.maplibre.android.style.layers.PropertyFactory
 import org.maplibre.android.style.sources.GeoJsonSource
 
-/** 지도 점: 출발(초록 원) · 현재(점 + 진행 방향 화살표) · 코스 진행 점 */
+/** 지도 점: 출발(초록 S) · 현재(진행 방향 화살표, 끝난 뒤에는 도착 점) · 코스 진행 점 */
 private data class MapMarkers(
     val start: LatLonPoint?,
     val current: LatLonPoint?,
@@ -113,7 +112,7 @@ fun GildamMapLibreView(
     routeOpacity: Float = 1.0f,
     /** 전체 화면 지도: 회전·기울이기 제스처와 나침반을 켬 (북쪽 고정을 강제하지 않음) */
     fullscreenGestures: Boolean = false,
-    /** 기록 중이면 현재 위치에 진행 방향 화살표를 그림. 끝난 뒤에는 출발·도착 점만 */
+    /** 기록·따라가기 중이면 현재 위치를 진행 방향 화살표로 그림. 끝난 뒤에는 출발·도착 점만 */
     showDirectionArrow: Boolean = false,
     /** 코스를 벗어난 상태면 현재 위치 점을 경고색으로 */
     offCourse: Boolean = false,
@@ -136,14 +135,22 @@ fun GildamMapLibreView(
     val themeBg = MaterialTheme.colorScheme.surfaceVariant
     if (isPreview) {
         androidx.compose.runtime.CompositionLocalProvider(LocalMapPreviewColors provides Triple(themeBg, themeRoute, themeCourse)) {
-        // 미리보기: 전체 경로 보기면 실제 지도처럼 경로를 세로로 돌려 그림
-        val previewBearing = if (cameraMode == MapCameraMode.OVERVIEW)
-            OverviewBearingPlanner.orient(
+        // 미리보기: 전체 경로 보기는 경로를 세로로, 주행 방향 위는 진행 방향이 위가 되게 돌림
+        val heading = MapCameraPlanner.resolveBearing(bearingDeg, trackPoints, currentLocation)
+        val previewBearing = when (cameraMode) {
+            MapCameraMode.OVERVIEW -> OverviewBearingPlanner.orient(
                 OverviewBearingPlanner.bestBearing(trackPoints + listOfNotNull(currentLocation) + coursePoints),
                 trackPoints.ifEmpty { coursePoints }
-            ) else 0.0
+            )
+            MapCameraMode.HEADING -> heading
+            else -> 0.0
+        }
         androidx.compose.runtime.SideEffect { onMapBearingChanged(previewBearing.toFloat()) }
-        val rot = previewRotator(trackPoints + listOfNotNull(currentLocation) + coursePoints, previewBearing)
+        val rot = previewRotator(
+            trackPoints + listOfNotNull(currentLocation) + coursePoints,
+            previewBearing,
+            pivot = if (cameraMode == MapCameraMode.HEADING) currentLocation ?: trackPoints.lastOrNull() else null
+        )
         PreviewFallbackMapCanvas(
             trackPoints = trackPoints.map(rot),
             coursePoints = coursePoints.map(rot),
@@ -152,8 +159,9 @@ fun GildamMapLibreView(
             overlayTopPx = overlayTopPx, overlayBottomPx = overlayBottomPx,
             isDarkTheme = isDarkTheme,
             showDirectionArrow = showDirectionArrow,
+            arrowBearingDeg = LocationArrow.screenRotationDeg(heading, previewBearing),
             offCourse = offCourse,
-            selectedCourse = selectedCourseKm?.let { km -> MapRouteGeometry.pointAtKm(coursePoints, km) },
+            selectedCourse = selectedCourseKm?.let { km -> MapRouteGeometry.pointAtKm(coursePoints, km)?.let(rot) },
             modifier = modifier
         )
         }
@@ -373,7 +381,10 @@ fun GildamMapLibreView(
                         // 끝난 뒤(스냅샷, 반투명 선)에는 화살표 대신 도착 점만
                         showArrow = showDirectionArrow && routeOpacity > 0.9f,
                         bearing = MapCameraPlanner.resolveBearing(bearingDeg, trackPoints, currentLocation),
-                        onCourseProgress = courseSplit?.let { if (it.walked.isNotEmpty()) currentLocation else null },
+                        // 화살표가 현재 위치이므로, 같은 자리의 진행 점은 겹치지 않게 숨김
+                        onCourseProgress = courseSplit?.let {
+                            if (it.walked.isNotEmpty() && !(showDirectionArrow && routeOpacity > 0.9f)) currentLocation else null
+                        },
                         offCourse = offCourse,
                         selectedCourse = selectedCourseKm?.let { km -> MapRouteGeometry.pointAtKm(coursePoints, km) }
                     )
@@ -410,7 +421,8 @@ fun GildamMapLibreView(
                                 style,
                                 startColor = START_COLOR,
                                 routeColor = 0xFF000000.toInt() or (0xFFFFFF and themeRoute.toArgb()),
-                                markers = markers
+                                markers = markers,
+                                density = view.resources.displayMetrics.density
                             )
                             addPhotoPinLayers(
                                 style,
@@ -448,7 +460,12 @@ fun GildamMapLibreView(
                         val key = markersKey(markers)
                         if (markerStyleKey[0] != key) {
                             markerStyleKey[0] = key
-                            updateMarkerSources(existingStyle, markers)
+                            updateMarkerSources(
+                                existingStyle,
+                                markers,
+                                routeColor = 0xFF000000.toInt() or (0xFFFFFF and themeRoute.toArgb()),
+                                density = view.resources.displayMetrics.density
+                            )
                         }
                         // 사진 핀도 사진 목록이 바뀔 때만 다시 만듦 (아이콘 등록 포함)
                         val pKey = photoMarkersKey(photoMarkers)
@@ -508,6 +525,8 @@ private fun PreviewFallbackMapCanvas(
     overlayTopPx: Int = 0,
     overlayBottomPx: Int = 0,
     showDirectionArrow: Boolean = false,
+    /** 미리보기 화면에서 화살표가 가리킬 각도(0=위, 시계방향) */
+    arrowBearingDeg: Double = 0.0,
     offCourse: Boolean = false,
     selectedCourse: LatLonPoint? = null
 ) {
@@ -599,26 +618,16 @@ private fun PreviewFallbackMapCanvas(
             }
             (currentLocation ?: trackPoints.lastOrNull())?.let { c ->
                 if (trackPoints.isNotEmpty() || currentLocation != null) {
-                    val dot = if (offCourse) androidx.compose.ui.graphics.Color(0xFFE06A1B) else routeColor
-                    drawCircle(dot.copy(alpha = 0.25f), 30f, pt(c))
-                    drawCircle(androidx.compose.ui.graphics.Color.White, 15f, pt(c))
-                    drawCircle(dot, 11f, pt(c))
+                    val fill = if (offCourse) androidx.compose.ui.graphics.Color(0xFFE06A1B) else routeColor
                     if (showDirectionArrow) {
-                        // 진행 방향 화살표 머리 (미리보기에서도 방향이 보이게)
-                        val o = pt(c)
-                        val ang = Math.toRadians(
-                            ((MapCameraPlanner.resolveBearing(null, trackPoints, currentLocation) % 360.0 + 360.0) % 360.0)
-                        )
-                        val dir = Offset(kotlin.math.sin(ang).toFloat(), -kotlin.math.cos(ang).toFloat())
-                        val base = o + dir * 26f
-                        val side = Offset(-dir.y, dir.x) * 8f
-                        val head = Path().apply {
-                            moveTo((base + dir * 12f).x, (base + dir * 12f).y)
-                            lineTo((base + side).x, (base + side).y)
-                            lineTo((base - side).x, (base - side).y)
-                            close()
+                        with(LocationArrow) {
+                            draw(center = pt(c), rotationDeg = arrowBearingDeg.toFloat(), fill = fill)
                         }
-                        drawPath(head, dot)
+                    } else {
+                        // 끝난 뒤 도착 점 (출발 S 와 구분되는 경로색 원)
+                        drawCircle(fill.copy(alpha = 0.22f), 30f, pt(c))
+                        drawCircle(androidx.compose.ui.graphics.Color.White, 15f, pt(c))
+                        drawCircle(fill, 11f, pt(c))
                     }
                 }
             }
@@ -732,25 +741,22 @@ private fun buildPointGeoJson(p: LatLonPoint?): String =
     else """{"type":"Feature","geometry":{"type":"Point","coordinates":[${p.longitude},${p.latitude}]}}"""
 
 /**
- * 진행 방향 화살표 머리(삼각형) GeoJSON. 현재 점을 중심으로 [bearingDeg] 쪽을 향합니다.
- * 지도 이미지를 따로 만들지 않고 다각형으로 그려 가볍게 유지합니다.
+ * 현재 위치 화살표 점 GeoJSON. [bearingDeg] 는 아이콘 회전(지도 기준, 0=북)에 쓰입니다.
+ * 화면 크기가 줌에 따라 달라지지 않도록 심볼 아이콘으로 그립니다.
  */
-private fun buildArrowGeoJson(p: LatLonPoint?, bearingDeg: Double): String {
+private fun buildArrowPointGeoJson(p: LatLonPoint?, bearingDeg: Double): String {
     if (p == null) return EMPTY_FEATURE_COLLECTION
-    val theta = Math.toRadians(((bearingDeg % 360.0) + 360.0) % 360.0)
-    val mPerDegLat = 111_320.0
-    val mPerDegLon = 111_320.0 * kotlin.math.cos(Math.toRadians(p.latitude)).coerceAtLeast(1e-6)
-    fun offset(meters: Double, angleRad: Double): Pair<Double, Double> {
-        val a = theta + angleRad
-        return (p.latitude + meters * kotlin.math.cos(a) / mPerDegLat) to
-            (p.longitude + meters * kotlin.math.sin(a) / mPerDegLon)
+    val b = ((bearingDeg % 360.0) + 360.0) % 360.0
+    return """{"type":"Feature","properties":{"bearing":$b},"geometry":{"type":"Point","coordinates":[${p.longitude},${p.latitude}]}}"""
+}
+
+/** 테마·이탈 색이 바뀌면 화살표 비트맵을 스타일에 등록하고, 아이콘 id 를 돌려줍니다. */
+private fun ensureArrowImage(style: Style, density: Float, fillColor: Int): String {
+    val id = LocationArrow.imageId(fillColor)
+    if (style.getImage(id) == null) {
+        style.addImage(id, LocationArrow.createBitmap(density, fillColor))
     }
-    val tip = offset(17.0, 0.0)
-    val left = offset(6.0, Math.toRadians(155.0))
-    val right = offset(6.0, Math.toRadians(-155.0))
-    fun ring(a: Pair<Double, Double>, b: Pair<Double, Double>, c: Pair<Double, Double>) =
-        "[[${a.second},${a.first}],[${b.second},${b.first}],[${c.second},${c.first}],[${a.second},${a.first}]]"
-    return """{"type":"Feature","geometry":{"type":"Polygon","coordinates":${ring(tip, left, right)}}}"""
+    return id
 }
 
 /** 점들을 바뀔 때만 다시 그리기 위한 키 (위치·상태 요약) */
@@ -759,12 +765,13 @@ private fun markersKey(m: MapMarkers): String {
     return "${p(m.start)}|${p(m.current)}|${m.showArrow}|${(m.bearing * 2).toInt()}|${p(m.onCourseProgress)}|${m.offCourse}|${p(m.selectedCourse)}"
 }
 
-/** 출발 점 · 코스 진행 점 · 현재 점 · 방향 화살표 레이어를 스타일 위에 올립니다 (선보다 위) */
+/** 출발 점 · 코스 진행 점 · 현재 위치(화살표 또는 도착 점) 레이어를 스타일 위에 올립니다 (선보다 위) */
 private fun addMarkerLayers(
     style: Style,
     startColor: Int,
     routeColor: Int,
-    markers: MapMarkers
+    markers: MapMarkers,
+    density: Float
 ) {
     val white = Color.WHITE
     // 고도 그래프와 연결된 선택 지점: 흰 바탕 + 굵은 테두리 원
@@ -809,7 +816,17 @@ private fun addMarkerLayers(
     )
 
     val currentColor = if (markers.offCourse) OFF_COURSE_COLOR else routeColor
-    style.addSource(GeoJsonSource(CURRENT_SOURCE_ID, buildPointGeoJson(markers.current)))
+    // 기록 중: 화살표 아래 옅은 위치 원. 끝난 뒤: 도착 점만.
+    style.addSource(GeoJsonSource(ACCURACY_SOURCE_ID, buildPointGeoJson(markers.current.takeIf { markers.showArrow })))
+    style.addLayer(
+        CircleLayer(ACCURACY_LAYER_ID, ACCURACY_SOURCE_ID).withProperties(
+            PropertyFactory.circleColor(currentColor),
+            PropertyFactory.circleOpacity(0.22f),
+            PropertyFactory.circleRadius(18f),
+            PropertyFactory.circleStrokeWidth(0f)
+        )
+    )
+    style.addSource(GeoJsonSource(CURRENT_SOURCE_ID, buildPointGeoJson(markers.current.takeIf { !markers.showArrow })))
     style.addLayer(
         CircleLayer(CURRENT_LAYER_ID, CURRENT_SOURCE_ID).withProperties(
             PropertyFactory.circleColor(currentColor),
@@ -819,22 +836,38 @@ private fun addMarkerLayers(
         )
     )
 
-    style.addSource(GeoJsonSource(ARROW_SOURCE_ID, buildArrowGeoJson(markers.current.takeIf { markers.showArrow }, markers.bearing)))
+    val arrowImage = ensureArrowImage(style, density, currentColor)
+    style.addSource(GeoJsonSource(ARROW_SOURCE_ID, buildArrowPointGeoJson(markers.current.takeIf { markers.showArrow }, markers.bearing)))
     style.addLayer(
-        FillLayer(ARROW_LAYER_ID, ARROW_SOURCE_ID).withProperties(
-            PropertyFactory.fillColor(currentColor),
-            PropertyFactory.fillOpacity(0.95f)
+        SymbolLayer(ARROW_LAYER_ID, ARROW_SOURCE_ID).withProperties(
+            PropertyFactory.iconImage(arrowImage),
+            PropertyFactory.iconSize(1f),
+            PropertyFactory.iconRotate(Expression.get("bearing")),
+            PropertyFactory.iconRotationAlignment(Property.ICON_ROTATION_ALIGNMENT_MAP),
+            PropertyFactory.iconAllowOverlap(true),
+            PropertyFactory.iconIgnorePlacement(true),
+            PropertyFactory.iconAnchor(Property.ICON_ANCHOR_CENTER)
         )
     )
 }
 
 /** 점·화살표 데이터만 갱신 (레이어는 그대로) */
-private fun updateMarkerSources(style: Style, markers: MapMarkers) {
+private fun updateMarkerSources(style: Style, markers: MapMarkers, routeColor: Int, density: Float) {
+    val currentColor = if (markers.offCourse) OFF_COURSE_COLOR else routeColor
     style.getSourceAs<GeoJsonSource>(START_SOURCE_ID)?.setGeoJson(buildPointGeoJson(markers.start))
     style.getSourceAs<GeoJsonSource>(PROGRESS_SOURCE_ID)?.setGeoJson(buildPointGeoJson(markers.onCourseProgress))
-    style.getSourceAs<GeoJsonSource>(CURRENT_SOURCE_ID)?.setGeoJson(buildPointGeoJson(markers.current))
-    style.getSourceAs<GeoJsonSource>(ARROW_SOURCE_ID)?.setGeoJson(buildArrowGeoJson(markers.current.takeIf { markers.showArrow }, markers.bearing))
+    style.getSourceAs<GeoJsonSource>(ACCURACY_SOURCE_ID)?.setGeoJson(buildPointGeoJson(markers.current.takeIf { markers.showArrow }))
+    style.getSourceAs<GeoJsonSource>(CURRENT_SOURCE_ID)?.setGeoJson(buildPointGeoJson(markers.current.takeIf { !markers.showArrow }))
+    style.getSourceAs<GeoJsonSource>(ARROW_SOURCE_ID)?.setGeoJson(buildArrowPointGeoJson(markers.current.takeIf { markers.showArrow }, markers.bearing))
     style.getSourceAs<GeoJsonSource>(SELECTED_SOURCE_ID)?.setGeoJson(buildPointGeoJson(markers.selectedCourse))
+    val arrowImage = ensureArrowImage(style, density, currentColor)
+    style.getLayerAs<SymbolLayer>(ARROW_LAYER_ID)?.setProperties(PropertyFactory.iconImage(arrowImage))
+    style.getLayerAs<CircleLayer>(ACCURACY_LAYER_ID)?.setProperties(
+        PropertyFactory.circleColor(currentColor)
+    )
+    style.getLayerAs<CircleLayer>(CURRENT_LAYER_ID)?.setProperties(
+        PropertyFactory.circleColor(currentColor)
+    )
 }
 
 private fun buildLineStringGeoJson(points: List<LatLonPoint>): String {
@@ -866,6 +899,8 @@ private const val CURRENT_SOURCE_ID = "gildam-current-source"
 private const val CURRENT_LAYER_ID = "gildam-current-layer"
 private const val ARROW_SOURCE_ID = "gildam-arrow-source"
 private const val ARROW_LAYER_ID = "gildam-arrow-layer"
+private const val ACCURACY_SOURCE_ID = "gildam-accuracy-source"
+private const val ACCURACY_LAYER_ID = "gildam-accuracy-layer"
 private const val PHOTO_SOURCE_ID = "gildam-photo-source"
 private const val PHOTO_LAYER_ID = "gildam-photo-layer"
 private const val PROGRESS_SOURCE_ID = "gildam-progress-source"
@@ -907,12 +942,12 @@ private fun applyKoreanLabelsAtRuntime(style: Style) {
     }
 }
 
-/** 미리보기용: 점들을 [bearing] 만큼 돌린 가짜 위경도로 (위쪽 = 그 방위) */
-private fun previewRotator(all: List<LatLonPoint>, bearing: Double): (LatLonPoint) -> LatLonPoint {
+/** 미리보기용: 점들을 [bearing] 만큼 돌린 가짜 위경도로 (위쪽 = 그 방위). [pivot] 이 있으면 그 점을 축으로. */
+private fun previewRotator(all: List<LatLonPoint>, bearing: Double, pivot: LatLonPoint? = null): (LatLonPoint) -> LatLonPoint {
     if (bearing == 0.0 || all.isEmpty()) return { it }
-    val lat0 = all.sumOf { it.latitude } / all.size
-    val lon0 = all.sumOf { it.longitude } / all.size
-    val k = kotlin.math.cos(Math.toRadians(lat0))
+    val lat0 = pivot?.latitude ?: (all.sumOf { it.latitude } / all.size)
+    val lon0 = pivot?.longitude ?: (all.sumOf { it.longitude } / all.size)
+    val k = kotlin.math.cos(Math.toRadians(lat0)).coerceAtLeast(1e-6)
     return { p ->
         val (r, u) = OverviewBearingPlanner.rotate((p.longitude - lon0) * k * 111_320.0, (p.latitude - lat0) * 111_320.0, bearing)
         p.copy(latitude = lat0 + u / 111_320.0, longitude = lon0 + r / (k * 111_320.0))
