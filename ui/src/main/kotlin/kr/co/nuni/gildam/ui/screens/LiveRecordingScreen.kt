@@ -125,7 +125,9 @@ fun LiveRecordingScreen(
     /** 테스트·미리보기에서 현재 시각을 고정할 때 사용. null 이면 1초마다 실제 시각으로 갱신 */
     fixedClockMs: Long? = null,
     /** 기록 점검 결과. null 이면 휴대폰 상태를 직접 점검 (테스트에서는 목록을 넘김) */
-    healthIssues: List<RecordingIssue>? = null
+    healthIssues: List<RecordingIssue>? = null,
+    /** 출발 전 날씨. 기록 중에는 쓰지 않습니다. */
+    startWeather: StartWeatherUi = StartWeatherUi.Hidden
 ) {
     val checkedIssues by rememberRecordingHealth()
     val issues = remember(healthIssues, checkedIssues, liveState.isGpsSignalWeak, liveState.isRecording) {
@@ -355,6 +357,7 @@ fun LiveRecordingScreen(
                         }
 
                         Spacer(modifier = Modifier.height(12.dp))
+                        StartWeatherSection(state = startWeather, transportType = selectedTransport)
                     }
 
                     // 지도 아래 계기판: 지도 위 강조 지표를 뺀 나머지 (큰 값 2개 + 작은 값들, '표시 안 함'이면 5개 전부)

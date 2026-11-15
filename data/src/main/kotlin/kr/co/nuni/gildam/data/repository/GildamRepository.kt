@@ -12,6 +12,7 @@ import kr.co.nuni.gildam.data.local.entity.ActivityRegionEntity
 import kr.co.nuni.gildam.data.local.entity.PhotoEntity
 import kr.co.nuni.gildam.data.local.entity.TrackPointEntity
 import kr.co.nuni.gildam.data.local.entity.WaypointEntity
+import kr.co.nuni.gildam.data.local.entity.WeatherSnapshotEntity
 import kr.co.nuni.gildam.data.media.LocalPhotoManager
 import kr.co.nuni.gildam.data.merge.RecordMerger
 import kr.co.nuni.gildam.data.region.RegionResolver
@@ -21,6 +22,7 @@ import kr.co.nuni.gildam.data.model.SyncState
 import kr.co.nuni.gildam.data.model.TransportType
 import kr.co.nuni.gildam.data.model.UriStatus
 import kr.co.nuni.gildam.data.model.Visibility
+import kr.co.nuni.gildam.data.weather.WeatherNow
 import java.util.UUID
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -81,6 +83,15 @@ class GildamRepository @Inject constructor(
         dao.getWaypointsForActivity(activityId)
 
     suspend fun getActiveRecording(): ActivityEntity? = dao.getActiveRecordingActivity()
+
+    suspend fun getWeatherSnapshot(activityId: String): WeatherSnapshotEntity? =
+        dao.getWeatherSnapshot(activityId)
+
+    /** 기록 시작 때의 날씨만 한 번 저장합니다. 이미 있으면 덮어쓰지 않습니다. */
+    suspend fun saveWeatherSnapshotIfAbsent(activityId: String, weather: WeatherNow) {
+        if (dao.getWeatherSnapshot(activityId) != null) return
+        dao.upsertWeatherSnapshot(WeatherSnapshotEntity.from(activityId, weather))
+    }
 
     suspend fun createNewRecording(
         title: String,

@@ -21,5 +21,10 @@ data class ActivityDetailBundle(
         parentColumn = "id",
         entityColumn = "activity_id"
     )
-    val waypoints: List<WaypointWithPhoto>
+    val waypoints: List<WaypointWithPhoto>,
+    @Relation(
+        parentColumn = "id",
+        entityColumn = "activity_id"
+    )
+    val weather: WeatherSnapshotEntity? = null
 )

@@ -426,6 +426,31 @@
     <plurals name="fullmap_photo_pins">
         <item quantity="other">사진 %1$d장 표시 · 핀을 누르면 크게 볼 수 있어요</item>
     </plurals>
+    <string name="weather_unavailable">날씨 정보 없음</string>
+    <string name="weather_at_start">출발할 때 날씨</string>
+    <string name="weather_temp">%1$s°</string>
+    <string name="weather_wind_ms">%1$s m/s</string>
+    <string name="weather_gust">돌풍 %1$s m/s</string>
+    <string name="weather_dir_arrow_cd">바람이 불어가는 방향</string>
+    <string name="weather_precip_none">강수 없음</string>
+    <string name="weather_precip_rain">비</string>
+    <string name="weather_precip_snow">눈</string>
+    <string name="weather_precip_sleet">진눈깨비</string>
+    <string name="weather_sky_clear">맑음</string>
+    <string name="weather_sky_cloudy">구름 많음</string>
+    <string name="weather_sky_overcast">흐림</string>
+    <string name="weather_dir_n">북풍</string>
+    <string name="weather_dir_ne">북동풍</string>
+    <string name="weather_dir_e">동풍</string>
+    <string name="weather_dir_se">남동풍</string>
+    <string name="weather_dir_s">남풍</string>
+    <string name="weather_dir_sw">남서풍</string>
+    <string name="weather_dir_w">서풍</string>
+    <string name="weather_dir_nw">북서풍</string>
+    <string name="weather_strength_light">약함</string>
+    <string name="weather_strength_moderate">보통</string>
+    <string name="weather_strength_strong">강함</string>
+    <string name="weather_strength_very_strong">매우 강함</string>
     <plurals name="merge_done_toast">
         <item quantity="other">기록 %1$d개를 하나로 합쳤어요</item>
     </plurals>

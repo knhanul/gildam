@@ -16,6 +16,10 @@ import kr.co.nuni.gildam.data.model.GaugeMetric
 import kr.co.nuni.gildam.data.model.SyncState
 import kr.co.nuni.gildam.data.model.TransportType
 import kr.co.nuni.gildam.data.model.Visibility
+import kr.co.nuni.gildam.data.weather.PrecipType
+import kr.co.nuni.gildam.data.weather.SkyCondition
+import kr.co.nuni.gildam.data.weather.WindCardinal
+import kr.co.nuni.gildam.data.weather.WindStrength
 import kr.co.nuni.gildam.map.MapCameraMode
 import kr.co.nuni.gildam.ui.R
 import java.time.Instant
@@ -109,7 +113,47 @@ fun GradeBucket.label(context: Context): String =
     toPct?.let { "${fromPct.toInt()}–${it.toInt()}%" }
         ?: context.getString(R.string.grade_bucket_over, fromPct.toInt())
 
+val WindCardinal.label: String @Composable get() = stringResource(
+    when (this) {
+        WindCardinal.N -> R.string.weather_dir_n
+        WindCardinal.NE -> R.string.weather_dir_ne
+        WindCardinal.E -> R.string.weather_dir_e
+        WindCardinal.SE -> R.string.weather_dir_se
+        WindCardinal.S -> R.string.weather_dir_s
+        WindCardinal.SW -> R.string.weather_dir_sw
+        WindCardinal.W -> R.string.weather_dir_w
+        WindCardinal.NW -> R.string.weather_dir_nw
+    }
+)
+
+val WindStrength.label: String @Composable get() = stringResource(
+    when (this) {
+        WindStrength.LIGHT -> R.string.weather_strength_light
+        WindStrength.MODERATE -> R.string.weather_strength_moderate
+        WindStrength.STRONG -> R.string.weather_strength_strong
+        WindStrength.VERY_STRONG -> R.string.weather_strength_very_strong
+    }
+)
+
+val PrecipType.label: String @Composable get() = stringResource(
+    when (this) {
+        PrecipType.NONE -> R.string.weather_precip_none
+        PrecipType.RAIN -> R.string.weather_precip_rain
+        PrecipType.SNOW -> R.string.weather_precip_snow
+        PrecipType.SLEET -> R.string.weather_precip_sleet
+    }
+)
+
+val SkyCondition.label: String @Composable get() = stringResource(
+    when (this) {
+        SkyCondition.CLEAR -> R.string.weather_sky_clear
+        SkyCondition.CLOUDY -> R.string.weather_sky_cloudy
+        SkyCondition.OVERCAST -> R.string.weather_sky_overcast
+    }
+)
+
 val MapCameraMode.label: String @Composable get() = stringResource(
+
     when (this) {
         MapCameraMode.FOLLOW -> R.string.camera_follow_north
         MapCameraMode.HEADING -> R.string.camera_follow_heading

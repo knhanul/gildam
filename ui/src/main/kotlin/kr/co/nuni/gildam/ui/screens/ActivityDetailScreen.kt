@@ -295,6 +295,14 @@ fun ActivityDetailScreen(
                     }
                 }
 
+                bundle.weather?.toWeatherNow()?.takeIf { it.hasDisplayableData() }?.let { weather ->
+                    RecordWeatherCard(
+                        weather = weather,
+                        transportType = activity.transportType,
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
+                    )
+                }
+
                 sameRouteEta?.let { eta ->
                     Surface(
                         shape = RoundedCornerShape(14.dp),

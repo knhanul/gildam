@@ -13,6 +13,7 @@ import kr.co.nuni.gildam.data.local.entity.ActivityRegionEntity
 import kr.co.nuni.gildam.data.local.entity.PhotoEntity
 import kr.co.nuni.gildam.data.local.entity.TrackPointEntity
 import kr.co.nuni.gildam.data.local.entity.WaypointEntity
+import kr.co.nuni.gildam.data.local.entity.WeatherSnapshotEntity
 import kr.co.nuni.gildam.data.model.ActivityStatus
 import kr.co.nuni.gildam.data.model.PhotoBackupState
 import kr.co.nuni.gildam.data.model.SyncState
@@ -47,10 +48,15 @@ class GildamTypeConverters {
         WaypointEntity::class,
         PhotoEntity::class,
         CourseEntity::class,
-        ActivityRegionEntity::class
+        ActivityRegionEntity::class,
+        WeatherSnapshotEntity::class
     ],
-    version = 3,
-    autoMigrations = [AutoMigration(from = 1, to = 2), AutoMigration(from = 2, to = 3)],
+    version = 4,
+    autoMigrations = [
+        AutoMigration(from = 1, to = 2),
+        AutoMigration(from = 2, to = 3),
+        AutoMigration(from = 3, to = 4)
+    ],
     exportSchema = true
 )
 @TypeConverters(GildamTypeConverters::class)

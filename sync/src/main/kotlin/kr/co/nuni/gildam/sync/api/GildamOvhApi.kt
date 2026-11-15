@@ -6,6 +6,7 @@ import retrofit2.http.DELETE
 import retrofit2.http.GET
 import retrofit2.http.PUT
 import retrofit2.http.Path
+import kotlinx.serialization.json.JsonObject
 import retrofit2.http.Query
 
 /**
@@ -30,4 +31,13 @@ interface GildamOvhApi {
     /** 200 tombstone / 없으면 204 */
     @DELETE("v1/tracks/{id}")
     suspend fun deleteTrack(@Path("id") id: String, @Query("updated_at") updatedAt: Long?): Response<TrackDto>
+
+    /**
+     * 현재 위치의 날씨. 기존 gildam-api 베이스 + 길담 토큰(audience gildam-android).
+     * 401 토큰 없음, 400 위경도 오류, 502 weather_unavailable.
+     * KMA 는 windGustMs·sky 가 없고, OPEN_METEO 만 채웁니다.
+     * 본문은 JsonObject 로 받아 필드 누락·이름 차이를 파서가 허용합니다.
+     */
+    @GET("v1/weather/now")
+    suspend fun getWeatherNow(@Query("lat") lat: Double, @Query("lon") lon: Double): Response<JsonObject>
 }

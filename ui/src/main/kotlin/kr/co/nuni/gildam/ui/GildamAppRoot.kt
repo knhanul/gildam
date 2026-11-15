@@ -97,6 +97,11 @@ fun GildamAppRoot(
     val unfinishedRecording by viewModel.unfinishedRecording.collectAsState()
     val thumbnailCacheBytes by viewModel.thumbnailCacheSizeBytes.collectAsState()
     val activityRegions by viewModel.regions.collectAsState()
+    val startWeather by viewModel.startWeather.collectAsState()
+
+    LaunchedEffect(liveState.isRecording, sessionState.isLoggedIn) {
+        if (!liveState.isRecording) viewModel.refreshStartWeather()
+    }
 
     var pendingResumeUnfinished by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
 
@@ -198,7 +203,8 @@ fun GildamAppRoot(
                         // 여기서 마치면 그 걷기는 끝난 것 → 따라 걷던 코스도 함께 정리
                         viewModel.finishUnfinishedRecordingNow()
                         courseViewModel.stopFollow()
-                    }
+                    },
+                    startWeather = startWeather
                 )
             }
 

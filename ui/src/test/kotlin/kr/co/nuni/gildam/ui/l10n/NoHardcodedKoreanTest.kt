@@ -12,6 +12,7 @@ import java.io.File
 class NoHardcodedKoreanTest {
     private val allowed = setOf(
         "data/model/Enums.kt",              // labelKo: 테스트·내부용, 화면은 ui/l10n/Labels.kt
+        "data/weather/WindLabels.kt",       // labelKo: 테스트·내부용, 화면은 ui/l10n/Labels.kt
         "data/model/GaugeMetric.kt",
         "data/gpxcompare/GpxRuggedness.kt",
         "data/list/RecordGrouper.kt",        // 화면 제목은 RecordGroup.displayTitle()

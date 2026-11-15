@@ -40,9 +40,13 @@ import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kr.co.nuni.gildam.data.model.Visibility
 import kr.co.nuni.gildam.data.repository.GildamRepository
+import kr.co.nuni.gildam.recording.LastKnownLocationProvider
+import kr.co.nuni.gildam.recording.LatLonPoint
 import kr.co.nuni.gildam.recording.LiveRecordingState
 import kr.co.nuni.gildam.recording.RecordingController
+import kr.co.nuni.gildam.sync.weather.WeatherRepository
 import kr.co.nuni.gildam.sync.worker.GildamSyncWorker
+import kr.co.nuni.gildam.ui.screens.StartWeatherUi
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 import javax.inject.Inject
@@ -61,7 +65,9 @@ class GildamViewModel @Inject constructor(
     private val syncStatusObserver: SyncStatusObserver,
     private val syncCursorStore: SyncCursorStore,
     private val profilePrefs: ProfilePrefs,
-    private val devicePhotoFinder: DevicePhotoFinder
+    private val devicePhotoFinder: DevicePhotoFinder,
+    private val weatherRepository: WeatherRepository,
+    private val lastKnownLocationProvider: LastKnownLocationProvider
 ) : ViewModel() {
 
     /** 로그인 후 GET /v1/me 의 track_count (모르면 null) */
@@ -196,11 +202,75 @@ class GildamViewModel @Inject constructor(
         }
     }
 
+    private val _startWeather = MutableStateFlow<StartWeatherUi>(StartWeatherUi.Hidden)
+    val startWeather: StateFlow<StartWeatherUi> = _startWeather.asStateFlow()
+
+    private var weatherAttachedActivityId: String? = null
+
     init {
         refreshThumbnailCacheSize()
         seedSampleDataIfEmpty()
         checkUnfinishedRecording()
+        attachWeatherWhenRecordingStarts()
     }
+
+    /**
+     * 출발 화면이 보일 때 마지막 위치로 날씨를 가져옵니다.
+     * 비로그인·오프라인·오류·위치 없음은 줄을 숨기거나 '날씨 정보 없음'만 남깁니다.
+     */
+    fun refreshStartWeather() {
+        viewModelScope.launch {
+            if (liveRecordingState.value.isRecording) return@launch
+            if (!authSessionState.value.isLoggedIn) {
+                _startWeather.value = StartWeatherUi.Hidden
+                return@launch
+            }
+            val loc = resolveWeatherLocation()
+            if (loc == null) {
+                _startWeather.value = StartWeatherUi.Unavailable
+                return@launch
+            }
+            weatherRepository.cached(loc.latitude, loc.longitude)?.let {
+                _startWeather.value = StartWeatherUi.Ready(it)
+                return@launch
+            }
+            val fetched = weatherRepository.fetchNow(loc.latitude, loc.longitude)
+            _startWeather.value = if (fetched != null) {
+                StartWeatherUi.Ready(fetched)
+            } else {
+                StartWeatherUi.Unavailable
+            }
+        }
+    }
+
+    private fun attachWeatherWhenRecordingStarts() {
+        viewModelScope.launch {
+            liveRecordingState.collect { state ->
+                val id = state.activeActivityId ?: return@collect
+                if (!state.isRecording) return@collect
+                if (weatherAttachedActivityId == id) return@collect
+                weatherAttachedActivityId = id
+                attachStartWeatherSnapshot(id, state.currentLocation)
+            }
+        }
+    }
+
+    private suspend fun attachStartWeatherSnapshot(activityId: String, current: LatLonPoint?) {
+        if (repository.getWeatherSnapshot(activityId) != null) return
+        val weather = weatherRepository.lastCached() ?: run {
+            val loc = current ?: resolveWeatherLocation() ?: return
+            weatherRepository.fetchNow(loc.latitude, loc.longitude)
+        } ?: return
+        repository.saveWeatherSnapshotIfAbsent(activityId, weather)
+    }
+
+    private suspend fun resolveWeatherLocation(): LatLonPoint? {
+        val live = liveRecordingState.value
+        return live.currentLocation
+            ?: live.lastFinishedLocation
+            ?: lastKnownLocationProvider.lastLocation()
+    }
+
 
     private fun checkUnfinishedRecording() {
         viewModelScope.launch {

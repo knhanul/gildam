@@ -14,6 +14,7 @@ import kr.co.nuni.gildam.data.local.entity.ActivityRegionEntity
 import kr.co.nuni.gildam.data.local.entity.PhotoEntity
 import kr.co.nuni.gildam.data.local.entity.TrackPointEntity
 import kr.co.nuni.gildam.data.local.entity.WaypointEntity
+import kr.co.nuni.gildam.data.local.entity.WeatherSnapshotEntity
 import kr.co.nuni.gildam.data.local.entity.WaypointWithPhoto
 import kr.co.nuni.gildam.data.model.ActivityStatus
 import kr.co.nuni.gildam.data.model.SyncState
@@ -166,6 +167,12 @@ interface GildamDao {
         """
     )
     suspend fun getActivitiesMissingRegion(limit: Int): List<ActivityEntity>
+
+    @Query("SELECT * FROM weather_snapshots WHERE activity_id = :activityId")
+    suspend fun getWeatherSnapshot(activityId: String): WeatherSnapshotEntity?
+
+    @Upsert
+    suspend fun upsertWeatherSnapshot(snapshot: WeatherSnapshotEntity)
 
     @Query("DELETE FROM activities WHERE id = :activityId")
     suspend fun hardDeleteActivity(activityId: String)
