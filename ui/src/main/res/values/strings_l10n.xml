@@ -427,6 +427,7 @@
         <item quantity="other">사진 %1$d장 표시 · 핀을 누르면 크게 볼 수 있어요</item>
     </plurals>
     <string name="weather_unavailable">날씨 정보 없음</string>
+    <string name="weather_needs_login">로그인하면 날씨를 볼 수 있어요</string>
     <string name="weather_at_start">출발할 때 날씨</string>
     <string name="weather_temp">%1$s°</string>
     <string name="weather_wind_ms">%1$s m/s</string>

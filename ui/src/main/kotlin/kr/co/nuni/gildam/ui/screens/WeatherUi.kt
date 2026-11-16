@@ -37,6 +37,7 @@ import kotlin.math.roundToInt
 
 sealed class StartWeatherUi {
     data object Hidden : StartWeatherUi()
+    data object NeedsLogin : StartWeatherUi()
     data object Unavailable : StartWeatherUi()
     data class Ready(val weather: WeatherNow) : StartWeatherUi()
 }
@@ -50,6 +51,16 @@ fun StartWeatherSection(
 ) {
     when (state) {
         StartWeatherUi.Hidden -> Unit
+        StartWeatherUi.NeedsLogin -> {
+            Text(
+                text = stringResource(R.string.weather_needs_login),
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f),
+                modifier = modifier
+                    .fillMaxWidth()
+                    .padding(bottom = 8.dp)
+            )
+        }
         StartWeatherUi.Unavailable -> {
             Text(
                 text = stringResource(R.string.weather_unavailable),

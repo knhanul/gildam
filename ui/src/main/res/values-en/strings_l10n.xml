@@ -430,6 +430,7 @@
         <item quantity="other">%1$d photos · tap a pin to enlarge</item>
     </plurals>
     <string name="weather_unavailable">Weather unavailable</string>
+    <string name="weather_needs_login">Sign in to see the weather</string>
     <string name="weather_at_start">Weather at start</string>
     <string name="weather_temp">%1$s°</string>
     <string name="weather_wind_ms">%1$s m/s</string>

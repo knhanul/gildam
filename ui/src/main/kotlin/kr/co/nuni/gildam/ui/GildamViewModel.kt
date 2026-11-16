@@ -216,13 +216,14 @@ class GildamViewModel @Inject constructor(
 
     /**
      * 출발 화면이 보일 때 마지막 위치로 날씨를 가져옵니다.
-     * 비로그인·오프라인·오류·위치 없음은 줄을 숨기거나 '날씨 정보 없음'만 남깁니다.
+     * 비로그인은 '로그인하면 날씨를 볼 수 있어요', 위치 없음·오류는 '날씨 정보 없음'을 보여 줍니다.
+     * 날씨 API는 길담 로그인이 필요합니다.
      */
     fun refreshStartWeather() {
         viewModelScope.launch {
             if (liveRecordingState.value.isRecording) return@launch
             if (!authSessionState.value.isLoggedIn) {
-                _startWeather.value = StartWeatherUi.Hidden
+                _startWeather.value = StartWeatherUi.NeedsLogin
                 return@launch
             }
             val loc = resolveWeatherLocation()

@@ -84,6 +84,11 @@ class WeatherPreviewTest {
     }
 
     @Test
+    fun startSheetNeedsLogin() = paparazzi.snapshot {
+        StartSheet(TransportType.BIKE, StartWeatherUi.NeedsLogin)
+    }
+
+    @Test
     fun recordDetailWithWeather() = paparazzi.snapshot {
         val start = 1_731_628_800_000L
         val activity = ActivityEntity(
