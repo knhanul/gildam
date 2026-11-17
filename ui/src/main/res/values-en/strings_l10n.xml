@@ -186,6 +186,9 @@
     <string name="follow_following">Following · %1$s</string>
     <string name="follow_stop">Stop following</string>
     <string name="follow_remaining_distance">Distance left</string>
+    <string name="follow_reverse_badge">Reverse</string>
+    <string name="course_reverse_title">Follow in reverse</string>
+    <string name="course_reverse_desc">Starts at the finish and flips the climb profile</string>
     <string name="follow_pick_activity">Which activity?</string>
     <string name="follow_start_activity">Start with this activity</string>
     <string name="course_loading">Loading course…</string>

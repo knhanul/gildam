@@ -22,34 +22,39 @@ data class SavedFollow(
     val offsetM: Double,
     val offCourse: Boolean,
     val sessionId: String = "",
-    val activityId: String? = null
+    val activityId: String? = null,
+    val reversed: Boolean = false
 ) {
-    /** "코스id;진행m;이탈m;이탈여부;세션id;기록id" 한 줄로 저장 */
+    /** "코스id;진행m;이탈m;이탈여부;세션id;기록id;역방향여부" 한 줄로 저장 */
     fun encode(): String = listOf(
         courseId,
         alongM.toString(),
         offsetM.toString(),
         offCourse.toString(),
         sessionId,
-        activityId ?: ""
+        activityId ?: "",
+        reversed.toString()
     ).joinToString(";")
 
     companion object {
         /**
          * 저장값이 깨졌거나 코스 id 가 없으면 null (그냥 복원 안 함).
-         * 6칸(코스id;진행;이탈;이탈여부;세션id;기록id)이 현재 형식이고, 예전 4·5칸 저장값도 읽습니다.
+         * 7칸(코스id;진행;이탈;이탈여부;세션id;기록id;역방향여부)이 현재 형식이고, 예전 4~6칸 저장값도 정방향(false)으로 읽습니다.
          */
         fun decode(raw: String?): SavedFollow? {
             val p = raw?.split(';') ?: return null
-            if (p.size !in 4..6) return null
+            if (p.size !in 4..7) return null
             val courseId = p[0].trim()
             val along = p[1].toDoubleOrNull() ?: return null
             val offset = p[2].toDoubleOrNull() ?: return null
             val off = p[3].toBooleanStrictOrNull() ?: return null
             val session = p.getOrNull(4) ?: ""
             val activity = p.getOrNull(5)?.takeIf { it.isNotBlank() }
+            val reversed = p.getOrNull(6)?.takeIf { it.isNotBlank() }?.let {
+                it.toBooleanStrictOrNull() ?: return null
+            } ?: false
             if (courseId.isEmpty()) return null
-            return SavedFollow(courseId, along.coerceAtLeast(0.0), offset.coerceAtLeast(0.0), off, session, activity)
+            return SavedFollow(courseId, along.coerceAtLeast(0.0), offset.coerceAtLeast(0.0), off, session, activity, reversed)
         }
     }
 }

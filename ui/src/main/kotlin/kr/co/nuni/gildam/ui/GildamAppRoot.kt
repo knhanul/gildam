@@ -263,11 +263,11 @@ fun GildamAppRoot(
                     onNavigateBack = { navController.popBackStack() },
                     suggestedActivity = suggestedActivity,
                     onRememberActivity = courseViewModel::rememberFollowActivity,
-                    onFollow = { id, type ->
-                        // 고른 활동을 '새 기록' 이동 수단으로 먼저 정해 둔 뒤 따라 걷기 시작
+                    onFollow = { id, type, reversed ->
+                        // 고른 활동을 '새 기록' 이동 수단으로 먼저 정해 둔 뒤 따라가기 시작
                         // (기록 시작 버튼을 눌렀을 때 만들어질 기록이 이 활동 종류를 갖게 됨)
                         viewModel.selectTransportForNewRecording(type)
-                        courseViewModel.startFollow(id)
+                        courseViewModel.startFollow(id, reversed = reversed)
                         selectTab(GildamTab.RECORD)
                     },
                     onDelete = { id -> courseViewModel.delete(id); navController.popBackStack() }

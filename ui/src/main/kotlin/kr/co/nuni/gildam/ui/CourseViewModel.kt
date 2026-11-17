@@ -68,8 +68,21 @@ class CourseViewModel @Inject constructor(
     fun observeDetail(id: String): Flow<CourseDetailUi?> = courses.observeCourse(id).map { c ->
         c?.let {
             val pts = it.points()
-            val r = withContext(Dispatchers.Default) { GpxRuggedness.analyze(it.name, pts) }
-            CourseDetailUi(it.id, it.name, r, pts.map { p -> LatLonPoint(p.lat, p.lon) })
+            val revPts = pts.reversed()
+            val (r, revR) = withContext(Dispatchers.Default) {
+                val fwd = GpxRuggedness.analyze(it.name, pts)
+                val rev = if (revPts.size >= 2) GpxRuggedness.analyze(it.name, revPts) else fwd
+                fwd to rev
+            }
+            val route = pts.map { p -> LatLonPoint(p.lat, p.lon) }
+            CourseDetailUi(
+                id = it.id,
+                name = it.name,
+                result = r,
+                route = route,
+                reversedResult = revR,
+                reversedRoute = route.asReversed()
+            )
         }
     }
 
@@ -87,7 +100,7 @@ class CourseViewModel @Inject constructor(
         }
     }
 
-    // ---- 코스 따라 걷기 ----
+    // ---- 코스 따라가기 ----
     private data class Following(
         val id: String,
         val name: String,
@@ -95,13 +108,14 @@ class CourseViewModel @Inject constructor(
         val route: List<LatLonPoint>,
         val follower: CourseFollower,
         val sessionId: String,
-        /** 이 따라 걷기가 붙어 있는 기록 id (아직 없으면 null) */
-        val boundActivityId: String? = null
+        /** 이 따라가기가 붙어 있는 기록 id (아직 없으면 null) */
+        val boundActivityId: String? = null,
+        val reversed: Boolean = false
     )
     private val _follow = MutableStateFlow<Following?>(null)
 
     /**
-     * '따라 걷기' 활동 기본값: 마지막으로 고른 활동이 있으면 그 값, 없으면 코스 모양으로 추정.
+     * '따라가기' 활동 기본값: 마지막으로 고른 활동이 있으면 그 값, 없으면 코스 모양으로 추정.
      * (코스 상세의 활동 선택 시트가 처음 열릴 때 씀)
      */
     fun suggestedFollowActivity(id: String): Flow<TransportType> = courses.observeCourse(id).map { c ->
@@ -112,20 +126,21 @@ class CourseViewModel @Inject constructor(
         FollowActivityGuess.guess(r)
     }
 
-    /** 사용자가 고른 따라 걷기 활동을 기억 (다음에 기본값으로) */
+    /** 사용자가 고른 따라가기 활동을 기억 (다음에 기본값으로) */
     fun rememberFollowActivity(type: TransportType) = followPrefs.setLastActivity(type.name)
 
-    fun startFollow(id: String) {
+    fun startFollow(id: String, reversed: Boolean = false) {
         viewModelScope.launch {
             val c = courses.getCourse(id) ?: return@launch
-            val pts = c.points()
+            val rawPts = c.points()
+            val pts = if (reversed) rawPts.reversed() else rawPts
             val r = withContext(Dispatchers.Default) { GpxRuggedness.analyze(c.name, pts) }
             val newSessionId = UUID.randomUUID().toString()
             val activeId = activities.getActiveRecording()?.id
-            _follow.value = Following(c.id, c.name, r, pts.map { LatLonPoint(it.lat, it.lon) }, CourseFollower(pts), newSessionId, activeId)
+            _follow.value = Following(c.id, c.name, r, pts.map { LatLonPoint(it.lat, it.lon) }, CourseFollower(pts), newSessionId, activeId, reversed)
             // 기록 중이면 앱이 정리돼도 다시 살아나도록 저장 (기록 없이 코스만 볼 때는 저장하지 않음)
             if (activeId != null || recordingController.liveState.value.let { it.isRecording || it.isPaused }) {
-                followPrefs.saveNow(SavedFollow(c.id, 0.0, 0.0, false, newSessionId, activeId))
+                followPrefs.saveNow(SavedFollow(c.id, 0.0, 0.0, false, newSessionId, activeId, reversed))
             }
         }
     }
@@ -163,12 +178,13 @@ class CourseViewModel @Inject constructor(
             return
         }
         if (_follow.value != null) return
-        val pts = c!!.points()
+        val rawPts = c!!.points()
+        val pts = if (saved.reversed) rawPts.reversed() else rawPts
         val r = withContext(Dispatchers.Default) { GpxRuggedness.analyze(c.name, pts) }
         val follower = CourseFollower(pts).also {
             it.restoreState(saved.alongM, saved.offsetM, saved.offCourse)
         }
-        _follow.value = Following(c.id, c.name, r, pts.map { LatLonPoint(it.lat, it.lon) }, follower, saved.sessionId, saved.activityId)
+        _follow.value = Following(c.id, c.name, r, pts.map { LatLonPoint(it.lat, it.lon) }, follower, saved.sessionId, saved.activityId, saved.reversed)
     }
 
     /**
@@ -198,7 +214,7 @@ class CourseViewModel @Inject constructor(
                     }
                     f?.let { cur ->
                         val along = (cur.follower.lastAlongM ?: 0.0)
-                        val next = SavedFollow(cur.id, along, cur.follower.lastOffsetM ?: 0.0, cur.follower.isOffCourse, cur.sessionId, activeId)
+                        val next = SavedFollow(cur.id, along, cur.follower.lastOffsetM ?: 0.0, cur.follower.isOffCourse, cur.sessionId, activeId, cur.reversed)
                         lastSaved = next
                         _follow.value = cur.copy(boundActivityId = activeId)
                         followPrefs.saveNow(next)
@@ -229,15 +245,15 @@ class CourseViewModel @Inject constructor(
             if (!recordingController.liveState.value.let { it.isRecording || it.isPaused }) return@collect
             val along = (f.totalM - f.remainingM).coerceAtLeast(0.0)
             val prev = lastSaved
-            val sameSession = prev != null && prev.sessionId == cur.sessionId
+            val sameSession = prev != null && prev.sessionId == cur.sessionId && prev.reversed == cur.reversed
             if (sameSession && abs(prev!!.alongM - along) < 25.0 && prev.offCourse == f.isOffCourse) return@collect
-            val next = SavedFollow(cur.id, along, f.offsetM ?: 0.0, f.isOffCourse, cur.sessionId, cur.boundActivityId)
+            val next = SavedFollow(cur.id, along, f.offsetM ?: 0.0, f.isOffCourse, cur.sessionId, cur.boundActivityId, cur.reversed)
             lastSaved = next
             followPrefs.saveProgress(next)
         }
     }
 
-    /** 따라가기 카드 값: 남은 거리와 이탈 여부만 계산합니다 (예상·남은 시간·도착 예정 표시 안 함). */
+    /** 따라가기 카드 값: 남은 거리와 이탈 여부, 반대 방향 배지만 계산합니다. */
     val follow: StateFlow<CourseFollowUi?> = combine(_follow, recordingController.liveState) { f, live ->
         f ?: return@combine null
         val loc = live.currentLocation
@@ -245,11 +261,11 @@ class CourseViewModel @Inject constructor(
             // 아직 위치 신호가 없을 때: 저장해 둔 진행 지점이 있으면 거기서부터 보여 줌
             val along = f.follower.lastAlongM
             val remaining = if (along != null) (f.follower.totalM - along).coerceAtLeast(0.0) else f.follower.totalM
-            return@combine CourseFollowUi(f.name, f.route, f.follower.totalM, remaining, f.follower.isOffCourse, f.follower.lastOffsetM)
+            return@combine CourseFollowUi(f.name, f.route, f.follower.totalM, remaining, f.follower.isOffCourse, f.follower.lastOffsetM, f.reversed)
         }
         val (p, newlyOff) = f.follower.update(loc.latitude, loc.longitude)
         if (newlyOff) vibrateOffCourse()
-        CourseFollowUi(f.name, f.route, f.follower.totalM, p.remainingM, f.follower.isOffCourse, p.offsetM)
+        CourseFollowUi(f.name, f.route, f.follower.totalM, p.remainingM, f.follower.isOffCourse, p.offsetM, f.reversed)
     }.stateIn(viewModelScope, SharingStarted.Eagerly, null)
 
     init {

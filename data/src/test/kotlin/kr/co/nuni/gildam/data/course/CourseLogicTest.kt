@@ -1,6 +1,7 @@
 package kr.co.nuni.gildam.data.course
 
 import kr.co.nuni.gildam.data.gpxcompare.GpxPoint
+import kr.co.nuni.gildam.data.gpxcompare.GpxRuggedness
 import kr.co.nuni.gildam.data.gpxcompare.ProfilePoint
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -89,5 +90,31 @@ class CourseFollowerTest {
         val pts = listOf(GpxPoint(37.123456, 127.654321, 812.3), GpxPoint(37.2, 127.3, null))
         val back = CoursePointCodec.decode(CoursePointCodec.encode(pts))
         assertEquals(pts, back)
+    }
+
+    @Test fun reversedRouteStartsAtOriginalEndAndEndsAtOriginalStart() {
+        val revFollower = CourseFollower(route.reversed())
+        val nearOriginalEnd = revFollower.locate(route.last().lat, route.last().lon)
+        assertEquals(0.0, nearOriginalEnd.alongM, 1.0)
+        assertEquals(revFollower.totalM, nearOriginalEnd.remainingM, 1.0)
+
+        val nearOriginalStart = revFollower.locate(route.first().lat, route.first().lon)
+        assertEquals(revFollower.totalM, nearOriginalStart.alongM, 1.0)
+        assertEquals(0.0, nearOriginalStart.remainingM, 1.0)
+    }
+
+    @Test fun reversedRuggednessSwapsAscentAndDescent() {
+        // 정방향: 0m → 220m 꾸준히 오르막 (약 2km) 후 190m 로 짧게 내리막
+        val uphillPts = (0..40).map { i ->
+            val ele = if (i <= 32) i * (220.0 / 32.0) else 220.0 - (i - 32) * (30.0 / 8.0)
+            GpxPoint(37.50 + i * 0.00045, 127.00, ele)
+        }
+        val fwd = GpxRuggedness.analyze("코스", uphillPts)
+        val rev = GpxRuggedness.analyze("코스", uphillPts.reversed())
+
+        assertTrue(fwd.ascentM > 180.0 && fwd.descentM < 50.0)
+        assertEquals(fwd.ascentM, rev.descentM, 15.0)
+        assertEquals(fwd.descentM, rev.ascentM, 15.0)
+        assertEquals(fwd.distanceM, rev.distanceM, 1e-3)
     }
 }

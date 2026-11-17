@@ -600,8 +600,8 @@ private fun PreviewFallbackMapCanvas(
                 drawCircle(androidx.compose.ui.graphics.Color.White, 12f, o)
                 drawCircle(routeColor, 12f, o, style = Stroke(6f))
             }
-            // 출발 점(초록 원): 내 기록의 첫 점 (코스만 있는 지도는 코스 시작·끝 점을 따로 그림)
-            trackPoints.firstOrNull()?.let { st ->
+            // 출발 점(초록 원 S): 내 기록의 첫 점, 기록이 없으면 코스 첫 점(역방향 미리보기에서는 원래 끝점)
+            (trackPoints.firstOrNull() ?: coursePoints.firstOrNull())?.let { st ->
                 val o = pt(st)
                 // 실제 지도와 같은 크기(dp): 흰 테두리 포함 반지름 15dp, 안쪽 12dp
                 drawCircle(androidx.compose.ui.graphics.Color.White, MapCameraPlanner.START_MARKER_RADIUS_DP * density, o)

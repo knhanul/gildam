@@ -55,7 +55,9 @@ import androidx.compose.material.icons.outlined.CompareArrows
 import androidx.compose.material.icons.outlined.DeleteOutline
 import androidx.compose.material.icons.outlined.FileOpen
 import androidx.compose.material.icons.outlined.Route
+import androidx.compose.material.icons.outlined.SwapHoriz
 import androidx.compose.material.icons.outlined.WarningAmber
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -67,6 +69,7 @@ import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.ModalBottomSheet
@@ -99,12 +102,22 @@ data class CourseListItem(
 )
 
 data class CourseDetailUi(
-    val id: String, val name: String, val result: RuggednessResult, val route: List<LatLonPoint>
+    val id: String,
+    val name: String,
+    val result: RuggednessResult,
+    val route: List<LatLonPoint>,
+    val reversedResult: RuggednessResult = result,
+    val reversedRoute: List<LatLonPoint> = route.asReversed()
 )
 
 data class CourseFollowUi(
-    val name: String, val route: List<LatLonPoint>, val totalM: Double, val remainingM: Double,
-    val isOffCourse: Boolean, val offsetM: Double?
+    val name: String,
+    val route: List<LatLonPoint>,
+    val totalM: Double,
+    val remainingM: Double,
+    val isOffCourse: Boolean,
+    val offsetM: Double?,
+    val reversed: Boolean = false
 )
 
 internal fun kmText(m: Double) = if (m >= 10_000) "%.0f km".format(m / 1000) else "%.1f km".format(m / 1000)
@@ -350,16 +363,19 @@ internal fun RouteThumb(points: List<LatLonPoint>, modifier: Modifier = Modifier
 fun CourseDetailScreen(
     detail: CourseDetailUi?,
     onNavigateBack: () -> Unit,
-    /** 활동 선택 시트에서 고른 활동으로 따라 걷기 시작 (활동 종류도 함께 전달) */
-    onFollow: (String, TransportType) -> Unit,
+    /** 활동 선택 시트에서 고른 활동·방향으로 따라가기 시작 (활동 종류와 역방향 여부 전달) */
+    onFollow: (String, TransportType, Boolean) -> Unit,
     onDelete: (String) -> Unit,
     /** 시트를 처음 열 때 미리 골라 둘 활동 (마지막으로 고른 활동 또는 코스로 추정한 값) */
     suggestedActivity: TransportType = TransportType.WALK,
     /** 사용자가 활동을 고르면 기억해 두기 (다음 시트 기본값) */
-    onRememberActivity: (TransportType) -> Unit = {}
+    onRememberActivity: (TransportType) -> Unit = {},
+    /** 미리보기·테스트용 초기 역방향 값 (기본 정방향 false) */
+    initialReversed: Boolean = false
 ) {
     var showFullscreenMap by rememberSaveable { mutableStateOf(false) }
     var showFollowSheet by rememberSaveable { mutableStateOf(false) }
+    var reversed by rememberSaveable(detail?.id) { mutableStateOf(initialReversed) }
     // 지도 ↔ 고도 그래프 연결: 고른 코스 지점 거리(km). null 이면 선택 없음
     var selectedKm by rememberSaveable(detail?.id) { mutableStateOf<Double?>(null) }
     Scaffold(
@@ -386,16 +402,22 @@ fun CourseDetailScreen(
         }
     ) { inner ->
         if (detail == null) { Box(Modifier.fillMaxSize().padding(inner), contentAlignment = Alignment.Center) { Text(stringResource(R.string.course_loading)) }; return@Scaffold }
-        val r = detail.result
+        val r = if (reversed) detail.reversedResult else detail.result
+        val activeRoute = if (reversed) detail.reversedRoute else detail.route
         if (showFollowSheet) {
             FollowActivitySheet(
                 courseName = detail.name,
                 initial = suggestedActivity,
+                reversed = reversed,
+                onReversedChange = { next ->
+                    reversed = next
+                    selectedKm = null
+                },
                 onDismiss = { showFollowSheet = false },
-                onStart = { type ->
+                onStart = { type, rev ->
                     showFollowSheet = false
                     onRememberActivity(type)
-                    onFollow(detail.id, type)
+                    onFollow(detail.id, type, rev)
                 }
             )
         }
@@ -403,7 +425,7 @@ fun CourseDetailScreen(
         if (showFullscreenMap) {
             CourseMapFullscreen(
                 name = detail.name,
-                route = detail.route,
+                route = activeRoute,
                 selectedKm = selectedKm,
                 onSelectKm = { selectedKm = it },
                 onClose = { showFullscreenMap = false }
@@ -415,7 +437,7 @@ fun CourseDetailScreen(
         ) {
             Box(Modifier.fillMaxWidth().height(220.dp).clip(RoundedCornerShape(22.dp))) {
                 GildamMapLibreView(
-                    trackPoints = emptyList(), currentLocation = null, coursePoints = detail.route, fitToTrack = true,
+                    trackPoints = emptyList(), currentLocation = null, coursePoints = activeRoute, fitToTrack = true,
                     selectedCourseKm = selectedKm,
                     // 코스 선을 누르면 그 지점을 고도 그래프에 표시 (선에서 120m 안쪽 탭만)
                     onCourseTap = { km -> selectedKm = km },
@@ -429,6 +451,13 @@ fun CourseDetailScreen(
                     modifier = Modifier.align(Alignment.TopEnd).padding(6.dp)
                 )
             }
+            ReverseDirectionToggleCard(
+                reversed = reversed,
+                onReversedChange = { next ->
+                    reversed = next
+                    selectedKm = null
+                }
+            )
             Row(verticalAlignment = Alignment.CenterVertically) {
                 GradeBadge(r.grade); Spacer(Modifier.width(10.dp))
                 Text(r.grade.description, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -464,6 +493,58 @@ fun CourseDetailScreen(
 }
 
 @Composable
+private fun ReverseDirectionToggleCard(
+    reversed: Boolean,
+    onReversedChange: (Boolean) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val cs = MaterialTheme.colorScheme
+    val title = stringResource(R.string.course_reverse_title)
+    Surface(
+        shape = RoundedCornerShape(16.dp),
+        color = if (reversed) cs.primaryContainer else cs.surfaceVariant,
+        border = if (reversed) BorderStroke(1.5.dp, cs.primary) else null,
+        modifier = modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(16.dp))
+            .clickable(role = Role.Switch) { onReversedChange(!reversed) }
+    ) {
+        Row(
+            modifier = Modifier
+                .heightIn(min = 54.dp)
+                .padding(horizontal = 14.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(
+                Icons.Outlined.SwapHoriz,
+                contentDescription = null,
+                tint = if (reversed) cs.primary else cs.onSurfaceVariant,
+                modifier = Modifier.size(22.dp)
+            )
+            Spacer(Modifier.width(10.dp))
+            Column(Modifier.weight(1f)) {
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.SemiBold,
+                    color = if (reversed) cs.onPrimaryContainer else cs.onSurface
+                )
+                Text(
+                    text = stringResource(R.string.course_reverse_desc),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = if (reversed) cs.onPrimaryContainer.copy(alpha = 0.8f) else cs.onSurfaceVariant
+                )
+            }
+            Switch(
+                checked = reversed,
+                onCheckedChange = onReversedChange,
+                modifier = Modifier.semantics { contentDescription = title }
+            )
+        }
+    }
+}
+
+@Composable
 private fun StatTile(label: String, value: String, modifier: Modifier) {
     Surface(shape = RoundedCornerShape(16.dp), color = MaterialTheme.colorScheme.surfaceVariant, modifier = modifier) {
         Column(Modifier.padding(horizontal = 14.dp, vertical = 12.dp)) {
@@ -488,6 +569,18 @@ fun FollowCourseCard(f: CourseFollowUi, onStop: () -> Unit, modifier: Modifier =
                 Spacer(Modifier.width(6.dp))
                 Text(if (off) stringResource(R.string.follow_off_course).format(f.offsetM ?: 0.0) else stringResource(R.string.follow_following, f.name),
                     style = MaterialTheme.typography.labelLarge, color = fg, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+                if (f.reversed) {
+                    Spacer(Modifier.width(6.dp))
+                    Surface(shape = RoundedCornerShape(50), color = fg.copy(alpha = 0.2f)) {
+                        Text(
+                            text = stringResource(R.string.follow_reverse_badge),
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.SemiBold,
+                            color = fg,
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
+                        )
+                    }
+                }
                 val stopLabel = stringResource(R.string.follow_stop)
                 kr.co.nuni.gildam.ui.illustration.GildamTooltip(stopLabel) {
                     IconButton(onClick = onStop, modifier = Modifier.semantics { contentDescription = stopLabel }) {
@@ -600,11 +693,13 @@ private fun CourseMapFullscreen(
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun FollowActivitySheet(
+internal fun FollowActivitySheet(
     courseName: String,
     initial: TransportType,
+    reversed: Boolean = false,
+    onReversedChange: (Boolean) -> Unit = {},
     onDismiss: () -> Unit,
-    onStart: (TransportType) -> Unit
+    onStart: (TransportType, Boolean) -> Unit
 ) {
     var selected by rememberSaveable { mutableStateOf(initial.name) }
     val type = TransportType.entries.firstOrNull { it.name == selected } ?: TransportType.WALK
@@ -669,9 +764,14 @@ private fun FollowActivitySheet(
                     }
                 }
             }
+            Spacer(Modifier.height(14.dp))
+            ReverseDirectionToggleCard(
+                reversed = reversed,
+                onReversedChange = onReversedChange
+            )
             Spacer(Modifier.height(16.dp))
             Button(
-                onClick = { onStart(type) },
+                onClick = { onStart(type, reversed) },
                 shape = RoundedCornerShape(14.dp),
                 modifier = Modifier.fillMaxWidth().height(52.dp)
             ) {
