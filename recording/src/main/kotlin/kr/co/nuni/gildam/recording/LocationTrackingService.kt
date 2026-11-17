@@ -378,6 +378,7 @@ class LocationTrackingService : LifecycleService() {
             }
             activeActivityId = null
             recordingController.finishState()
+            runCatching { repository.resolveActivityPlaces(finishingId) }
             stopForeground(STOP_FOREGROUND_REMOVE)
             stopSelf()
         }

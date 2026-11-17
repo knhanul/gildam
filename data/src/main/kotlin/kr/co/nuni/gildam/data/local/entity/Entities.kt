@@ -207,8 +207,9 @@ data class PhotoEntity(
 
 /**
  * 기록이 일어난 지역 이름(기기 Geocoder 로 좌표를 거꾸로 찾아 저장).
- * region_name 이 null 이면 '지역 정보 없음' — 한 번 시도했지만 이름을 못 얻은 기록이라
- * 다시 시도하지 않도록 행은 남겨 둡니다.
+ * - region_name: 지역별 묶어 보기용('시/도 + 시·군·구'). null 이면 한 번 시도했지만 못 얻은 기록.
+ * - start_place / end_place: 목록 행 표시용 세밀 지명(한국은 동·읍·면까지, 도로명·번지 제외).
+ *   places_resolved_at 이 null 이면 아직 출발·도착 지명을 찾지 않은 상태(스키마 4→5 기존 행 포함)라 백필 대상입니다.
  */
 @Entity(
     tableName = "activity_regions",
@@ -228,5 +229,11 @@ data class ActivityRegionEntity(
     @ColumnInfo(name = "region_name")
     val regionName: String? = null,
     @ColumnInfo(name = "resolved_at")
-    val resolvedAtEpochMs: Long = System.currentTimeMillis()
+    val resolvedAtEpochMs: Long = System.currentTimeMillis(),
+    @ColumnInfo(name = "start_place")
+    val startPlace: String? = null,
+    @ColumnInfo(name = "end_place")
+    val endPlace: String? = null,
+    @ColumnInfo(name = "places_resolved_at")
+    val placesResolvedAtEpochMs: Long? = null
 )

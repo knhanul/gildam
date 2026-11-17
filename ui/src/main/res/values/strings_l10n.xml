@@ -399,6 +399,29 @@
     <string name="group_region">지역별</string>
     <string name="group_region_none">지역 정보 없음</string>
     <string name="group_region_pending">지역 확인 중</string>
+    <string name="group_date_today">오늘</string>
+    <string name="group_date_yesterday">어제</string>
+    <string name="group_date_same_year_pattern">M월 d일 (E)</string>
+    <string name="group_date_other_year_pattern">yyyy년 M월 d일 (E)</string>
+    <string name="record_route_places">%1$s → %2$s</string>
+    <string name="record_time_range">%1$s → %2$s</string>
+    <string name="record_row_stats">%1$s · %2$s km · %3$s · %4$s km/h</string>
+    <string name="record_row_stats_no_time">%1$s km · %2$s · %3$s km/h</string>
+    <string name="record_more_actions">기록 더보기</string>
+    <string name="hide_short_records_title">아주 짧은 기록 숨기기</string>
+    <string name="hide_short_records_desc">0.1 km 미만 또는 1분 미만 기록을 목록에서 숨겨요.</string>
+    <string name="short_records_show">보이기</string>
+    <string name="short_records_delete_all">모아서 지우기</string>
+    <plurals name="short_records_hidden_count">
+        <item quantity="other">짧은 기록 %1$d개 숨김</item>
+    </plurals>
+    <plurals name="delete_short_confirm_title">
+        <item quantity="other">숨긴 짧은 기록 %1$d개를 삭제할까요?</item>
+    </plurals>
+    <string name="delete_short_confirm_criteria">거리 0.1 km 미만 또는 시간 1분 미만인 기록이에요.</string>
+    <plurals name="delete_short_done_toast">
+        <item quantity="other">짧은 기록 %1$d개를 삭제했어요</item>
+    </plurals>
     <string name="duration_h">%1$d시간</string>
     <string name="duration_m">%1$d분</string>
     <string name="duration_hm">%1$d시간 %2$d분</string>

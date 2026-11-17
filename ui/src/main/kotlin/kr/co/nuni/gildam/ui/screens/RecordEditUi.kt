@@ -1,10 +1,12 @@
 package kr.co.nuni.gildam.ui.screens
 
 import kr.co.nuni.gildam.ui.l10n.*
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import kr.co.nuni.gildam.ui.R
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -24,13 +26,17 @@ import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material.icons.outlined.ErrorOutline
 import androidx.compose.material.icons.outlined.Lock
+import androidx.compose.material.icons.outlined.MoreVert
 import androidx.compose.material.icons.outlined.PhoneAndroid
 import androidx.compose.material3.BasicAlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
@@ -117,6 +123,70 @@ fun RecordActionButtons(
         }
         TooltipIconButton(icon = Icons.Outlined.Edit, label = stringResource(R.string.edit_title_activity), onClick = onEdit, style = IconButtonStyle.TONAL, visualSize = vs, iconSize = ic)
         TooltipIconButton(icon = Icons.Outlined.Delete, label = stringResource(R.string.record_delete), onClick = onDelete, style = IconButtonStyle.OUTLINED, visualSize = vs, iconSize = ic)
+    }
+}
+
+/** 기록 목록 한 줄 우측 오버플로 메뉴(⋮): 클라우드 올리기 · 수정 · 삭제 */
+@Composable
+fun RecordOverflowMenu(
+    activity: ActivityEntity,
+    isLoggedIn: Boolean,
+    onEdit: () -> Unit,
+    onDelete: () -> Unit,
+    onUpload: () -> Unit
+) {
+    var expanded by remember { mutableStateOf(false) }
+    val canUpload = isLoggedIn && RecordEditPolicy.canRequestUpload(activity)
+    Box {
+        IconButton(
+            onClick = { expanded = true },
+            modifier = Modifier.size(30.dp)
+        ) {
+            Icon(
+                imageVector = Icons.Outlined.MoreVert,
+                contentDescription = stringResource(R.string.record_more_actions),
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(18.dp)
+            )
+        }
+        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+            if (canUpload) {
+                val failed = activity.syncState == SyncState.SYNC_ERROR
+                DropdownMenuItem(
+                    text = {
+                        Text(
+                            if (failed) stringResource(R.string.upload_retry) else stringResource(R.string.upload_now),
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                    },
+                    leadingIcon = { Icon(Icons.Outlined.CloudUpload, contentDescription = null, modifier = Modifier.size(18.dp)) },
+                    onClick = { expanded = false; onUpload() }
+                )
+            }
+            DropdownMenuItem(
+                text = { Text(stringResource(R.string.edit_title_activity), style = MaterialTheme.typography.bodyMedium) },
+                leadingIcon = { Icon(Icons.Outlined.Edit, contentDescription = null, modifier = Modifier.size(18.dp)) },
+                onClick = { expanded = false; onEdit() }
+            )
+            DropdownMenuItem(
+                text = {
+                    Text(
+                        stringResource(R.string.record_delete),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.error
+                    )
+                },
+                leadingIcon = {
+                    Icon(
+                        Icons.Outlined.Delete,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.error,
+                        modifier = Modifier.size(18.dp)
+                    )
+                },
+                onClick = { expanded = false; onDelete() }
+            )
+        }
     }
 }
 
@@ -215,6 +285,69 @@ fun DeleteRecordContent(activity: ActivityEntity, onConfirm: () -> Unit, onCance
 fun DeleteRecordDialog(activity: ActivityEntity, onConfirm: () -> Unit, onDismiss: () -> Unit) {
     BasicAlertDialog(onDismissRequest = onDismiss) {
         DeleteRecordContent(activity, onConfirm = { onConfirm(); onDismiss() }, onCancel = onDismiss)
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun DeleteShortRecordsDialog(
+    activities: List<ActivityEntity>,
+    onConfirm: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    val count = activities.size
+    val anyOnServer = activities.any { it.syncState != SyncState.LOCAL_ONLY }
+    BasicAlertDialog(onDismissRequest = onDismiss) {
+        Surface(
+            shape = RoundedCornerShape(24.dp),
+            color = MaterialTheme.colorScheme.surfaceContainerHigh,
+            tonalElevation = 6.dp
+        ) {
+            Column(Modifier.padding(24.dp)) {
+                Icon(
+                    Icons.Outlined.Delete,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.error,
+                    modifier = Modifier.align(Alignment.CenterHorizontally)
+                )
+                Spacer(Modifier.height(12.dp))
+                Text(
+                    pluralStringResource(R.plurals.delete_short_confirm_title, count, count),
+                    style = MaterialTheme.typography.titleLarge,
+                    modifier = Modifier.align(Alignment.CenterHorizontally)
+                )
+                Spacer(Modifier.height(10.dp))
+                Text(
+                    stringResource(R.string.delete_short_confirm_criteria),
+                    style = MaterialTheme.typography.bodyMedium
+                )
+                Spacer(Modifier.height(6.dp))
+                Text(
+                    if (anyOnServer) stringResource(R.string.delete_confirm_server) else stringResource(R.string.delete_confirm_local),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Text(
+                    stringResource(R.string.delete_keeps_gallery),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(Modifier.height(18.dp))
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                    TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_cancel)) }
+                    Spacer(Modifier.width(8.dp))
+                    Button(
+                        onClick = { onConfirm(); onDismiss() },
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = MaterialTheme.colorScheme.error,
+                            contentColor = MaterialTheme.colorScheme.onError
+                        )
+                    ) {
+                        Text(stringResource(R.string.action_delete))
+                    }
+                }
+            }
+        }
     }
 }
 

@@ -26,6 +26,8 @@ import kr.co.nuni.gildam.auth.NuniSessionState
 import kr.co.nuni.gildam.data.gpx.GpxExportOptions
 import kr.co.nuni.gildam.data.gpx.GpxExportResult
 import kr.co.nuni.gildam.data.gpx.GpxExporter
+import kr.co.nuni.gildam.data.list.ActivityPlaceInfo
+import kr.co.nuni.gildam.data.list.RecordListFilter
 import kr.co.nuni.gildam.data.local.entity.ActivityDetailBundle
 import kr.co.nuni.gildam.data.local.entity.ActivityEntity
 import kr.co.nuni.gildam.data.local.entity.TrackPointEntity
@@ -163,28 +165,29 @@ class GildamViewModel @Inject constructor(
     private val _unfinishedRecording = MutableStateFlow<ActivityEntity?>(null)
     val unfinishedRecording: StateFlow<ActivityEntity?> = _unfinishedRecording.asStateFlow()
 
-    val filteredActivities: StateFlow<List<ActivityEntity>> = combine(
-        repository.observeAllActivities(),
-        _selectedTransportFilter,
-        _searchQuery
-    ) { list, filter, query ->
-        list.filter { item ->
-            val matchesTransport = filter == null || item.transportType == filter
-            val matchesQuery = query.isBlank() || item.title.contains(query, ignoreCase = true)
-            matchesTransport && matchesQuery
-        }
-    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
-
-    // ---- 기록 지역 (지역별 묶어 보기) ----
+    // ---- 기록 지역 · 출발/도착 지명 ----
 
     /** activity_id → 지역 이름 (null 이면 '지역 정보 없음') */
     val regions: StateFlow<Map<String, String?>> = repository.observeActivityRegions()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyMap())
 
+    /** activity_id → 지역·출발/도착 지명 정보 */
+    val places: StateFlow<Map<String, ActivityPlaceInfo>> = repository.observeActivityPlaces()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyMap())
+
+    val filteredActivities: StateFlow<List<ActivityEntity>> = combine(
+        repository.observeAllActivities(),
+        places,
+        _selectedTransportFilter,
+        _searchQuery
+    ) { list, placeMap, filter, query ->
+        RecordListFilter.filter(list, placeMap, filter, query, hideShort = false).visible
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
     private var regionResolveJob: kotlinx.coroutines.Job? = null
 
     /**
-     * 목록 화면이 뜰 때 지역 이름을 뒤에서 채웁니다(UI 를 막지 않음).
+     * 목록 화면이 뜰 때 지역 이름과 출발·도착 지명을 뒤에서 채웁니다(UI 를 막지 않음).
      * 한 번에 8건씩, 채울 기록이 남아 있으면 이어서 조용히 돕니다.
      */
     fun ensureRegionsResolved() {
@@ -453,6 +456,14 @@ class GildamViewModel @Inject constructor(
         }
     }
 
+    /** 여러 기록 일괄 삭제 (짧은 기록 모아서 지우기 등) */
+    fun deleteActivities(activityIds: List<String>) {
+        if (activityIds.isEmpty()) return
+        viewModelScope.launch {
+            if (repository.deleteActivities(activityIds)) GildamSyncWorker.enqueueImmediateSync(appContext)
+        }
+    }
+
     /** 여러 길기록을 하나로 합치기. 합치면 새 기록 id, 실패하면 null (UI 는 결과만 받아 안내) */
     suspend fun mergeActivities(ids: List<String>, title: String): String? {
         val newId = repository.mergeActivities(ids, title)
@@ -498,10 +509,9 @@ class GildamViewModel @Inject constructor(
         activityId: String,
         options: GpxExportOptions
     ): GpxExportResult? {
-        val detail = repository.observeActivityDetail(activityId)
         val points = repository.getTrackPoints(activityId)
         val waypoints = repository.getWaypoints(activityId)
-        val all = filteredActivities.value.find { it.id == activityId } ?: return null
+        val all = repository.getActivityById(activityId) ?: return null
         val xml = gpxExporter.exportToGpxXml(all, points, waypoints, options)
         return GpxExportResult(suggestedFileName = sanitizeGpxFileName(all.title), xml = xml)
     }

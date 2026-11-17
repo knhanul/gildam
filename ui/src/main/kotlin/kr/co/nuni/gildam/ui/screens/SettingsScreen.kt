@@ -21,19 +21,26 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.outlined.DarkMode
+import androidx.compose.material.icons.outlined.FilterAlt
 import androidx.compose.material.icons.outlined.Map
 import androidx.compose.material.icons.outlined.NightsStay
 import androidx.compose.material.icons.outlined.Palette
 import androidx.compose.material.icons.outlined.PhotoLibrary
 import androidx.compose.material.icons.outlined.Timer
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -84,7 +91,9 @@ fun SettingsScreen(
     maxDurationMs: Long? = kr.co.nuni.gildam.recording.AutoStopPolicy.DEFAULT_MAX_DURATION_MS,
     idleLimitMs: Long? = kr.co.nuni.gildam.recording.AutoStopPolicy.DEFAULT_IDLE_LIMIT_MS,
     graceMs: Long = kr.co.nuni.gildam.recording.AutoStopPolicy.DEFAULT_GRACE_MS,
-    onOpenRecordingAutoStop: () -> Unit = {}
+    onOpenRecordingAutoStop: () -> Unit = {},
+    hideShortRecords: Boolean = false,
+    onHideShortRecordsChange: (Boolean) -> Unit = {}
 ) {
     var showThemeSheet by remember { mutableStateOf(false) }
     var showModeSheet by remember { mutableStateOf(false) }
@@ -171,6 +180,37 @@ fun SettingsScreen(
                     icon = Icons.Outlined.PhotoLibrary,
                     onClick = onOpenPhotoStorage
                 )
+                SettingsItemDivider()
+                val hideShortTitle = stringResource(R.string.hide_short_records_title)
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(min = 56.dp)
+                        .clickable(role = Role.Switch) { onHideShortRecordsChange(!hideShortRecords) }
+                        .padding(horizontal = 14.dp, vertical = 10.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    SettingsItemIcon(Icons.Outlined.FilterAlt)
+                    Spacer(Modifier.width(12.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = hideShortTitle,
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = FontWeight.SemiBold,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        Text(
+                            text = stringResource(R.string.hide_short_records_desc),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    Switch(
+                        checked = hideShortRecords,
+                        onCheckedChange = onHideShortRecordsChange,
+                        modifier = Modifier.semantics { contentDescription = hideShortTitle }
+                    )
+                }
             }
 
             Spacer(Modifier.height(16.dp))

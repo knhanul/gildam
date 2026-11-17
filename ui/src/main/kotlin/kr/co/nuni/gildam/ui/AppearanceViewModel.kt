@@ -42,6 +42,11 @@ class AppearanceViewModel @Inject constructor(
         .stateIn(viewModelScope, SharingStarted.Eagerly, RecordGroupMode.RECENT)
     fun setRecordGroupMode(mode: RecordGroupMode) { viewModelScope.launch { prefs.setRecordGroupMode(mode.name) } }
 
+    /** 기록 보관함: 아주 짧은 기록 숨기기 (기본 꺼짐) */
+    val hideShortRecords: StateFlow<Boolean> = prefs.hideShortRecords
+        .stateIn(viewModelScope, SharingStarted.Eagerly, false)
+    fun setHideShortRecords(hide: Boolean) { viewModelScope.launch { prefs.setHideShortRecords(hide) } }
+
     /** 활동 구분별 '지도 위 계기판' 선택 (저장값 없으면 그 활동의 기본값) */
     val gaugeSelections: StateFlow<Map<TransportType, GaugeMetric>> = gaugePrefs.selections
         .stateIn(viewModelScope, SharingStarted.Eagerly, TransportType.entries.associateWith { GaugeMetric.defaultFor(it) })

@@ -22,6 +22,7 @@ import app.cash.paparazzi.DeviceConfig
 import app.cash.paparazzi.Paparazzi
 import kr.co.nuni.gildam.auth.NuniSessionState
 import kr.co.nuni.gildam.data.gpxcompare.RuggednessGrade
+import kr.co.nuni.gildam.data.list.ActivityPlaceInfo
 import kr.co.nuni.gildam.data.list.RecordGroupMode
 import kr.co.nuni.gildam.data.list.RecordGrouper
 import kr.co.nuni.gildam.data.local.entity.ActivityEntity
@@ -37,6 +38,7 @@ import kr.co.nuni.gildam.ui.l10n.displayTitle
 import kr.co.nuni.gildam.ui.theme.GildamTheme
 import org.junit.Rule
 import org.junit.Test
+import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.ZoneId
 
@@ -106,36 +108,51 @@ class EnglishPreviewTest {
     }
 
     private val zone = ZoneId.of("Asia/Seoul")
-    private fun at(m: Int, d: Int, h: Int) = LocalDateTime.of(2026, m, d, h, 0).atZone(zone).toInstant().toEpochMilli()
+    private val previewToday = LocalDate.of(2026, 11, 17)
+    private fun at(m: Int, d: Int, h: Int, min: Int = 0) = LocalDateTime.of(2026, m, d, h, min).atZone(zone).toInstant().toEpochMilli()
     private fun rec(id: String, title: String, start: Long, km: Double, min: Long, type: TransportType) = ActivityEntity(
         id = id, title = title, transportType = type, status = ActivityStatus.COMPLETED,
         startedAtEpochMs = start, endedAtEpochMs = start + min * 60_000L, totalDurationMs = min * 60_000L,
         movingDurationMs = min * 55_000L, distanceMeters = km * 1000.0
     )
     private val items = listOf(
-        rec("a", "Bukak ridge morning hike", at(11, 1, 7), 4.1, 72, TransportType.HIKE),
-        rec("b", "Han River autumn ride", at(11, 1, 17), 12.4, 48, TransportType.BIKE),
-        rec("c", "Namsan evening walk", at(9, 21, 18), 2.4, 38, TransportType.WALK),
-        rec("d", "Morning run", at(9, 3, 6), 5.2, 31, TransportType.RUN)
+        rec("a", "Nov 17, 18:42 Bike route", at(11, 17, 18, 42), 19.8, 83, TransportType.BIKE),
+        rec("b", "Morning commute", at(11, 17, 7, 8), 19.7, 81, TransportType.BIKE),
+        rec("c", "Nov 16, 18:00 Walk route", at(11, 16, 18, 0), 2.4, 38, TransportType.WALK),
+        rec("d", "Morning run", at(11, 9, 6, 30), 5.2, 31, TransportType.RUN)
+    )
+    private val itemPlaces = mapOf(
+        "a" to ActivityPlaceInfo(regionName = "Seoul Gangnam-gu", startPlace = "Yeoksam-dong", endPlace = "Maetan-dong", placesResolved = true),
+        "b" to ActivityPlaceInfo(regionName = "Gyeonggi Suwon-si", startPlace = "Maetan-dong", endPlace = "Yeoksam-dong", placesResolved = true),
+        "c" to ActivityPlaceInfo(regionName = "Seoul Yongsan-gu", startPlace = "Hannam-dong", endPlace = "Hannam-dong", placesResolved = true)
     )
 
     @Test fun recordListWithGroupMenu() = paparazzi.snapshot {
-        val groups = RecordGrouper.group(items, emptyMap(), RecordGroupMode.MONTH, zone)
+        val groups = RecordGrouper.group(items, emptyMap(), RecordGroupMode.RECENT, zone, previewToday)
         GildamTheme {
             Column {
                 Column(Modifier.padding(horizontal = 16.dp).padding(top = 8.dp, bottom = 6.dp)) {
                     Text(stringResource(R.string.list_title), style = MaterialTheme.typography.titleLarge)
-                    RecordFilterRow(selectedTransportFilter = null, onSelectTransportFilter = {}, recordGroupMode = RecordGroupMode.MONTH, onSelectRecordGroup = {})
+                    RecordFilterRow(selectedTransportFilter = null, onSelectTransportFilter = {}, recordGroupMode = RecordGroupMode.RECENT, onSelectRecordGroup = {})
                 }
                 Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp), horizontalArrangement = Arrangement.End) {
-                    Surface(shape = RoundedCornerShape(10.dp), shadowElevation = 6.dp, modifier = Modifier.width(160.dp)) {
-                        Column(Modifier.padding(vertical = 6.dp)) { RecordGroupMenuItems(recordGroupMode = RecordGroupMode.MONTH, onSelect = {}) }
+                    Surface(shape = RoundedCornerShape(10.dp), shadowElevation = 6.dp, modifier = Modifier.width(210.dp)) {
+                        Column(Modifier.padding(vertical = 6.dp)) {
+                            RecordGroupMenuItems(
+                                recordGroupMode = RecordGroupMode.RECENT,
+                                onSelect = {},
+                                hideShortRecords = false,
+                                onToggleHideShortRecords = {}
+                            )
+                        }
                     }
                 }
-                LazyColumn(Modifier.padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                LazyColumn(Modifier.padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     groups.forEach { g ->
-                        item { RecordGroupHeader(title = g.displayTitle(), count = g.activities.size) }
-                        items(g.activities, key = { it.id }) { a -> ActivityCompactRow(activity = a, onClick = {}) }
+                        item { RecordGroupHeader(title = g.displayTitle(previewToday), count = g.activities.size) }
+                        items(g.activities, key = { it.id }) { a ->
+                            ActivityCompactRow(activity = a, placeInfo = itemPlaces[a.id], onClick = {}, zoneId = zone)
+                        }
                     }
                 }
             }

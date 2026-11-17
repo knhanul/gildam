@@ -65,6 +65,7 @@ fun GildamAppRoot(
     val recordMapMode by appearanceViewModel.recordMapMode.collectAsState()
     val gaugeSelections by appearanceViewModel.gaugeSelections.collectAsState()
     val recordGroupMode by appearanceViewModel.recordGroupMode.collectAsState()
+    val hideShortRecords by appearanceViewModel.hideShortRecords.collectAsState()
     val systemDark = androidx.compose.foundation.isSystemInDarkTheme()
     val isDark = when (darkMode) {
         kr.co.nuni.gildam.ui.theme.DarkModePref.SYSTEM -> systemDark
@@ -97,6 +98,7 @@ fun GildamAppRoot(
     val unfinishedRecording by viewModel.unfinishedRecording.collectAsState()
     val thumbnailCacheBytes by viewModel.thumbnailCacheSizeBytes.collectAsState()
     val activityRegions by viewModel.regions.collectAsState()
+    val activityPlaces by viewModel.places.collectAsState()
     val startWeather by viewModel.startWeather.collectAsState()
 
     LaunchedEffect(liveState.isRecording, sessionState.isLoggedIn) {
@@ -292,7 +294,11 @@ fun GildamAppRoot(
                     onMergeActivities = { ids, title -> viewModel.mergeActivities(ids, title) != null },
                     recordGroupMode = recordGroupMode,
                     onSelectRecordGroup = appearanceViewModel::setRecordGroupMode,
-                    regions = activityRegions
+                    regions = activityRegions,
+                    places = activityPlaces,
+                    hideShortRecords = hideShortRecords,
+                    onToggleHideShortRecords = appearanceViewModel::setHideShortRecords,
+                    onDeleteShortActivities = viewModel::deleteActivities
                 )
             }
 
@@ -368,7 +374,9 @@ fun GildamAppRoot(
                     maxDurationMs = maxDurationMs,
                     idleLimitMs = idleLimitMs,
                     graceMs = graceMs,
-                    onOpenRecordingAutoStop = { navController.navigate(RecordingAutoStopRoute) }
+                    onOpenRecordingAutoStop = { navController.navigate(RecordingAutoStopRoute) },
+                    hideShortRecords = hideShortRecords,
+                    onHideShortRecordsChange = appearanceViewModel::setHideShortRecords
                 )
             }
 

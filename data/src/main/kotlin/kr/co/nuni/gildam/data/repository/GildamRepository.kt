@@ -5,6 +5,7 @@ import android.os.Build
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
+import kr.co.nuni.gildam.data.list.ActivityPlaceInfo
 import kr.co.nuni.gildam.data.local.dao.GildamDao
 import kr.co.nuni.gildam.data.local.entity.ActivityDetailBundle
 import kr.co.nuni.gildam.data.local.entity.ActivityEntity
@@ -76,6 +77,7 @@ class GildamRepository @Inject constructor(
             elevationGainMeters = existing.elevationGainMeters,
             endedAtEpochMs = endedAt
         )
+        runCatching { resolveActivityPlaces(existing.id) }
         return true
     }
 
@@ -269,6 +271,15 @@ class GildamRepository @Inject constructor(
         }
     }
 
+    /** 여러 기록 일괄 삭제(짧은 기록 모아서 지우기 등). 하나라도 서버 삭제 대기열에 들어갔으면 true */
+    suspend fun deleteActivities(activityIds: List<String>): Boolean {
+        var needsSync = false
+        for (id in activityIds) {
+            if (deleteActivity(id)) needsSync = true
+        }
+        return needsSync
+    }
+
     /** '클라우드에 올리기' 요청. 대기열에 넣었으면 true */
     suspend fun requestCloudUpload(activityId: String): Boolean {
         val existing = dao.getActivityById(activityId) ?: return false
@@ -309,19 +320,83 @@ class GildamRepository @Inject constructor(
         merged.serverDeleteIds.forEach { id ->
             dao.getActivityById(id)?.let { dao.upsertActivity(RecordEditPolicy.markDeleted(it, now)) }
         }
+        runCatching { resolveActivityPlaces(newId) }
         return newId
     }
 
-    // ---- 지역 이름 (지역별 묶어 보기) ----
+    // ---- 지역 이름 (지역별 묶어 보기 + 출발·도착 지명) ----
 
     /** activity_id → 지역 이름(null 이면 '지역 정보 없음') */
     fun observeActivityRegions(): Flow<Map<String, String?>> =
         dao.observeActivityRegions().map { list -> list.associate { it.activityId to it.regionName } }
 
+    /** activity_id → 지역·출발/도착 지명 정보 */
+    fun observeActivityPlaces(): Flow<Map<String, ActivityPlaceInfo>> =
+        dao.observeActivityRegions().map { list ->
+            list.associate { entity ->
+                entity.activityId to ActivityPlaceInfo(
+                    regionName = entity.regionName,
+                    startPlace = entity.startPlace,
+                    endPlace = entity.endPlace,
+                    placesResolved = entity.placesResolvedAtEpochMs != null
+                )
+            }
+        }
+
     /**
-     * 지역 이름이 아직 없는 완료 기록 몇 건의 이름을 기기 Geocoder 로 찾아 저장합니다.
-     * - 첫 경로 점(없으면 첫 길 메모)의 좌표를 씁니다.
-     * - 이름을 못 찾아도 region_name = null 로 저장해 같은 기록을 계속 다시 찾지 않습니다.
+     * 한 기록의 지역 이름(기존 값이 있으면 보존)과 출발·도착 지명을 기기 Geocoder 로 찾아 저장합니다.
+     * - 출발 = 첫 경로 점, 도착 = 마지막 경로 점.
+     * - 경로 점이 없으면 첫 길 메모 좌표로 출발만 시도하고 도착은 비웁니다.
+     * - 못 찾아도 places_resolved_at 을 기록해 같은 기록을 무한 재시도하지 않습니다.
+     */
+    suspend fun resolveActivityPlaces(activityId: String) {
+        val existing = dao.getActivityRegion(activityId)
+        val firstPoint = dao.getFirstTrackPoint(activityId)
+        val lastPoint = dao.getLastTrackPoint(activityId)
+
+        var regionName: String? = existing?.regionName
+        val startPlace: String?
+        val endPlace: String?
+
+        if (firstPoint != null) {
+            val firstResolved = regionResolver.resolveLocation(firstPoint.latitude, firstPoint.longitude)
+            if (existing == null) regionName = firstResolved?.regionName
+            startPlace = firstResolved?.placeName
+
+            endPlace = if (lastPoint == null) {
+                null
+            } else if (lastPoint.id == firstPoint.id ||
+                (lastPoint.latitude == firstPoint.latitude && lastPoint.longitude == firstPoint.longitude)
+            ) {
+                startPlace
+            } else {
+                regionResolver.resolvePlace(lastPoint.latitude, lastPoint.longitude)
+            }
+        } else {
+            val firstWpt = dao.getWaypointsForActivity(activityId).firstOrNull()
+            val wptResolved = firstWpt?.let { regionResolver.resolveLocation(it.latitude, it.longitude) }
+            if (existing == null) regionName = wptResolved?.regionName
+            startPlace = wptResolved?.placeName
+            endPlace = null
+        }
+
+        val now = System.currentTimeMillis()
+        dao.upsertActivityRegion(
+            ActivityRegionEntity(
+                activityId = activityId,
+                regionName = regionName,
+                resolvedAtEpochMs = existing?.resolvedAtEpochMs ?: now,
+                startPlace = startPlace,
+                endPlace = endPlace,
+                placesResolvedAtEpochMs = now
+            )
+        )
+    }
+
+    /**
+     * 지역 이름이나 출발·도착 지명이 아직 없는 완료 기록 몇 건을 기기 Geocoder 로 찾아 저장합니다.
+     * - 기존 스키마 4 행(region_name 만 있고 places_resolved_at == null)은 기존 region_name 을 유지한 채
+     *   start_place / end_place 만 백필합니다.
      * - 기록 사이 200ms 쉬어 기기를 혹사하지 않습니다.
      * @return 이번에 새로 채운 기록 수
      */
@@ -330,22 +405,7 @@ class GildamRepository @Inject constructor(
         if (targets.isEmpty()) return 0
         var resolved = 0
         for (activity in targets) {
-            val point = dao.getFirstTrackPoint(activity.id)
-            val lat = point?.latitude
-            val lon = point?.longitude
-            val name = if (lat != null && lon != null) {
-                regionResolver.resolve(lat, lon)
-            } else {
-                // 경로 점이 없으면 첫 길 메모 자리로 대신합니다
-                dao.getWaypointsForActivity(activity.id).firstOrNull()?.let { regionResolver.resolve(it.latitude, it.longitude) }
-            }
-            dao.upsertActivityRegion(
-                ActivityRegionEntity(
-                    activityId = activity.id,
-                    regionName = name,
-                    resolvedAtEpochMs = System.currentTimeMillis()
-                )
-            )
+            resolveActivityPlaces(activity.id)
             resolved += 1
             delay(200L)
         }

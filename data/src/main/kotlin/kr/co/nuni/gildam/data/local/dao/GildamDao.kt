@@ -56,6 +56,10 @@ interface GildamDao {
     @Query("SELECT * FROM track_points WHERE activity_id = :activityId ORDER BY seq ASC LIMIT 1")
     suspend fun getFirstTrackPoint(activityId: String): TrackPointEntity?
 
+    /** 도착 지명을 찾을 때 쓰는 마지막 경로 점 (전체 점을 읽지 않도록 하나만) */
+    @Query("SELECT * FROM track_points WHERE activity_id = :activityId ORDER BY seq DESC LIMIT 1")
+    suspend fun getLastTrackPoint(activityId: String): TrackPointEntity?
+
     @Query("SELECT COALESCE(MAX(seq), 0) FROM track_points WHERE activity_id = :activityId")
     suspend fun getMaxTrackPointSeq(activityId: String): Int
 
@@ -151,15 +155,18 @@ interface GildamDao {
     @Query("SELECT * FROM activity_regions")
     suspend fun getAllActivityRegions(): List<ActivityRegionEntity>
 
+    @Query("SELECT * FROM activity_regions WHERE activity_id = :activityId")
+    suspend fun getActivityRegion(activityId: String): ActivityRegionEntity?
+
     @Upsert
     suspend fun upsertActivityRegion(region: ActivityRegionEntity)
 
-    /** 지역 행이 아직 없는 완료 기록 (최신순) */
+    /** 지역 행이 아직 없거나 출발·도착 지명(places_resolved_at)을 아직 채우지 않은 완료 기록 (최신순) */
     @Query(
         """
         SELECT a.* FROM activities a
         LEFT JOIN activity_regions r ON r.activity_id = a.id
-        WHERE r.activity_id IS NULL
+        WHERE (r.activity_id IS NULL OR r.places_resolved_at IS NULL)
           AND a.deleted_at IS NULL
           AND a.status = 'COMPLETED'
         ORDER BY a.started_at DESC

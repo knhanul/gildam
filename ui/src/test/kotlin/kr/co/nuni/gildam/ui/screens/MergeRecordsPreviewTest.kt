@@ -17,6 +17,8 @@ import kr.co.nuni.gildam.ui.theme.GildamTheme
 import org.junit.Rule
 import org.junit.Test
 
+import java.time.ZoneId
+
 /** 기록 합치기 화면을 폰 크기로 렌더링해 이미지로 남깁니다. */
 class MergeRecordsPreviewTest {
 
@@ -26,6 +28,8 @@ class MergeRecordsPreviewTest {
         theme = "android:Theme.Material.Light.NoActionBar",
         showSystemUi = false
     )
+
+    private val zone = ZoneId.of("Asia/Seoul")
 
     private fun rec(id: String, title: String, start: Long, km: Double, durMin: Long, type: TransportType) =
         ActivityEntity(
@@ -56,7 +60,8 @@ class MergeRecordsPreviewTest {
                         ActivityCompactRow(
                             activity = a,
                             onClick = {},
-                            mergeSelected = if (i < 2) true else false
+                            mergeSelected = if (i < 2) true else false,
+                            zoneId = zone
                         )
                     }
                 }

@@ -4,8 +4,11 @@ import kr.co.nuni.gildam.data.local.entity.ActivityEntity
 import kr.co.nuni.gildam.data.model.ActivityStatus
 import kr.co.nuni.gildam.data.model.TransportType
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.ZoneId
 
@@ -13,8 +16,8 @@ class RecordGrouperTest {
 
     private val zone = ZoneId.of("Asia/Seoul")
 
-    private fun at(year: Int, month: Int, day: Int, hour: Int = 9): Long =
-        LocalDateTime.of(year, month, day, hour, 0).atZone(zone).toInstant().toEpochMilli()
+    private fun at(year: Int, month: Int, day: Int, hour: Int = 9, minute: Int = 0): Long =
+        LocalDateTime.of(year, month, day, hour, minute).atZone(zone).toInstant().toEpochMilli()
 
     private fun activity(id: String, startedAt: Long) = ActivityEntity(
         id = id,
@@ -29,17 +32,27 @@ class RecordGrouperTest {
     )
 
     @Test
-    fun `최근순은 들어온 순서 그대로 한 묶음이고 헤더가 없다`() {
+    fun `최근순은 로컬 날짜별로 오늘·어제·요일 헤더로 묶고 최신순을 유지한다`() {
+        val today = LocalDate.of(2026, 11, 17) // 화요일
         val list = listOf(
-            activity("a", at(2026, 11, 1)),
-            activity("b", at(2026, 9, 20)),
-            activity("c", at(2025, 12, 31))
+            activity("today2", at(2026, 11, 17, 19)),
+            activity("today1", at(2026, 11, 17, 7)),
+            activity("yesterday", at(2026, 11, 16, 18)), // 월요일
+            activity("olderThisYear", at(2026, 11, 9, 8)), // 월요일
+            activity("lastYear", at(2025, 12, 31, 10)) // 수요일
         )
-        val groups = RecordGrouper.group(list, emptyMap(), RecordGroupMode.RECENT, zone)
+        val groups = RecordGrouper.group(list, emptyMap(), RecordGroupMode.RECENT, zone, today)
 
-        assertEquals(1, groups.size)
-        assertEquals("", groups[0].title)
-        assertEquals(listOf("a", "b", "c"), groups[0].activities.map { it.id })
+        assertEquals(
+            listOf("오늘", "어제", "11월 9일 (월)", "2025년 12월 31일 (수)"),
+            groups.map { it.title }
+        )
+        assertEquals(
+            listOf("date:2026-11-17", "date:2026-11-16", "date:2026-11-09", "date:2025-12-31"),
+            groups.map { it.key }
+        )
+        assertEquals(listOf("today2", "today1"), groups[0].activities.map { it.id })
+        assertEquals(listOf("yesterday"), groups[1].activities.map { it.id })
     }
 
     @Test
@@ -114,9 +127,31 @@ class RecordGrouperTest {
     }
 
     @Test
-    fun `기록이 없으면 월별과 지역별 모두 빈 목록이다`() {
+    fun `기록이 없으면 모든 묶어 보기에서 빈 목록이다`() {
         assertTrue(RecordGrouper.group(emptyList(), emptyMap(), RecordGroupMode.MONTH, zone).isEmpty())
         assertTrue(RecordGrouper.group(emptyList(), emptyMap(), RecordGroupMode.REGION, zone).isEmpty())
-        assertEquals(1, RecordGrouper.group(emptyList(), emptyMap(), RecordGroupMode.RECENT, zone).size)
+        assertTrue(RecordGrouper.group(emptyList(), emptyMap(), RecordGroupMode.RECENT, zone).isEmpty())
+    }
+
+    @Test
+    fun `기본 제목 패턴은 한·영 모두 판별하여 숨기고 사용자가 직접 지은 제목은 남긴다`() {
+        val start = at(2026, 11, 17, 19, 47)
+
+        assertTrue(DefaultRecordTitle.isDefault("11월 17일 19:47 자전거 길이야기", start, TransportType.BIKE, zone))
+        assertTrue(DefaultRecordTitle.isDefault("11월 17일 오후 7:47 자전거 길이야기", start, TransportType.BIKE, zone))
+        // 서비스 시작 시각이 1분 늦게 찍힌 경우에도 기본 제목으로 판별
+        assertTrue(DefaultRecordTitle.isDefault("11월 17일 19:46 자전거 길이야기", start, TransportType.BIKE, zone))
+        assertTrue(DefaultRecordTitle.isDefault("Nov 17, 19:47 Bike route", start, TransportType.BIKE, zone))
+        assertTrue(DefaultRecordTitle.isDefault("Nov 17, 7:47\u202FPM Bike route", start, TransportType.BIKE, zone))
+
+        // 사용자가 바꾼 제목은 '길이야기'나 'route'가 들어 있어도 숨기지 않음
+        assertFalse(DefaultRecordTitle.isDefault("출근길", start, TransportType.BIKE, zone))
+        assertFalse(DefaultRecordTitle.isDefault("한강 자전거 길이야기", start, TransportType.BIKE, zone))
+        assertFalse(DefaultRecordTitle.isDefault("Morning river Bike route", start, TransportType.BIKE, zone))
+
+        val defaultRec = activity("d1", start).copy(title = "11월 17일 19:47 자전거 길이야기", transportType = TransportType.BIKE)
+        val customRec = activity("c1", start).copy(title = "퇴근길 라이딩", transportType = TransportType.BIKE)
+        assertNull(DefaultRecordTitle.customTitleOrNull(defaultRec, zone))
+        assertEquals("퇴근길 라이딩", DefaultRecordTitle.customTitleOrNull(customRec, zone))
     }
 }

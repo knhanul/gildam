@@ -1,6 +1,7 @@
 package kr.co.nuni.gildam.ui.screens
 
 import kr.co.nuni.gildam.ui.l10n.*
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import android.widget.Toast
 import androidx.compose.animation.AnimatedVisibility
@@ -52,6 +53,7 @@ import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExtendedFloatingActionButton
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
@@ -92,8 +94,10 @@ import kr.co.nuni.gildam.ui.illustration.TransportSticker
 import kr.co.nuni.gildam.ui.illustration.brandGradient
 import kr.co.nuni.gildam.ui.illustration.onBrand
 import kr.co.nuni.gildam.data.local.entity.ActivityEntity
+import kr.co.nuni.gildam.data.list.ActivityPlaceInfo
 import kr.co.nuni.gildam.data.list.RecordGroupMode
 import kr.co.nuni.gildam.data.list.RecordGrouper
+import kr.co.nuni.gildam.data.list.RecordListFilter
 import kr.co.nuni.gildam.data.merge.RecordMerger
 import kr.co.nuni.gildam.data.model.ActivityStatus
 import kr.co.nuni.gildam.data.model.SyncState
@@ -127,7 +131,13 @@ fun ActivityListScreen(
     recordGroupMode: RecordGroupMode = RecordGroupMode.RECENT,
     onSelectRecordGroup: (RecordGroupMode) -> Unit = {},
     /** activity_id → 지역 이름 (없으면 '지역 확인 중', null 이면 '지역 정보 없음') */
-    regions: Map<String, String?> = emptyMap()
+    regions: Map<String, String?> = emptyMap(),
+    /** activity_id → 출발·도착 지명 정보 */
+    places: Map<String, ActivityPlaceInfo> = emptyMap(),
+    /** 아주 짧은 기록(0.1 km 미만 또는 1분 미만) 숨기기 */
+    hideShortRecords: Boolean = false,
+    onToggleHideShortRecords: (Boolean) -> Unit = {},
+    onDeleteShortActivities: (List<String>) -> Unit = {}
 ) {
     // 찾기: 기본은 가려져 있고 앱바 돋보기 아이콘으로 펼침/접음
     var searchExpanded by rememberSaveable { mutableStateOf(false) }
@@ -140,6 +150,15 @@ fun ActivityListScreen(
     // 수정 시트 / 삭제 확인 대화상자
     var editingId by remember { mutableStateOf<String?>(null) }
     var deletingId by remember { mutableStateOf<String?>(null) }
+    var showDeleteShortConfirm by rememberSaveable { mutableStateOf(false) }
+
+    val (hiddenShortActivities, visibleActivities) = remember(activities, hideShortRecords) {
+        if (hideShortRecords) {
+            activities.partition { RecordListFilter.isShortRecord(it) }
+        } else {
+            emptyList<ActivityEntity>() to activities
+        }
+    }
 
     // 합치기: 카드를 길게 누르면 여러 개 고르는 모드로 들어갑니다
     var merging by rememberSaveable { mutableStateOf(false) }
@@ -199,6 +218,21 @@ fun ActivityListScreen(
         onEdit = onEditActivity, onDelete = onDeleteActivity,
         onDismissEdit = { editingId = null }, onDismissDelete = { deletingId = null }
     )
+    if (showDeleteShortConfirm && hiddenShortActivities.isNotEmpty()) {
+        DeleteShortRecordsDialog(
+            activities = hiddenShortActivities,
+            onConfirm = {
+                val ids = hiddenShortActivities.map { it.id }
+                onDeleteShortActivities(ids)
+                Toast.makeText(
+                    context,
+                    context.resources.getQuantityString(R.plurals.delete_short_done_toast, ids.size, ids.size),
+                    Toast.LENGTH_SHORT
+                ).show()
+            },
+            onDismiss = { showDeleteShortConfirm = false }
+        )
+    }
     Scaffold(
         contentWindowInsets = WindowInsets(0),
         floatingActionButton = {
@@ -316,12 +350,14 @@ fun ActivityListScreen(
                 }
             }
 
-            // 활동 필터(전체 + 활동 아이콘 5개)와 묶어 보기(최근순·월별·지역별)를 한 줄에
+            // 활동 필터(전체 + 활동 아이콘 5개)와 묶어 보기(최근순·월별·지역별 + 짧은 기록 숨기기)를 한 줄에
             RecordFilterRow(
                 selectedTransportFilter = selectedTransportFilter,
                 onSelectTransportFilter = onSelectTransportFilter,
                 recordGroupMode = recordGroupMode,
-                onSelectRecordGroup = onSelectRecordGroup
+                onSelectRecordGroup = onSelectRecordGroup,
+                hideShortRecords = hideShortRecords,
+                onToggleHideShortRecords = onToggleHideShortRecords
             )
 
             Spacer(modifier = Modifier.height(6.dp))
@@ -333,14 +369,23 @@ fun ActivityListScreen(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(start = 4.dp, bottom = 6.dp)
                 )
+            } else if (hiddenShortActivities.isNotEmpty()) {
+                HiddenShortRecordsBar(
+                    count = hiddenShortActivities.size,
+                    onShow = { onToggleHideShortRecords(false) },
+                    onDeleteAll = { showDeleteShortConfirm = true },
+                    modifier = Modifier.padding(bottom = 6.dp)
+                )
             }
 
-            if (activities.isEmpty()) {
-                BoxEmptyListState(onStartClick = onNavigateBackToRecorder)
+            if (visibleActivities.isEmpty()) {
+                if (hiddenShortActivities.isEmpty()) {
+                    BoxEmptyListState(onStartClick = onNavigateBackToRecorder)
+                }
             } else {
-                // 검색·이동수단 필터가 끝난 목록을 그대로 묶습니다 (필터 → 그룹)
-                val groups = remember(activities, regions, recordGroupMode) {
-                    RecordGrouper.group(activities, regions, recordGroupMode)
+                // 검색·이동수단·짧은 기록 필터가 끝난 목록을 그대로 묶습니다 (필터 → 그룹)
+                val groups = remember(visibleActivities, regions, recordGroupMode) {
+                    RecordGrouper.group(visibleActivities, regions, recordGroupMode)
                 }
                 LazyColumn(
                     verticalArrangement = Arrangement.spacedBy(8.dp),
@@ -365,6 +410,7 @@ fun ActivityListScreen(
                             }
                             ActivityCompactRow(
                                 activity = item,
+                                placeInfo = places[item.id],
                                 onClick = onRowClick,
                                 isLoggedIn = isLoggedIn,
                                 mergeSelected = if (merging) (item.id in mergeSelected) else null,
@@ -391,7 +437,9 @@ internal fun RecordFilterRow(
     selectedTransportFilter: TransportType?,
     onSelectTransportFilter: (TransportType?) -> Unit,
     recordGroupMode: RecordGroupMode,
-    onSelectRecordGroup: (RecordGroupMode) -> Unit
+    onSelectRecordGroup: (RecordGroupMode) -> Unit,
+    hideShortRecords: Boolean = false,
+    onToggleHideShortRecords: (Boolean) -> Unit = {}
 ) {
     val cs = MaterialTheme.colorScheme
     val allSelected = selectedTransportFilter == null
@@ -461,19 +509,26 @@ internal fun RecordFilterRow(
         }
 
         Spacer(modifier = Modifier.width(8.dp))
-        RecordGroupModeMenu(recordGroupMode = recordGroupMode, onSelectRecordGroup = onSelectRecordGroup)
+        RecordGroupModeMenu(
+            recordGroupMode = recordGroupMode,
+            onSelectRecordGroup = onSelectRecordGroup,
+            hideShortRecords = hideShortRecords,
+            onToggleHideShortRecords = onToggleHideShortRecords
+        )
     }
 }
 
-/** 지금 묶어 보는 방식만 보이는 작은 버튼 + 세 가지 선택 메뉴 */
+/** 지금 묶어 보는 방식만 보이는 작은 버튼 + 세 가지 선택 메뉴 + 짧은 기록 숨기기 토글 */
 @Composable
 internal fun RecordGroupModeMenu(
     recordGroupMode: RecordGroupMode,
-    onSelectRecordGroup: (RecordGroupMode) -> Unit
+    onSelectRecordGroup: (RecordGroupMode) -> Unit,
+    hideShortRecords: Boolean = false,
+    onToggleHideShortRecords: (Boolean) -> Unit = {}
 ) {
     val cs = MaterialTheme.colorScheme
     var expanded by remember { mutableStateOf(false) }
-    val active = recordGroupMode != RecordGroupMode.RECENT
+    val active = recordGroupMode != RecordGroupMode.RECENT || hideShortRecords
     Box {
         Row(
             modifier = Modifier
@@ -513,17 +568,24 @@ internal fun RecordGroupModeMenu(
                 onSelect = { mode ->
                     expanded = false
                     onSelectRecordGroup(mode)
+                },
+                hideShortRecords = hideShortRecords,
+                onToggleHideShortRecords = {
+                    expanded = false
+                    onToggleHideShortRecords(!hideShortRecords)
                 }
             )
         }
     }
 }
 
-/** 묶어 보기 메뉴의 세 줄 (지금 고른 방식에만 체크 표시) */
+/** 묶어 보기 메뉴의 세 줄 + 짧은 기록 숨기기 토글 */
 @Composable
 internal fun RecordGroupMenuItems(
     recordGroupMode: RecordGroupMode,
-    onSelect: (RecordGroupMode) -> Unit
+    onSelect: (RecordGroupMode) -> Unit,
+    hideShortRecords: Boolean = false,
+    onToggleHideShortRecords: (() -> Unit)? = null
 ) {
     RecordGroupMode.entries.forEach { mode ->
         DropdownMenuItem(
@@ -537,6 +599,69 @@ internal fun RecordGroupMenuItems(
             },
             onClick = { onSelect(mode) }
         )
+    }
+    if (onToggleHideShortRecords != null) {
+        HorizontalDivider(
+            modifier = Modifier.padding(vertical = 4.dp),
+            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f)
+        )
+        DropdownMenuItem(
+            text = { Text(stringResource(R.string.hide_short_records_title), style = MaterialTheme.typography.bodyMedium) },
+            leadingIcon = {
+                if (hideShortRecords) {
+                    Icon(Icons.Outlined.Check, contentDescription = null, modifier = Modifier.size(18.dp))
+                } else {
+                    Spacer(modifier = Modifier.size(18.dp))
+                }
+            },
+            onClick = onToggleHideShortRecords
+        )
+    }
+}
+
+/** 짧은 기록이 숨겨져 있을 때 목록 상단에 뜨는 안내 바: 숨긴 개수 + 보이기 + 모아서 지우기 */
+@Composable
+internal fun HiddenShortRecordsBar(
+    count: Int,
+    onShow: () -> Unit,
+    onDeleteAll: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val cs = MaterialTheme.colorScheme
+    Surface(
+        shape = RoundedCornerShape(12.dp),
+        color = cs.surfaceVariant.copy(alpha = 0.7f),
+        modifier = modifier.fillMaxWidth()
+    ) {
+        Row(
+            modifier = Modifier.padding(start = 12.dp, end = 6.dp, top = 4.dp, bottom = 4.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = pluralStringResource(R.plurals.short_records_hidden_count, count, count),
+                style = MaterialTheme.typography.labelMedium,
+                color = cs.onSurfaceVariant,
+                modifier = Modifier.weight(1f)
+            )
+            TextButton(
+                onClick = onShow,
+                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp),
+                modifier = Modifier.height(30.dp)
+            ) {
+                Text(stringResource(R.string.short_records_show), style = MaterialTheme.typography.labelMedium)
+            }
+            TextButton(
+                onClick = onDeleteAll,
+                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp),
+                modifier = Modifier.height(30.dp)
+            ) {
+                Text(
+                    stringResource(R.string.short_records_delete_all),
+                    style = MaterialTheme.typography.labelMedium,
+                    color = cs.error
+                )
+            }
+        }
     }
 }
 
@@ -566,36 +691,54 @@ internal fun RecordGroupHeader(title: String, count: Int) {
 }
 
 /**
- * 리스트(목록) 보기 한 줄: 제목 + 거리·시간 + 클라우드 상태 + 수정/삭제/올리기.
- * 카드와 동작은 같습니다 — 길게 누르면 합치기 선택 모드, 합치기 모드에서는 액션 버튼 숨김.
+ * 리스트(목록) 보기 한 줄:
+ * - 기본 제목인 경우: 출발→도착 지명(없으면 출발→도착 시각) + 통계(시각·거리·소요·이동 평균 속도)
+ * - 커스텀 제목인 경우: 제목 + 출발→도착 지명(있을 때) + 통계
+ * - 우측: 작은 클라우드 상태 아이콘 + 오버플로(⋮) 메뉴. 길게 누르면 합치기 모드.
  */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 internal fun ActivityCompactRow(
     activity: ActivityEntity,
     onClick: () -> Unit,
+    placeInfo: ActivityPlaceInfo? = null,
     isLoggedIn: Boolean = false,
     /** 합칠 기록 고르기 모드면 선택 여부, 아니면 null */
     mergeSelected: Boolean? = null,
     onLongClick: () -> Unit = {},
     onEdit: () -> Unit = {},
     onDelete: () -> Unit = {},
-    onUpload: () -> Unit = {}
+    onUpload: () -> Unit = {},
+    zoneId: ZoneId = ZoneId.systemDefault()
 ) {
     val cs = MaterialTheme.colorScheme
-    val stats = String.format(
-        "%.2f km · %s",
-        activity.distanceMeters / 1000.0,
-        formatCompactDuration(activity.totalDurationMs)
+    val context = LocalContext.current
+    val locale = currentLocale()
+    val customTitle = customRecordTitleOrNull(context, activity, zoneId)
+    val arrowFmt = stringResource(R.string.record_route_places)
+    val placeLine = placeInfo?.displayPlaces { s, e -> String.format(locale, arrowFmt, s, e) }
+
+    val endMs = activity.endedAtEpochMs ?: (activity.startedAtEpochMs + activity.totalDurationMs.coerceAtLeast(0L))
+    val timeRange = stringResource(
+        R.string.record_time_range,
+        formatShortTime(context, activity.startedAtEpochMs, zoneId),
+        formatShortTime(context, endMs, zoneId)
     )
+    val distStr = String.format(locale, "%.2f", activity.distanceMeters / 1000.0)
+    val durStr = formatCompactDuration(activity.totalDurationMs)
+    val speedStr = String.format(locale, "%.1f", computeDisplaySpeedKmh(activity))
+    val fullStats = stringResource(R.string.record_row_stats, timeRange, distStr, durStr, speedStr)
+    val statsWithoutTime = stringResource(R.string.record_row_stats_no_time, distStr, durStr, speedStr)
+    val tabularStatsStyle = MaterialTheme.typography.labelSmall.copy(fontFeatureSettings = "tnum")
+
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .heightIn(min = 56.dp)
-            .clip(RoundedCornerShape(12.dp))
+            .heightIn(min = 58.dp)
+            .clip(RoundedCornerShape(14.dp))
             .background(if (mergeSelected == true) cs.primaryContainer else cs.surfaceVariant)
             .combinedClickable(onClick = onClick, onLongClick = onLongClick)
-            .padding(horizontal = 10.dp, vertical = 6.dp),
+            .padding(start = 12.dp, end = if (mergeSelected == null) 4.dp else 12.dp, top = 9.dp, bottom = 9.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         if (mergeSelected != null) {
@@ -607,38 +750,106 @@ internal fun ActivityCompactRow(
             )
             Spacer(modifier = Modifier.width(6.dp))
         }
-        TransportSticker(type = activity.transportType, selected = true, size = 20.dp)
-        Spacer(modifier = Modifier.width(8.dp))
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = activity.title,
-                style = MaterialTheme.typography.titleSmall,
-                fontWeight = FontWeight.SemiBold,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
-            Text(
-                text = stats,
-                style = MaterialTheme.typography.labelSmall,
-                color = cs.onSurfaceVariant,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
+        TransportSticker(type = activity.transportType, selected = true, size = 24.dp)
+        Spacer(modifier = Modifier.width(10.dp))
+        Column(
+            modifier = Modifier.weight(1f),
+            verticalArrangement = Arrangement.spacedBy(2.dp)
+        ) {
+            when {
+                customTitle != null -> {
+                    Text(
+                        text = customTitle,
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.SemiBold,
+                        color = cs.onSurface,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    if (placeLine != null) {
+                        Text(
+                            text = placeLine,
+                            style = MaterialTheme.typography.bodySmall,
+                            fontWeight = FontWeight.Medium,
+                            color = cs.primary,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                    Text(
+                        text = fullStats,
+                        style = tabularStatsStyle,
+                        color = cs.onSurfaceVariant,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+                placeLine != null -> {
+                    Text(
+                        text = placeLine,
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.SemiBold,
+                        color = cs.onSurface,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    Text(
+                        text = fullStats,
+                        style = tabularStatsStyle,
+                        color = cs.onSurfaceVariant,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+                else -> {
+                    Text(
+                        text = timeRange,
+                        style = MaterialTheme.typography.titleSmall.copy(fontFeatureSettings = "tnum"),
+                        fontWeight = FontWeight.SemiBold,
+                        color = cs.onSurface,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    Text(
+                        text = statsWithoutTime,
+                        style = tabularStatsStyle,
+                        color = cs.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+            }
         }
-        Spacer(modifier = Modifier.width(4.dp))
+        Spacer(modifier = Modifier.width(6.dp))
         Icon(
             imageVector = if (activity.syncState == SyncState.SYNCED) Icons.Outlined.CloudDone else Icons.Outlined.CloudQueue,
             contentDescription = activity.syncState.label,
-            tint = cs.onSurfaceVariant,
-            modifier = Modifier.size(14.dp)
+            tint = if (activity.syncState == SyncState.SYNCED) cs.primary.copy(alpha = 0.85f) else cs.onSurfaceVariant.copy(alpha = 0.65f),
+            modifier = Modifier.size(15.dp)
         )
         if (mergeSelected == null) {
-            RecordActionButtons(
-                activity, isLoggedIn,
-                onEdit = onEdit, onDelete = onDelete, onUpload = onUpload
+            RecordOverflowMenu(
+                activity = activity,
+                isLoggedIn = isLoggedIn,
+                onEdit = onEdit,
+                onDelete = onDelete,
+                onUpload = onUpload
             )
         }
     }
+}
+
+internal fun computeDisplaySpeedKmh(activity: ActivityEntity): Double {
+    val mps = when {
+        activity.movingAvgSpeedMps > 0f -> activity.movingAvgSpeedMps.toDouble()
+        activity.movingDurationMs > 0L && activity.distanceMeters > 0.0 ->
+            activity.distanceMeters / (activity.movingDurationMs / 1000.0)
+        activity.avgSpeedMps > 0f -> activity.avgSpeedMps.toDouble()
+        activity.totalDurationMs > 0L && activity.distanceMeters > 0.0 ->
+            activity.distanceMeters / (activity.totalDurationMs / 1000.0)
+        else -> 0.0
+    }
+    return mps * 3.6
 }
 
 /** 한 줄 목록에 들어갈 짧은 시간 표기: 1시간 미만 "38:12", 그 이상 "2:05:30" */

@@ -399,6 +399,32 @@
     <string name="group_region">By region</string>
     <string name="group_region_none">No region info</string>
     <string name="group_region_pending">Finding region</string>
+    <string name="group_date_today">Today</string>
+    <string name="group_date_yesterday">Yesterday</string>
+    <string name="group_date_same_year_pattern">EEE, MMM d</string>
+    <string name="group_date_other_year_pattern">EEE, MMM d, yyyy</string>
+    <string name="record_route_places">%1$s → %2$s</string>
+    <string name="record_time_range">%1$s → %2$s</string>
+    <string name="record_row_stats">%1$s · %2$s km · %3$s · %4$s km/h</string>
+    <string name="record_row_stats_no_time">%1$s km · %2$s · %3$s km/h</string>
+    <string name="record_more_actions">More options</string>
+    <string name="hide_short_records_title">Hide very short records</string>
+    <string name="hide_short_records_desc">Hides records under 0.1 km or 1 min from the list.</string>
+    <string name="short_records_show">Show</string>
+    <string name="short_records_delete_all">Delete all</string>
+    <plurals name="short_records_hidden_count">
+        <item quantity="one">%1$d short record hidden</item>
+        <item quantity="other">%1$d short records hidden</item>
+    </plurals>
+    <plurals name="delete_short_confirm_title">
+        <item quantity="one">Delete %1$d hidden short record?</item>
+        <item quantity="other">Delete %1$d hidden short records?</item>
+    </plurals>
+    <string name="delete_short_confirm_criteria">Records under 0.1 km or under 1 minute.</string>
+    <plurals name="delete_short_done_toast">
+        <item quantity="one">Deleted %1$d short record</item>
+        <item quantity="other">Deleted %1$d short records</item>
+    </plurals>
     <string name="duration_h">%1$d h</string>
     <string name="duration_m">%1$d min</string>
     <string name="duration_hm">%1$d h %2$d min</string>

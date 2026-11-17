@@ -10,8 +10,10 @@ import androidx.compose.ui.res.stringResource
 import androidx.core.os.ConfigurationCompat
 import kr.co.nuni.gildam.data.gpxcompare.GradeBucket
 import kr.co.nuni.gildam.data.gpxcompare.RuggednessGrade
+import kr.co.nuni.gildam.data.list.DefaultRecordTitle
 import kr.co.nuni.gildam.data.list.RecordGroup
 import kr.co.nuni.gildam.data.list.RecordGroupMode
+import kr.co.nuni.gildam.data.local.entity.ActivityEntity
 import kr.co.nuni.gildam.data.model.GaugeMetric
 import kr.co.nuni.gildam.data.model.SyncState
 import kr.co.nuni.gildam.data.model.TransportType
@@ -23,6 +25,7 @@ import kr.co.nuni.gildam.data.weather.WindStrength
 import kr.co.nuni.gildam.map.MapCameraMode
 import kr.co.nuni.gildam.ui.R
 import java.time.Instant
+import java.time.LocalDate
 import java.time.LocalTime
 import java.time.YearMonth
 import java.time.ZoneId
@@ -169,17 +172,53 @@ val RecordGroupMode.label: String @Composable get() = stringResource(
     }
 )
 
-/** 묶음 제목: 월(기기 언어 형식) · 지역 이름(저장된 그대로) · 지역 확인 중/없음 */
+/** 묶음 제목: 최근 날짜(오늘/어제/11월 17일 (월)) · 월(기기 언어 형식) · 지역 이름 · 지역 확인 중/없음 */
 @Composable
-fun RecordGroup.displayTitle(): String = when {
+fun RecordGroup.displayTitle(today: LocalDate = LocalDate.now()): String = when {
     key == "region:none" -> stringResource(R.string.group_region_none)
     key == "region:pending" -> stringResource(R.string.group_region_pending)
+    key.startsWith("date:") -> {
+        val date = LocalDate.parse(key.removePrefix("date:"))
+        when (date) {
+            today -> stringResource(R.string.group_date_today)
+            today.minusDays(1) -> stringResource(R.string.group_date_yesterday)
+            else -> {
+                val locale = currentLocale()
+                val pattern = if (date.year == today.year) {
+                    stringResource(R.string.group_date_same_year_pattern)
+                } else {
+                    stringResource(R.string.group_date_other_year_pattern)
+                }
+                date.format(DateTimeFormatter.ofPattern(pattern, locale))
+            }
+        }
+    }
     Regex("\\d{4}-\\d{2}").matches(key) -> {
         val locale = currentLocale()
         val ym = YearMonth.of(key.substring(0, 4).toInt(), key.substring(5, 7).toInt())
         ym.format(DateTimeFormatter.ofPattern(DateFormat.getBestDateTimePattern(locale, "yMMMM"), locale))
     }
     else -> title
+}
+
+/** 사용자가 직접 바꾼 제목만 돌려주고, 자동 생성된 기본 제목(`default_record_title`)이면 null */
+fun customRecordTitleOrNull(
+    context: Context,
+    activity: ActivityEntity,
+    zoneId: ZoneId = ZoneId.systemDefault()
+): String? {
+    val locale = context.currentLocale()
+    val base = Instant.ofEpochMilli(activity.startedAtEpochMs).atZone(zoneId).toLocalDateTime()
+    val fmt = runCatching { shortDateTimeFormatter(locale) }.getOrNull()
+    val transportLabel = context.getString(activity.transportType.labelRes())
+    val extra = if (fmt != null) {
+        (-2L..2L).map { offset ->
+            context.getString(R.string.default_record_title, base.plusMinutes(offset).format(fmt), transportLabel)
+        }
+    } else {
+        emptyList()
+    }
+    return DefaultRecordTitle.customTitleOrNull(activity, zoneId, extra)
 }
 
 @Composable

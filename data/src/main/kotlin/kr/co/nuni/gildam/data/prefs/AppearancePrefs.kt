@@ -1,6 +1,7 @@
 package kr.co.nuni.gildam.data.prefs
 
 import android.content.Context
+import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
@@ -19,6 +20,7 @@ class AppearancePrefs @Inject constructor(@ApplicationContext private val contex
     private val modeKey = stringPreferencesKey("dark_mode")
     private val mapModeKey = stringPreferencesKey("record_map_mode")
     private val groupModeKey = stringPreferencesKey("record_group_mode")
+    private val hideShortKey = booleanPreferencesKey("hide_short_records")
 
     val palette: Flow<String?> = context.appearanceStore.data.map { it[paletteKey] }
     val darkMode: Flow<String?> = context.appearanceStore.data.map { it[modeKey] }
@@ -30,6 +32,10 @@ class AppearancePrefs @Inject constructor(@ApplicationContext private val contex
     /** 기록 보관함 묶어 보기 (RECENT/MONTH/REGION) */
     val recordGroupMode: Flow<String?> = context.appearanceStore.data.map { it[groupModeKey] }
     suspend fun setRecordGroupMode(name: String) { context.appearanceStore.edit { it[groupModeKey] = name } }
+
+    /** 기록 보관함: 아주 짧은 기록(0.1km 미만 또는 1분 미만) 숨기기 (기본 false) */
+    val hideShortRecords: Flow<Boolean> = context.appearanceStore.data.map { it[hideShortKey] ?: false }
+    suspend fun setHideShortRecords(hide: Boolean) { context.appearanceStore.edit { it[hideShortKey] = hide } }
 
     suspend fun setPalette(name: String) { context.appearanceStore.edit { it[paletteKey] = name } }
     suspend fun setDarkMode(name: String) { context.appearanceStore.edit { it[modeKey] = name } }
