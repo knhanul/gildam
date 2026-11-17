@@ -30,7 +30,6 @@ import androidx.compose.material.icons.outlined.DevicesOther
 import androidx.compose.material.icons.outlined.IosShare
 import androidx.compose.material.icons.outlined.Lock
 import androidx.compose.material.icons.outlined.OpenInFull
-import androidx.compose.material.icons.outlined.Schedule
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -81,8 +80,6 @@ fun ActivityDetailScreen(
     onRemoveMissingPhotoKeepMemo: (waypointId: String, photoId: String) -> Unit,
     onNavigateToSafeExport: (String) -> Unit,
     onNavigateBack: () -> Unit,
-    /** 예: "약 1시간 10분" (Tobler 추정, 개인 보정). null 이면 숨김 */
-    sameRouteEta: String? = null,
     isLoggedIn: Boolean = false,
     onEditActivity: (id: String, title: String, type: TransportType) -> Unit = { _, _, _ -> },
     onDeleteActivity: (String) -> Unit = {},
@@ -301,26 +298,6 @@ fun ActivityDetailScreen(
                         transportType = activity.transportType,
                         modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
                     )
-                }
-
-                sameRouteEta?.let { eta ->
-                    Surface(
-                        shape = RoundedCornerShape(14.dp),
-                        color = MaterialTheme.colorScheme.primaryContainer,
-                        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp)
-                    ) {
-                        Row(Modifier.padding(horizontal = 14.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
-                            Icon(androidx.compose.material.icons.Icons.Outlined.Schedule, contentDescription = null,
-                                tint = MaterialTheme.colorScheme.onPrimaryContainer, modifier = Modifier.size(20.dp))
-                            Spacer(Modifier.width(10.dp))
-                            Column {
-                                Text(stringResource(R.string.detail_eta_same_route, eta), style = MaterialTheme.typography.titleSmall,
-                                    color = MaterialTheme.colorScheme.onPrimaryContainer)
-                                Text(stringResource(R.string.detail_eta_desc), style = MaterialTheme.typography.labelSmall,
-                                    color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.75f))
-                            }
-                        }
-                    }
                 }
 
                 // 이 기록과 같은 시간·자리에 찍힌 기기 사진 (사진은 기기에만, URI 만 참조)

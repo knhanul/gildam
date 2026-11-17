@@ -5,7 +5,6 @@ import android.text.format.DateFormat
 import androidx.annotation.StringRes
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.platform.LocalConfiguration
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.core.os.ConfigurationCompat
 import kr.co.nuni.gildam.data.gpxcompare.GradeBucket
@@ -26,7 +25,6 @@ import kr.co.nuni.gildam.map.MapCameraMode
 import kr.co.nuni.gildam.ui.R
 import java.time.Instant
 import java.time.LocalDate
-import java.time.LocalTime
 import java.time.YearMonth
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -239,23 +237,11 @@ fun shortTimeFormatter(locale: Locale): DateTimeFormatter =
 fun formatShortTime(context: Context, ms: Long, zone: ZoneId = ZoneId.systemDefault()): String =
     Instant.ofEpochMilli(ms).atZone(zone).format(shortTimeFormatter(context.currentLocale()))
 
-fun formatClock(context: Context, time: LocalTime): String = time.format(shortTimeFormatter(context.currentLocale()))
-
-/** "2시간 15분" / "2 h 15 min" (걷기 예상 시간 반올림 규칙은 HikingTimeEstimator.formatKo 와 같음) */
-fun formatEta(context: Context, seconds: Double): String {
-    val totalMin = Math.round(seconds / 60.0).toInt().let { if (it < 1) 1 else it }
-    val rounded = if (totalMin >= 60) ((totalMin + 2) / 5) * 5 else totalMin
-    return formatHoursMinutes(context, rounded / 60, rounded % 60)
-}
-
 fun formatHoursMinutes(context: Context, h: Int, m: Int): String = when {
     h == 0 -> context.getString(R.string.duration_m, m)
     m == 0 -> context.getString(R.string.duration_h, h)
     else -> context.getString(R.string.duration_hm, h, m)
 }
-
-@Composable
-fun etaText(seconds: Double): String = formatEta(LocalContext.current, seconds)
 
 private const val MINUTE_MS = 60_000L
 private const val HOUR_MS = 60 * MINUTE_MS

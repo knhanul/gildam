@@ -182,9 +182,9 @@ class EnglishPreviewTest {
             GildamTheme {
                 CourseListScreen(
                     courses = listOf(
-                        CourseListItem("1", "Bukhansan Baegundae trail", 8_400.0, 812.0, RuggednessGrade.VERY_HARD, 4.3 * 3600, thumb),
-                        CourseListItem("2", "Seoul Forest loop", 3_200.0, 24.0, RuggednessGrade.EASY, 50 * 60.0, thumb),
-                        CourseListItem("3", "Inwangsan fortress wall", 4_900.0, 320.0, RuggednessGrade.SOMEWHAT_HARD, 2.1 * 3600, thumb)
+                        CourseListItem("1", "Bukhansan Baegundae trail", 8_400.0, 812.0, RuggednessGrade.VERY_HARD, thumb),
+                        CourseListItem("2", "Seoul Forest loop", 3_200.0, 24.0, RuggednessGrade.EASY, thumb),
+                        CourseListItem("3", "Inwangsan fortress wall", 4_900.0, 320.0, RuggednessGrade.SOMEWHAT_HARD, thumb)
                     ),
                     isImporting = false, onImport = {}, onOpenCourse = {}, onOpenCompare = {}
                 )

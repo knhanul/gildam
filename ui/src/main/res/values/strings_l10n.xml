@@ -167,18 +167,15 @@
     <string name="gpx_compare_short">GPX 비교</string>
     <string name="gpx_compare_card_desc">여러 길의 험함을 한눈에 비교해요</string>
     <string name="courses_empty_title">아직 코스가 없어요</string>
-    <string name="courses_empty_desc">GPX 파일을 불러오면 거리·오르막·난이도와\n예상 소요 시간을 알려드려요.</string>
+    <string name="courses_empty_desc">GPX 파일을 불러오면 거리·오르막·난이도를\n한눈에 알려드려요.</string>
     <string name="gpx_import">GPX 불러오기</string>
     <string name="courses_privacy">좌표만 읽고, 파일 속 시간·이름 같은 개인 정보는 저장하지 않아요.</string>
     <string name="state_not_selected">선택 안 됨</string>
     <string name="stat_distance">거리</string>
     <string name="stat_climb">오르막</string>
-    <string name="stat_eta">예상</string>
     <string name="courses_title_one">코스</string>
     <string name="course_delete">코스 삭제</string>
-    <string name="course_follow">이 코스 따라 걷기</string>
-    <string name="course_eta_adjusted" formatted="false">오르막·내리막 반영 · 내 걷기 기록으로 보정(×%.2f)</string>
-    <string name="course_eta_basis">오르막·내리막을 반영한 보통 걸음 기준 (쉬는 시간 제외)</string>
+    <string name="course_follow">이 코스 따라 가기</string>
     <string name="stat_max_elevation">최고 고도</string>
     <string name="elevation_profile">고도 프로파일</string>
     <string name="elevation_hint_selected">고른 지점은 지도에도 표시돼요 · 탭하거나 드래그해 보세요</string>
@@ -186,16 +183,13 @@
     <string name="course_no_elevation">이 GPX에는 고도 정보가 없어 평지로 계산했어요.</string>
     <string name="course_score_line" formatted="false">난이도 점수 %.1f · 가파른 구간(15%% 이상) %.1f km</string>
     <string name="follow_off_course" formatted="false">코스에서 %.0f m 벗어났어요</string>
-    <string name="follow_following">따라 걷는 중 · %1$s</string>
-    <string name="follow_stop">따라 걷기 그만두기</string>
+    <string name="follow_following">따라가는 중 · %1$s</string>
+    <string name="follow_stop">따라가기 그만두기</string>
     <string name="follow_remaining_distance">남은 거리</string>
-    <string name="follow_remaining_time">남은 시간</string>
-    <string name="follow_arrival">도착 예정</string>
     <string name="follow_pick_activity">어떤 활동으로 따라갈까요?</string>
     <string name="follow_start_activity">이 활동으로 출발</string>
     <string name="course_loading">코스를 불러오는 중…</string>
     <string name="map_fullscreen">지도 전체 화면</string>
-    <string name="course_eta_title">예상 소요 시간</string>
     <string name="gpx_saved">GPX 파일을 저장했어요</string>
     <string name="gpx_save_failed">GPX 저장에 실패했어요</string>
     <string name="share_title">안전 공유 &amp; GPX 내보내기</string>
@@ -295,8 +289,6 @@
     <string name="detail_total_time">총 시간</string>
     <string name="detail_moving_avg">이동 평균</string>
     <string name="detail_elevation_gain">상승 고도</string>
-    <string name="detail_eta_same_route">같은 길이면 약 %1$s 걸려요</string>
-    <string name="detail_eta_desc">오르막·내리막을 반영한 걷기 예상 시간</string>
     <string name="detail_waypoints_title">길 위의 이야기 (Waypoints · %1$s)</string>
     <string name="detail_waypoints_empty">조용히 길에만 집중한 여정이네요. 남겨진 위치 메모가 없습니다.</string>
     <string name="detail_photo_other_device_desc">클라우드에 사진 파일을 올리지 않아 이 기기에서는 메모만 보입니다.</string>
@@ -428,7 +420,7 @@
     <string name="option_off">사용 안 함</string>
     <string name="photo_position_km">%1$s km 지점</string>
     <string name="photo_position_offset">%1$s · %2$s m 옆</string>
-    <string name="course_follow_sub">예상 %1$s · 남은 거리와 도착 시간을 알려드려요</string>
+    <string name="course_follow_sub">남은 거리와 경로 이탈을 알려드려요</string>
     <string name="gpx_compare_harder_than">\'%1$s\'보다 약 %2$s배 힘든 길이에요.</string>
     <string name="detail_photo_other_device">사진은 촬영한 기기(%1$s)에만 있어요</string>
     <string name="detail_photo_other_device_unknown">다른 기기</string>
@@ -439,7 +431,6 @@
     <string name="gpx_too_few_points">경로 점이 2개 미만이에요.</string>
     <string name="default_record_title">%1$s %2$s 길이야기</string>
     <string name="merge_default_title">합친 길기록</string>
-    <string name="eta_approx">약 %1$s</string>
     <plurals name="account_server_tracks">
         <item quantity="other">서버에 저장된 기록 %1$d개</item>
     </plurals>

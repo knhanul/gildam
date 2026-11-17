@@ -43,7 +43,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
-import androidx.compose.material.icons.automirrored.outlined.DirectionsWalk
 import androidx.compose.material.icons.outlined.ChevronRight
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.automirrored.outlined.NoteAdd
@@ -86,7 +85,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import kr.co.nuni.gildam.data.course.HikingTimeEstimator
 import kr.co.nuni.gildam.data.gpxcompare.RuggednessGrade
 import kr.co.nuni.gildam.data.gpxcompare.RuggednessResult
 import kr.co.nuni.gildam.map.GildamMapLibreView
@@ -97,17 +95,16 @@ import kotlin.math.cos
 
 data class CourseListItem(
     val id: String, val name: String, val distanceM: Double, val ascentM: Double,
-    val grade: RuggednessGrade, val etaSec: Double, val thumb: List<LatLonPoint>
+    val grade: RuggednessGrade, val thumb: List<LatLonPoint>
 )
 
 data class CourseDetailUi(
-    val id: String, val name: String, val result: RuggednessResult, val route: List<LatLonPoint>,
-    val etaSec: Double, val paceFactor: Double?
+    val id: String, val name: String, val result: RuggednessResult, val route: List<LatLonPoint>
 )
 
 data class CourseFollowUi(
     val name: String, val route: List<LatLonPoint>, val totalM: Double, val remainingM: Double,
-    val etaSec: Double, val arrivalClock: String, val isOffCourse: Boolean, val offsetM: Double?
+    val isOffCourse: Boolean, val offsetM: Double?
 )
 
 internal fun kmText(m: Double) = if (m >= 10_000) "%.0f km".format(m / 1000) else "%.1f km".format(m / 1000)
@@ -311,7 +308,6 @@ private fun CourseCard(
                 Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                     MiniStat(stringResource(R.string.stat_distance), kmText(c.distanceM))
                     MiniStat(stringResource(R.string.stat_climb), "%.0f m".format(c.ascentM))
-                    MiniStat(stringResource(R.string.stat_eta), etaText(c.etaSec))
                 }
             }
         }
@@ -380,7 +376,7 @@ fun CourseDetailScreen(
             if (detail != null) Surface(color = MaterialTheme.colorScheme.surface, shadowElevation = 8.dp) {
                 kr.co.nuni.gildam.ui.illustration.VividActionButton(
                     title = stringResource(R.string.course_follow),
-                    subtitle = stringResource(R.string.course_follow_sub, etaText(detail.etaSec)),
+                    subtitle = stringResource(R.string.course_follow_sub),
                     type = suggestedActivity,
                     onClick = { showFollowSheet = true },
                     // 기기마다 다른 시스템 내비게이션 바(제스처·3버튼) 높이만큼 띄워 버튼이 가려지지 않게 함
@@ -437,20 +433,6 @@ fun CourseDetailScreen(
                 GradeBadge(r.grade); Spacer(Modifier.width(10.dp))
                 Text(r.grade.description, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
-            // 예상 시간 히어로
-            Surface(shape = RoundedCornerShape(20.dp), color = MaterialTheme.colorScheme.primaryContainer, modifier = Modifier.fillMaxWidth()) {
-                Column(Modifier.padding(18.dp)) {
-                    Text(stringResource(R.string.course_eta_title), style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onPrimaryContainer)
-                    Text(stringResource(R.string.eta_approx, etaText(detail.etaSec)), style = MaterialTheme.typography.headlineMedium,
-                        fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onPrimaryContainer)
-                    Spacer(Modifier.height(4.dp))
-                    Text(
-                        if (detail.paceFactor != null) stringResource(R.string.course_eta_adjusted).format(detail.paceFactor)
-                        else stringResource(R.string.course_eta_basis),
-                        style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.75f)
-                    )
-                }
-            }
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 StatTile(stringResource(R.string.stat_distance), kmText(r.distanceM), Modifier.weight(1f))
                 StatTile(stringResource(R.string.stat_climb), if (r.hasElevation) "%.0f m".format(r.ascentM) else "–", Modifier.weight(1f))
@@ -492,7 +474,7 @@ private fun StatTile(label: String, value: String, modifier: Modifier) {
     }
 }
 
-// ---------------- 기록 화면: 따라 걷기 카드 ----------------
+// ---------------- 기록 화면: 따라가기 카드 ----------------
 
 @Composable
 fun FollowCourseCard(f: CourseFollowUi, onStop: () -> Unit, modifier: Modifier = Modifier) {
@@ -513,11 +495,7 @@ fun FollowCourseCard(f: CourseFollowUi, onStop: () -> Unit, modifier: Modifier =
                     }
                 }
             }
-            Row(horizontalArrangement = Arrangement.spacedBy(22.dp)) {
-                FollowStat(stringResource(R.string.follow_remaining_distance), kmText(f.remainingM), fg)
-                FollowStat(stringResource(R.string.follow_remaining_time), etaText(f.etaSec), fg)
-                FollowStat(stringResource(R.string.follow_arrival), f.arrivalClock, fg)
-            }
+            FollowStat(stringResource(R.string.follow_remaining_distance), kmText(f.remainingM), fg)
             val progress = if (f.totalM > 0) (1 - f.remainingM / f.totalM).toFloat().coerceIn(0f, 1f) else 0f
             Spacer(Modifier.height(10.dp))
             Box(Modifier.padding(end = 10.dp).fillMaxWidth().height(6.dp).clip(RoundedCornerShape(3.dp)).background(fg.copy(alpha = 0.25f))) {

@@ -20,7 +20,6 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -29,17 +28,12 @@ import kr.co.nuni.gildam.data.course.CourseEntity
 import kr.co.nuni.gildam.data.course.CourseFollower
 import kr.co.nuni.gildam.data.course.CourseRepository
 import kr.co.nuni.gildam.data.course.FollowActivityGuess
-import kr.co.nuni.gildam.data.course.FollowEta
-import kr.co.nuni.gildam.data.course.HikingTimeEstimator
-import kr.co.nuni.gildam.data.gpxcompare.GpxPoint
 import kr.co.nuni.gildam.data.gpxcompare.GpxRuggedness
 import kr.co.nuni.gildam.data.gpxcompare.RuggednessResult
 import kr.co.nuni.gildam.data.prefs.FollowPrefs
 import kr.co.nuni.gildam.data.prefs.FollowRestorePolicy
 import kr.co.nuni.gildam.data.prefs.FollowRestorePolicy.OnRecordingStart
 import kr.co.nuni.gildam.data.prefs.SavedFollow
-import kr.co.nuni.gildam.data.local.entity.TrackPointEntity
-import kr.co.nuni.gildam.data.model.ActivityStatus
 import kr.co.nuni.gildam.data.model.TransportType
 import kr.co.nuni.gildam.data.repository.GildamRepository
 import kr.co.nuni.gildam.recording.LatLonPoint
@@ -49,9 +43,6 @@ import kotlin.math.abs
 import kr.co.nuni.gildam.ui.screens.CourseDetailUi
 import kr.co.nuni.gildam.ui.screens.CourseFollowUi
 import kr.co.nuni.gildam.ui.screens.CourseListItem
-import java.time.LocalTime
-import java.time.format.DateTimeFormatter
-import java.util.Locale
 import javax.inject.Inject
 
 @HiltViewModel
@@ -63,28 +54,22 @@ class CourseViewModel @Inject constructor(
     private val recordingController: RecordingController
 ) : ViewModel() {
 
-    /** 내 걷기 기록으로 계산한 보정 계수 (없으면 null = 1.0) */
-    private val _paceFactor = MutableStateFlow<Double?>(null)
-    val paceFactor: StateFlow<Double?> = _paceFactor.asStateFlow()
-
     private val _importing = MutableStateFlow(false)
     val importing: StateFlow<Boolean> = _importing.asStateFlow()
 
     init {
-        viewModelScope.launch { _paceFactor.value = computePersonalPace() }
         viewModelScope.launch { restoreSavedFollow() }
     }
 
-    val courseList: StateFlow<List<CourseListItem>> = combine(courses.observeCourses(), _paceFactor) { list, pace ->
-        list.map { it.toListItem(pace ?: 1.0) }
+    val courseList: StateFlow<List<CourseListItem>> = courses.observeCourses().map { list ->
+        list.map { it.toListItem() }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
-    fun observeDetail(id: String): Flow<CourseDetailUi?> = combine(courses.observeCourse(id), _paceFactor) { c, pace ->
+    fun observeDetail(id: String): Flow<CourseDetailUi?> = courses.observeCourse(id).map { c ->
         c?.let {
             val pts = it.points()
             val r = withContext(Dispatchers.Default) { GpxRuggedness.analyze(it.name, pts) }
-            CourseDetailUi(it.id, it.name, r, pts.map { p -> LatLonPoint(p.lat, p.lon) },
-                HikingTimeEstimator.estimateSeconds(r.profile, r.distanceM, pace ?: 1.0), pace)
+            CourseDetailUi(it.id, it.name, r, pts.map { p -> LatLonPoint(p.lat, p.lon) })
         }
     }
 
@@ -252,35 +237,19 @@ class CourseViewModel @Inject constructor(
         }
     }
 
-    /**
-     * 따라 걷기 카드 값.
-     * 남은 시간은 **지금 기록의 이동 평균 속도**(남은 거리 ÷ 평균 속도)로 계산하고,
-     * 속도를 믿을 수 없을 때(0.3 m/s 미만·아직 이동 시간 없음·24시간 초과)만 Tobler 모델값으로 돌아갑니다.
-     * 위치 신호가 잠깐 없거나 일시정지여도 상태에 남아 있는 평균 속도를 그대로 씁니다.
-     */
+    /** 따라가기 카드 값: 남은 거리와 이탈 여부만 계산합니다 (예상·남은 시간·도착 예정 표시 안 함). */
     val follow: StateFlow<CourseFollowUi?> = combine(_follow, recordingController.liveState) { f, live ->
         f ?: return@combine null
-        val pace = _paceFactor.value ?: 1.0
         val loc = live.currentLocation
-        // 지금 기록의 이동 평균 속도 (쓸 수 없으면 null)
-        val avgSpeed = FollowEta.usableSpeedMps(live.movingAvgSpeedMps, live.distanceMeters, live.elapsedMovingMs)
-
-        fun etaFor(remainingM: Double, fromKm: Double): Double {
-            val fallback = HikingTimeEstimator.estimateSeconds(f.result.profile, f.result.distanceM, pace, fromKm = fromKm)
-            return FollowEta.etaSeconds(remainingM, avgSpeed, fallback)
-        }
-
         if (loc == null) {
             // 아직 위치 신호가 없을 때: 저장해 둔 진행 지점이 있으면 거기서부터 보여 줌
             val along = f.follower.lastAlongM
             val remaining = if (along != null) (f.follower.totalM - along).coerceAtLeast(0.0) else f.follower.totalM
-            val eta = etaFor(remaining, (along ?: 0.0) / 1000.0)
-            return@combine CourseFollowUi(f.name, f.route, f.follower.totalM, remaining, eta, arrivalClock(eta), f.follower.isOffCourse, f.follower.lastOffsetM)
+            return@combine CourseFollowUi(f.name, f.route, f.follower.totalM, remaining, f.follower.isOffCourse, f.follower.lastOffsetM)
         }
         val (p, newlyOff) = f.follower.update(loc.latitude, loc.longitude)
         if (newlyOff) vibrateOffCourse()
-        val eta = etaFor(p.remainingM, p.alongM / 1000.0)
-        CourseFollowUi(f.name, f.route, f.follower.totalM, p.remainingM, eta, arrivalClock(eta), f.follower.isOffCourse, p.offsetM)
+        CourseFollowUi(f.name, f.route, f.follower.totalM, p.remainingM, f.follower.isOffCourse, p.offsetM)
     }.stateIn(viewModelScope, SharingStarted.Eagerly, null)
 
     init {
@@ -288,46 +257,19 @@ class CourseViewModel @Inject constructor(
         viewModelScope.launch { watchRecordingAndSave() }
     }
 
-    /** 기록 상세: 같은 길을 걸으면 예상 소요 */
-    fun sameRouteEta(points: List<TrackPointEntity>): String? {
-        if (points.size < 2) return null
-        val r = runCatching { GpxRuggedness.analyze("", points.map { GpxPoint(it.latitude, it.longitude, it.altitudeMeters?.toDouble()) }) }.getOrNull() ?: return null
-        if (r.distanceM < 50) return null
-        return formatEta(appContext, HikingTimeEstimator.estimateSeconds(r.profile, r.distanceM, _paceFactor.value ?: 1.0))
-    }
-
-    private fun arrivalClock(etaSec: Double): String =
-        formatClock(appContext, LocalTime.now().plusSeconds(etaSec.toLong()))
-
     private fun vibrateOffCourse() {
         val v: Vibrator? = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S)
             (appContext.getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as? VibratorManager)?.defaultVibrator
         else @Suppress("DEPRECATION") (appContext.getSystemService(Context.VIBRATOR_SERVICE) as? Vibrator)
         runCatching { v?.vibrate(VibrationEffect.createWaveform(longArrayOf(0, 300, 150, 300), -1)) }
     }
-
-    /** 최근 완료된 도보 기록(1km 이상) 최대 5개: 실제 이동 시간 ÷ Tobler 예상 */
-    private suspend fun computePersonalPace(): Double? = withContext(Dispatchers.Default) {
-        runCatching {
-            val walks = activities.observeAllActivities().first()
-                .filter { (it.transportType == TransportType.WALK || it.transportType == TransportType.HIKE) && it.status == ActivityStatus.COMPLETED && it.distanceMeters >= 1000 && it.movingDurationMs > 0 }
-                .take(5)
-            val samples = walks.mapNotNull { a ->
-                val pts = activities.getTrackPoints(a.id)
-                if (pts.size < 2) return@mapNotNull null
-                val r = GpxRuggedness.analyze("", pts.map { GpxPoint(it.latitude, it.longitude, it.altitudeMeters?.toDouble()) })
-                a.movingDurationMs / 1000.0 to HikingTimeEstimator.estimateSeconds(r.profile, r.distanceM)
-            }
-            HikingTimeEstimator.personalPaceFactor(samples)
-        }.getOrNull()
-    }
 }
 
-internal fun CourseEntity.toListItem(pace: Double): CourseListItem {
+internal fun CourseEntity.toListItem(): CourseListItem {
     val pts = points()
     val stride = maxOf(1, pts.size / 80)
     return CourseListItem(
-        id, name, distanceM, ascentM, GpxRuggedness.gradeFor(score), baseDurationSec * pace,
+        id, name, distanceM, ascentM, GpxRuggedness.gradeFor(score),
         pts.filterIndexed { i, _ -> i % stride == 0 || i == pts.lastIndex }.map { LatLonPoint(it.lat, it.lon) }
     )
 }

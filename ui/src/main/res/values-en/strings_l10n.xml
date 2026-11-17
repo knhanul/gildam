@@ -167,18 +167,15 @@
     <string name="gpx_compare_short">Compare GPX</string>
     <string name="gpx_compare_card_desc">Compare route difficulty at a glance</string>
     <string name="courses_empty_title">No courses yet</string>
-    <string name="courses_empty_desc">Import a GPX file to see distance, climb, difficulty,\nand estimated time.</string>
+    <string name="courses_empty_desc">Import a GPX file to see distance, climb, and difficulty.</string>
     <string name="gpx_import">Import GPX</string>
     <string name="courses_privacy">Only coordinates are read; times and names in the file aren\'t saved.</string>
     <string name="state_not_selected">Not selected</string>
     <string name="stat_distance">Distance</string>
     <string name="stat_climb">Climb</string>
-    <string name="stat_eta">Est.</string>
     <string name="courses_title_one">Course</string>
     <string name="course_delete">Delete course</string>
     <string name="course_follow">Follow this course</string>
-    <string name="course_eta_adjusted" formatted="false">Up &amp; downhill · adjusted to your pace (×%.2f)</string>
-    <string name="course_eta_basis">Up &amp; downhill, average walking pace (no breaks)</string>
     <string name="stat_max_elevation">Max elevation</string>
     <string name="elevation_profile">Elevation profile</string>
     <string name="elevation_hint_selected">The selected point is shown on the map · tap or drag</string>
@@ -189,13 +186,10 @@
     <string name="follow_following">Following · %1$s</string>
     <string name="follow_stop">Stop following</string>
     <string name="follow_remaining_distance">Distance left</string>
-    <string name="follow_remaining_time">Time left</string>
-    <string name="follow_arrival">Arrival</string>
     <string name="follow_pick_activity">Which activity?</string>
     <string name="follow_start_activity">Start with this activity</string>
     <string name="course_loading">Loading course…</string>
     <string name="map_fullscreen">Full-screen map</string>
-    <string name="course_eta_title">Estimated time</string>
     <string name="gpx_saved">GPX file saved</string>
     <string name="gpx_save_failed">Couldn\'t save GPX</string>
     <string name="share_title">Safe share &amp; GPX export</string>
@@ -295,8 +289,6 @@
     <string name="detail_total_time">Time</string>
     <string name="detail_moving_avg">Moving avg</string>
     <string name="detail_elevation_gain">Elev. gain</string>
-    <string name="detail_eta_same_route">About %1$s on the same route</string>
-    <string name="detail_eta_desc">Walking estimate with up &amp; downhill</string>
     <string name="detail_waypoints_title">Notes along the way (%1$s)</string>
     <string name="detail_waypoints_empty">A quiet journey with no notes left along the way.</string>
     <string name="detail_photo_other_device_desc">Photo files aren\'t uploaded to the cloud, so only the note shows here.</string>
@@ -431,7 +423,7 @@
     <string name="option_off">Off</string>
     <string name="photo_position_km">At %1$s km</string>
     <string name="photo_position_offset">%1$s · %2$s m away</string>
-    <string name="course_follow_sub">Est. %1$s · shows distance left and arrival time</string>
+    <string name="course_follow_sub">Shows distance left and off-course alerts</string>
     <string name="gpx_compare_harder_than">About %2$s× harder than \'%1$s\'.</string>
     <string name="detail_photo_other_device">The photo is only on the device that took it (%1$s)</string>
     <string name="detail_photo_other_device_unknown">another device</string>
@@ -442,7 +434,6 @@
     <string name="gpx_too_few_points">The route has fewer than 2 points.</string>
     <string name="default_record_title">%1$s %2$s route</string>
     <string name="merge_default_title">Merged record</string>
-    <string name="eta_approx">About %1$s</string>
     <plurals name="account_server_tracks">
         <item quantity="one">%1$d record on server</item>
         <item quantity="other">%1$d records on server</item>
