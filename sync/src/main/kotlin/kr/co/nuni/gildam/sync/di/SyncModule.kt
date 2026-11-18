@@ -8,8 +8,10 @@ import dagger.hilt.components.SingletonComponent
 import kotlinx.serialization.json.Json
 import kr.co.nuni.gildam.auth.KeystoreTokenStore
 import kr.co.nuni.gildam.auth.NuniAuthManager
+import kr.co.nuni.gildam.data.weather.LiveWeatherFetcher
 import okhttp3.Authenticator
 import kr.co.nuni.gildam.sync.api.GildamOvhApi
+import kr.co.nuni.gildam.sync.weather.WeatherRepository
 import okhttp3.Interceptor
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
@@ -76,7 +78,8 @@ object SyncModule {
         }
 
         val logging = HttpLoggingInterceptor().apply {
-            level = HttpLoggingInterceptor.Level.BASIC
+            // /v1/weather/now?lat=..&lon=.. 등의 쿼리 파라미터로도 로그에 좌표가 절대 남지 않도록 NONE 사용
+            level = HttpLoggingInterceptor.Level.NONE
         }
 
         return OkHttpClient.Builder()
@@ -103,6 +106,10 @@ object SyncModule {
             .build()
             .create(GildamOvhApi::class.java)
     }
+
+    @Provides
+    @Singleton
+    fun provideLiveWeatherFetcher(weatherRepository: WeatherRepository): LiveWeatherFetcher = weatherRepository
 
     private fun gzipBody(body: RequestBody): RequestBody {
         return object : RequestBody() {

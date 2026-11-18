@@ -125,7 +125,8 @@ class MapCameraPlannerTest {
             currentSpeedMps = 3.5f,
             movingAvgSpeedMps = 3.2f,
             maxSpeedMps = 4.1f,
-            elevationGainMeters = 12f,
+            elevationGainM = 12f,
+            elevationLossM = 8f,
             currentLocation = lastLoc,
             liveTrackPoints = track
         )

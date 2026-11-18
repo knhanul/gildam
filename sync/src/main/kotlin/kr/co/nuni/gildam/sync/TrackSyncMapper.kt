@@ -1,5 +1,6 @@
 package kr.co.nuni.gildam.sync
 
+import kr.co.nuni.gildam.data.elevation.ElevationAccumulator
 import kr.co.nuni.gildam.data.local.entity.ActivityEntity
 import kr.co.nuni.gildam.data.local.entity.TrackPointEntity
 import kr.co.nuni.gildam.data.local.entity.WaypointEntity
@@ -54,6 +55,14 @@ object TrackSyncMapper {
     fun fromDto(id: String, dto: TrackDto, existing: ActivityEntity?, existingWaypoints: List<WaypointEntity>, userId: String?): LocalTrack {
         val durationMs = ((dto.durationS ?: 0.0) * 1000).roundToLong()
         val distance = dto.distanceM ?: 0.0
+        val points = dto.points.mapIndexed { i, p ->
+            TrackPointEntity(
+                activityId = id, seq = i, latitude = p.lat, longitude = p.lon,
+                altitudeMeters = p.ele?.toFloat(), speedMps = p.spd?.toFloat(),
+                horizontalAccuracyMeters = (p.acc ?: 0.0).toFloat(), recordedAtEpochMs = p.t
+            )
+        }
+        val computedEle = ElevationAccumulator.computeFromTrackPoints(points)
         val activity = ActivityEntity(
             id = id,
             userId = userId ?: existing?.userId,
@@ -68,7 +77,8 @@ object TrackSyncMapper {
             avgSpeedMps = if (durationMs > 0) (distance / (durationMs / 1000.0)).toFloat() else 0f,
             movingAvgSpeedMps = existing?.movingAvgSpeedMps ?: 0f,
             maxSpeedMps = (dto.points.mapNotNull { it.spd }.maxOrNull() ?: 0.0).toFloat(),
-            elevationGainMeters = (dto.elevationGainM ?: 0.0).toFloat(),
+            elevationGainMeters = (dto.elevationGainM ?: computedEle?.first?.toDouble() ?: 0.0).toFloat(),
+            elevationLossMeters = existing?.elevationLossMeters?.takeIf { it >= 0f } ?: computedEle?.second,
             miniPolyline = existing?.miniPolyline,
             visibility = existing?.visibility ?: kr.co.nuni.gildam.data.model.Visibility.PRIVATE,
             syncState = SyncState.SYNCED,
@@ -77,13 +87,6 @@ object TrackSyncMapper {
             updatedAtEpochMs = dto.updatedAt,
             deletedAtEpochMs = null
         )
-        val points = dto.points.mapIndexed { i, p ->
-            TrackPointEntity(
-                activityId = id, seq = i, latitude = p.lat, longitude = p.lon,
-                altitudeMeters = p.ele?.toFloat(), speedMps = p.spd?.toFloat(),
-                horizontalAccuracyMeters = (p.acc ?: 0.0).toFloat(), recordedAtEpochMs = p.t
-            )
-        }
         val byId = existingWaypoints.associateBy { it.id }
         val waypoints = dto.waypoints.map { w ->
             val local = byId[w.id]

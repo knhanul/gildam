@@ -76,6 +76,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.Modifier
@@ -98,6 +99,7 @@ import kr.co.nuni.gildam.data.list.ActivityPlaceInfo
 import kr.co.nuni.gildam.data.list.RecordGroupMode
 import kr.co.nuni.gildam.data.list.RecordGrouper
 import kr.co.nuni.gildam.data.list.RecordListFilter
+import kotlin.math.roundToInt
 import kr.co.nuni.gildam.data.merge.RecordMerger
 import kr.co.nuni.gildam.data.model.ActivityStatus
 import kr.co.nuni.gildam.data.model.SyncState
@@ -727,8 +729,21 @@ internal fun ActivityCompactRow(
     val distStr = String.format(locale, "%.2f", activity.distanceMeters / 1000.0)
     val durStr = formatCompactDuration(activity.totalDurationMs)
     val speedStr = String.format(locale, "%.1f", computeDisplaySpeedKmh(activity))
-    val fullStats = stringResource(R.string.record_row_stats, timeRange, distStr, durStr, speedStr)
-    val statsWithoutTime = stringResource(R.string.record_row_stats_no_time, distStr, durStr, speedStr)
+    val wideEnoughForElevation = LocalConfiguration.current.screenWidthDp >= 380
+    val gainInt = activity.elevationGainMeters.coerceAtLeast(0f).roundToInt()
+    val lossInt = activity.elevationLossMeters?.takeIf { it >= 0f }?.roundToInt()
+    val eleSuffix = when {
+        !wideEnoughForElevation -> null
+        lossInt != null && (gainInt > 0 || lossInt > 0) ->
+            stringResource(R.string.record_elevation_compact, gainInt, lossInt)
+        gainInt > 0 ->
+            stringResource(R.string.record_elevation_gain_compact, gainInt)
+        else -> null
+    }
+    val baseFullStats = stringResource(R.string.record_row_stats, timeRange, distStr, durStr, speedStr)
+    val baseStatsWithoutTime = stringResource(R.string.record_row_stats_no_time, distStr, durStr, speedStr)
+    val fullStats = if (eleSuffix != null) "$baseFullStats · $eleSuffix" else baseFullStats
+    val statsWithoutTime = if (eleSuffix != null) "$baseStatsWithoutTime · $eleSuffix" else baseStatsWithoutTime
     val tabularStatsStyle = MaterialTheme.typography.labelSmall.copy(fontFeatureSettings = "tnum")
 
     Row(

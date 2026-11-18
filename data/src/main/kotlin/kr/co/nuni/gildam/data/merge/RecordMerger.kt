@@ -1,5 +1,6 @@
 package kr.co.nuni.gildam.data.merge
 
+import kr.co.nuni.gildam.data.elevation.ElevationAccumulator
 import kr.co.nuni.gildam.data.local.entity.ActivityEntity
 import kr.co.nuni.gildam.data.local.entity.TrackPointEntity
 import kr.co.nuni.gildam.data.model.ActivityStatus
@@ -54,6 +55,8 @@ object RecordMerger {
         var distanceMeters = 0.0
         var maxSpeedMps = 0f
         var elevationGainMeters = 0f
+        var elevationLossMeters = 0f
+        var allHaveLoss = true
 
         val mergedPoints = ArrayList<TrackPointEntity>()
         var seq = 0
@@ -64,6 +67,8 @@ object RecordMerger {
             distanceMeters += source.distanceMeters
             if (source.maxSpeedMps > maxSpeedMps) maxSpeedMps = source.maxSpeedMps
             elevationGainMeters += source.elevationGainMeters
+            val srcLoss = source.elevationLossMeters?.takeIf { it >= 0f }
+            if (srcLoss != null) elevationLossMeters += srcLoss else allHaveLoss = false
 
             val pts = pointsByActivity[source.id].orEmpty().sortedBy { it.seq }
             var started = false
@@ -87,6 +92,11 @@ object RecordMerger {
 
         // 한 번이라도 서버에 올라간 기록(syncState != LOCAL_ONLY)이 있으면 합친 기록도 올려야 합니다
         val anyOnServer = sources.any { it.syncState != SyncState.LOCAL_ONLY }
+        val finalElevationLoss = if (allHaveLoss) {
+            elevationLossMeters
+        } else {
+            ElevationAccumulator.computeFromTrackPoints(mergedPoints)?.second
+        }
         val activity = ActivityEntity(
             id = newId,
             userId = sources.firstNotNullOfOrNull { it.userId },
@@ -102,6 +112,7 @@ object RecordMerger {
             movingAvgSpeedMps = movingAvgSpeedMps,
             maxSpeedMps = maxSpeedMps,
             elevationGainMeters = elevationGainMeters,
+            elevationLossMeters = finalElevationLoss,
             miniPolyline = null,
             visibility = Visibility.PRIVATE,
             // 서버에 올린 적이 있으면 합친 기록도 올려야 하고, 없으면 기기에만 둡니다

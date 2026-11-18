@@ -194,10 +194,14 @@ class GildamViewModel @Inject constructor(
         if (regionResolveJob?.isActive == true) return
         regionResolveJob = viewModelScope.launch {
             while (true) {
+                val backfilled = runCatching { repository.backfillMissingElevationLoss(limit = 10) }.getOrDefault(0)
+                if (backfilled < 10) break
+            }
+            while (true) {
                 val filled = try {
                     repository.resolveMissingRegions(limit = 8)
                 } catch (t: Throwable) {
-                    android.util.Log.w("GildamViewModel", "region fill failed", t)
+                    android.util.Log.w("GildamViewModel", "region fill failed")
                     0
                 }
                 if (filled < 8) break

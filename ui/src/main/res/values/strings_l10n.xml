@@ -491,4 +491,15 @@
     <string name="exit_reason_signaled">시스템이 종료</string>
     <string name="exit_reason_app_updated">앱 업데이트로 종료</string>
     <string name="exit_reason_other">기타 이유로 종료</string>
+    <!-- 계기판·상세·목록: 오르막·내리막 및 기록 중 날씨 -->
+    <string name="gauge_elevation_gain_loss">오르막·내리막</string>
+    <string name="gauge_weather">날씨</string>
+    <string name="gauge_elevation_pair">↑ %1$d m  ↓ %2$d m</string>
+    <string name="gauge_value_missing">–</string>
+    <string name="detail_elevation_up_down">오르막·내리막</string>
+    <string name="detail_elevation_pair">↑ %1$d m · ↓ %2$s</string>
+    <string name="detail_elevation_gain_only">↑ %1$d m · ↓ –</string>
+    <string name="record_elevation_compact">↑%1$d ↓%2$d m</string>
+    <string name="record_elevation_gain_compact">↑%1$d m</string>
+    <string name="weather_sky_icon_cd">하늘 상태</string>
 </resources>

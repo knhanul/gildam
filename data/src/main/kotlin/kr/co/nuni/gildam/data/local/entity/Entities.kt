@@ -50,6 +50,9 @@ data class ActivityEntity(
     val maxSpeedMps: Float = 0f,
     @ColumnInfo(name = "elevation_gain_m")
     val elevationGainMeters: Float = 0f,
+    /** 내리막 누적(m). 스키마 6 이전 기록은 null → 저장된 경로 고도로 한 번 계산 가능하면 채우고, 아니면 null('–') */
+    @ColumnInfo(name = "elevation_loss_m")
+    val elevationLossMeters: Float? = null,
     @ColumnInfo(name = "mini_polyline")
     val miniPolyline: String? = null,
     @ColumnInfo(name = "visibility")

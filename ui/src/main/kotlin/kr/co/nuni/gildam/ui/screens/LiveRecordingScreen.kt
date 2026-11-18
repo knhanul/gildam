@@ -62,6 +62,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.painterResource
@@ -84,6 +85,7 @@ import kr.co.nuni.gildam.ui.illustration.VividActionButton
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
 import kr.co.nuni.gildam.recording.LiveRecordingState
+import kotlin.math.roundToInt
 import kr.co.nuni.gildam.ui.theme.TabularStatHeroStyle
 import kr.co.nuni.gildam.ui.theme.TabularStatMediumStyle
 import kr.co.nuni.gildam.ui.theme.WarningAmber
@@ -319,18 +321,31 @@ fun LiveRecordingScreen(
                 .onSizeChanged { bottomPx = it.height },
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
+            val screenHeightDp = LocalConfiguration.current.screenHeightDp
+            // 작은 화면(높이 640dp 수준)에서 기록 중 계기판이 2×3 6칸일 때 지도가 너무 줄어들지 않도록 여백·크기를 살짝 줄임
+            val compactGauge = liveState.isRecording && screenHeightDp <= 680
+            val cardPadV = if (compactGauge) 11.dp else 16.dp
+            val rowGap = if (compactGauge) 7.dp else 10.dp
+            val cellGap = if (compactGauge) 8.dp else 12.dp
+            val actionSpacer = if (compactGauge) 10.dp else 14.dp
+            val gaugeFontSp = if (compactGauge) GAUGE_VALUE_COMPACT_SP else GAUGE_VALUE_SP
+            val gaugeValueStyle = TabularStatHeroStyle.copy(
+                fontSize = gaugeFontSp.sp,
+                lineHeight = (gaugeFontSp + 5).sp
+            )
+
             // '표시 안 함'을 고른 활동은 지도 위에 큰 값을 띄우지 않습니다.
             if (overlayMetric != GaugeMetric.NONE) {
                 GaugeOverlayChip(
                     metric = overlayMetric,
                     live = liveState,
                     clockTick = clockTick,
-                    modifier = Modifier.padding(bottom = 6.dp)
+                    modifier = Modifier.padding(bottom = if (compactGauge) 2.dp else 6.dp)
                 )
             }
 
             Card(
-                shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
+                shape = RoundedCornerShape(topStart = if (compactGauge) 24.dp else 28.dp, topEnd = if (compactGauge) 24.dp else 28.dp),
                 colors = CardDefaults.cardColors(
                     containerColor = MaterialTheme.colorScheme.surface
                 ),
@@ -342,7 +357,7 @@ fun LiveRecordingScreen(
                     modifier = Modifier
                         .fillMaxWidth()
                         .windowInsetsPadding(WindowInsets.navigationBars)
-                        .padding(horizontal = 20.dp, vertical = 18.dp)
+                        .padding(horizontal = if (compactGauge) 16.dp else 20.dp, vertical = cardPadV)
                 ) {
                     // 이동 수단 태그 선택 (걷기 / 달리기 / 등산 / 자전거 / 자동차)
                     // 기록 중에는 지도를 크게 보려고 활동 아이콘을 숨깁니다.
@@ -366,35 +381,66 @@ fun LiveRecordingScreen(
 
                     Row(
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        horizontalArrangement = Arrangement.spacedBy(cellGap)
                     ) {
                         heroMetrics.forEach { metric ->
                             StatSubCard(
                                 metric = metric,
                                 live = liveState,
                                 clockTick = clockTick,
+                                valueStyle = gaugeValueStyle,
+                                compactVertical = compactGauge,
                                 modifier = Modifier.weight(1f)
                             )
                         }
                     }
 
-                    Spacer(modifier = Modifier.height(12.dp))
+                    Spacer(modifier = Modifier.height(rowGap))
 
                     Row(
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        horizontalArrangement = Arrangement.spacedBy(cellGap)
                     ) {
                         subMetrics.forEach { metric ->
                             StatSubCard(
                                 metric = metric,
                                 live = liveState,
                                 clockTick = clockTick,
+                                valueStyle = gaugeValueStyle,
+                                compactVertical = compactGauge,
                                 modifier = Modifier.weight(1f)
                             )
                         }
                     }
 
-                    Spacer(modifier = Modifier.height(16.dp))
+                    // 기록 중에는 3번째 줄(2×3, 6칸)로 오르막·내리막 + 실시간 날씨 칸을 더합니다.
+                    if (liveState.isRecording) {
+                        Spacer(modifier = Modifier.height(rowGap))
+                        val activeTransport = liveState.transportType
+                        val staleWeather = liveState.liveWeather.isStale(clockTick.value)
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(cellGap)
+                        ) {
+                            ElevationGainLossGaugeCard(
+                                gainM = liveState.elevationGainM,
+                                lossM = liveState.elevationLossM,
+                                valueStyle = gaugeValueStyle,
+                                compactVertical = compactGauge,
+                                modifier = Modifier.weight(1f)
+                            )
+                            LiveWeatherGaugeCard(
+                                weather = liveState.liveWeather.weather,
+                                isStale = staleWeather,
+                                transportType = activeTransport,
+                                valueStyle = gaugeValueStyle,
+                                compactVertical = compactGauge,
+                                modifier = Modifier.weight(1f)
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(actionSpacer))
 
                     // 컨트롤 액션 버튼 영역
                     if (!liveState.isRecording) {
@@ -409,6 +455,8 @@ fun LiveRecordingScreen(
                         )
                     } else {
                         // 작은 아이콘 버튼 (길게 누르면 이름 말풍선) — 좁은 화면에서도 잘리지 않음
+                        val btnMainSize = if (compactGauge) 46.dp else 52.dp
+                        val btnSubSize = if (compactGauge) 40.dp else 44.dp
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.spacedBy(18.dp, Alignment.CenterHorizontally),
@@ -421,15 +469,16 @@ fun LiveRecordingScreen(
                                     haptics.performHapticFeedback(HapticFeedbackType.LongPress)
                                     if (liveState.isPaused) onResumeRecording() else onPauseRecording()
                                 },
-                                style = IconButtonStyle.OUTLINED
+                                style = IconButtonStyle.OUTLINED,
+                                visualSize = btnSubSize
                             )
                             TooltipIconButton(
                                 icon = Icons.Outlined.AddLocationAlt,
                                 label = stringResource(R.string.live_add_note),
                                 onClick = { showAddMemoSheet = true },
                                 style = IconButtonStyle.BRAND,
-                                visualSize = 52.dp,
-                                iconSize = 26.dp
+                                visualSize = btnMainSize,
+                                iconSize = if (compactGauge) 24.dp else 26.dp
                             )
                             TooltipIconButton(
                                 icon = Icons.Outlined.Stop,
@@ -438,7 +487,8 @@ fun LiveRecordingScreen(
                                     haptics.performHapticFeedback(HapticFeedbackType.LongPress)
                                     onStopRecording()
                                 },
-                                style = IconButtonStyle.TONAL
+                                style = IconButtonStyle.TONAL,
+                                visualSize = btnSubSize
                             )
                         }
                     }
@@ -531,8 +581,9 @@ private fun StatSubCard(
     live: LiveRecordingState,
     clockTick: androidx.compose.runtime.State<Long>,
     modifier: Modifier = Modifier,
+    compactVertical: Boolean = false,
     valueStyle: androidx.compose.ui.text.TextStyle =
-        // 아래 계기판 4개는 모두 같은 크기 (예전 작은 값 24sp 보다 약간 크게). 넘치면 한 줄에 맞게 줄임.
+        // 아래 계기판 숫자는 모두 같은 크기. 넘치면 한 줄에 맞게 줄임.
         TabularStatHeroStyle.copy(fontSize = GAUGE_VALUE_SP.sp, lineHeight = (GAUGE_VALUE_SP + 6).sp)
 ) {
     Surface(
@@ -543,7 +594,7 @@ private fun StatSubCard(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 8.dp, vertical = 10.dp),
+                .padding(horizontal = 8.dp, vertical = if (compactVertical) 6.dp else 10.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Text(
@@ -553,7 +604,7 @@ private fun StatSubCard(
                 textAlign = TextAlign.Center,
                 maxLines = 1
             )
-            Spacer(modifier = Modifier.height(2.dp))
+            Spacer(modifier = Modifier.height(if (compactVertical) 1.dp else 2.dp))
             GaugeValueText(
                 metric = metric,
                 live = live,
@@ -565,6 +616,69 @@ private fun StatSubCard(
             )
         }
     }
+}
+
+/**
+ * 기록 중 계기판 3번째 줄 왼쪽 칸: 오르막·내리막 (`↑ 125 m  ↓ 98 m`, 정수 m).
+ * 숫자 크기는 다른 계기판 칸과 같게 시작하며, 칸 폭을 넘기면 자동으로 한 줄에 맞춰 줄입니다.
+ */
+@Composable
+private fun ElevationGainLossGaugeCard(
+    gainM: Float,
+    lossM: Float,
+    valueStyle: androidx.compose.ui.text.TextStyle,
+    compactVertical: Boolean,
+    modifier: Modifier = Modifier
+) {
+    val text = stringResource(
+        R.string.gauge_elevation_pair,
+        gainM.coerceAtLeast(0f).roundToInt(),
+        lossM.coerceAtLeast(0f).roundToInt()
+    )
+    Surface(
+        shape = RoundedCornerShape(14.dp),
+        color = MaterialTheme.colorScheme.surfaceVariant,
+        modifier = modifier
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 8.dp, vertical = if (compactVertical) 6.dp else 10.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text(
+                text = stringResource(R.string.gauge_elevation_gain_loss),
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center,
+                maxLines = 1
+            )
+            Spacer(modifier = Modifier.height(if (compactVertical) 1.dp else 2.dp))
+            AutoShrinkSingleLineText(
+                text = text,
+                style = valueStyle.copy(textAlign = TextAlign.Center),
+                color = MaterialTheme.colorScheme.onSurface
+            )
+        }
+    }
+}
+
+@Composable
+internal fun AutoShrinkSingleLineText(
+    text: String,
+    style: androidx.compose.ui.text.TextStyle,
+    color: androidx.compose.ui.graphics.Color,
+    minScale: Float = 0.55f
+) {
+    var scale by remember(text.length) { mutableStateOf(1f) }
+    Text(
+        text = text,
+        style = style.copy(fontSize = style.fontSize * scale, lineHeight = style.lineHeight * scale),
+        color = color,
+        maxLines = 1,
+        softWrap = false,
+        onTextLayout = { r -> if (r.hasVisualOverflow && scale > minScale) scale -= 0.05f }
+    )
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -720,6 +834,7 @@ internal fun GaugeValueText(
 
 /** 아래 계기판 숫자 크기(sp) */
 internal const val GAUGE_VALUE_SP = 28
+internal const val GAUGE_VALUE_COMPACT_SP = 23
 
 /** 다른 화면(기록 목록·상세)에서도 같은 표기를 쓰도록 한 곳으로 모음 */
 internal fun formatDurationHms(durationMs: Long): String = GaugeFormat.durationHms(durationMs)

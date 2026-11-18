@@ -3,6 +3,8 @@ package kr.co.nuni.gildam.data.di
 import android.content.Context
 import androidx.room.Room
 import androidx.room.RoomDatabase
+import androidx.room.migration.Migration
+import androidx.sqlite.db.SupportSQLiteDatabase
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -16,6 +18,12 @@ import javax.inject.Singleton
 @InstallIn(SingletonComponent::class)
 object DataModule {
 
+    val MIGRATION_5_6: Migration = object : Migration(5, 6) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            db.execSQL("ALTER TABLE `activities` ADD COLUMN `elevation_loss_m` REAL")
+        }
+    }
+
     @Provides
     @Singleton
     fun provideGildamDatabase(
@@ -28,6 +36,7 @@ object DataModule {
         )
             // 1초 주기 위치 기록 시 I/O 경합을 줄이기 위해 WAL(Write-Ahead Logging) 활성화
             .setJournalMode(RoomDatabase.JournalMode.WRITE_AHEAD_LOGGING)
+            .addMigrations(MIGRATION_5_6)
             .fallbackToDestructiveMigration()
             .build()
     }

@@ -498,4 +498,15 @@
     <string name="exit_reason_signaled">Closed by the system</string>
     <string name="exit_reason_app_updated">Closed for an app update</string>
     <string name="exit_reason_other">Closed for another reason</string>
+    <!-- Gauge, detail & list: ascent/descent and live weather -->
+    <string name="gauge_elevation_gain_loss">Ascent · Descent</string>
+    <string name="gauge_weather">Weather</string>
+    <string name="gauge_elevation_pair">↑ %1$d m  ↓ %2$d m</string>
+    <string name="gauge_value_missing">–</string>
+    <string name="detail_elevation_up_down">Ascent · Descent</string>
+    <string name="detail_elevation_pair">↑ %1$d m · ↓ %2$s</string>
+    <string name="detail_elevation_gain_only">↑ %1$d m · ↓ –</string>
+    <string name="record_elevation_compact">↑%1$d ↓%2$d m</string>
+    <string name="record_elevation_gain_compact">↑%1$d m</string>
+    <string name="weather_sky_icon_cd">Sky condition</string>
 </resources>

@@ -1,5 +1,6 @@
 package kr.co.nuni.gildam.recording
 
+import kr.co.nuni.gildam.data.elevation.ElevationAccumulator
 import kr.co.nuni.gildam.data.gpx.GpxExporter
 import kr.co.nuni.gildam.data.local.entity.TrackPointEntity
 import kotlin.math.max
@@ -14,7 +15,8 @@ data class TruncatedRecordingStats(
     val avgSpeedMps: Float,
     val movingAvgSpeedMps: Float,
     val maxSpeedMps: Float,
-    val elevationGainMeters: Float
+    val elevationGainMeters: Float,
+    val elevationLossMeters: Float? = null
 )
 
 /**
@@ -80,6 +82,7 @@ object StopTruncation {
             0f
         }
 
+        val computedEle = ElevationAccumulator.computeFromTrackPoints(kept)
         return TruncatedRecordingStats(
             keptPoints = kept,
             cutoffMs = cutoffMs,
@@ -90,7 +93,8 @@ object StopTruncation {
             avgSpeedMps = avgSpeedMps,
             movingAvgSpeedMps = movingAvgSpeedMps,
             maxSpeedMps = maxSpeedMps,
-            elevationGainMeters = elevationGainMeters
+            elevationGainMeters = computedEle?.first ?: elevationGainMeters,
+            elevationLossMeters = computedEle?.second ?: 0f
         )
     }
 }

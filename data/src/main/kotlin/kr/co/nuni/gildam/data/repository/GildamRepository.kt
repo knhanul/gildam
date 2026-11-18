@@ -5,6 +5,7 @@ import android.os.Build
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
+import kr.co.nuni.gildam.data.elevation.ElevationAccumulator
 import kr.co.nuni.gildam.data.list.ActivityPlaceInfo
 import kr.co.nuni.gildam.data.local.dao.GildamDao
 import kr.co.nuni.gildam.data.local.entity.ActivityDetailBundle
@@ -65,6 +66,8 @@ class GildamRepository @Inject constructor(
         val endedAt = points.lastOrNull()?.recordedAtEpochMs
             ?: existing.endedAtEpochMs
             ?: System.currentTimeMillis()
+        val backfilledLoss = existing.elevationLossMeters
+            ?: ElevationAccumulator.computeFromTrackPoints(points)?.second
         updateRecordingProgress(
             activityId = existing.id,
             status = ActivityStatus.COMPLETED,
@@ -75,6 +78,7 @@ class GildamRepository @Inject constructor(
             movingAvgSpeedMps = existing.movingAvgSpeedMps,
             maxSpeedMps = existing.maxSpeedMps,
             elevationGainMeters = existing.elevationGainMeters,
+            elevationLossMeters = backfilledLoss,
             endedAtEpochMs = endedAt
         )
         runCatching { resolveActivityPlaces(existing.id) }
@@ -126,6 +130,7 @@ class GildamRepository @Inject constructor(
         movingAvgSpeedMps: Float,
         maxSpeedMps: Float,
         elevationGainMeters: Float,
+        elevationLossMeters: Float? = null,
         endedAtEpochMs: Long? = null
     ) {
         val existing = dao.getActivityById(activityId) ?: return
@@ -141,6 +146,7 @@ class GildamRepository @Inject constructor(
                 movingAvgSpeedMps = movingAvgSpeedMps,
                 maxSpeedMps = maxSpeedMps,
                 elevationGainMeters = elevationGainMeters,
+                elevationLossMeters = elevationLossMeters ?: existing.elevationLossMeters,
                 syncState = if (existing.userId != null) SyncState.PENDING_UPLOAD else SyncState.LOCAL_ONLY,
                 updatedAtEpochMs = now
             )
@@ -412,6 +418,23 @@ class GildamRepository @Inject constructor(
         return resolved
     }
 
+    /**
+     * 스키마 6 이전 기록(elevation_loss_m == null)의 저장된 경로 점 고도로 오르막·내리막을 한 번 계산해 채웁니다.
+     * 고도 정보가 없어 계산할 수 없는 기록은 -1f 센티넬을 기록해 매번 다시 읽지 않게 합니다(화면에서는 음수·null을 '–' 처리).
+     */
+    suspend fun backfillMissingElevationLoss(limit: Int = 10): Int {
+        val targets = dao.getActivitiesMissingElevationLoss(limit)
+        if (targets.isEmpty()) return 0
+        for (activity in targets) {
+            val points = dao.getTrackPoints(activity.id)
+            val computed = ElevationAccumulator.computeFromTrackPoints(points)
+            val gain = if (activity.elevationGainMeters > 0f) activity.elevationGainMeters else (computed?.first ?: 0f)
+            val loss = computed?.second ?: -1f
+            dao.updateActivityElevationOnly(activity.id, gain, loss)
+        }
+        return targets.size
+    }
+
     suspend fun ensureDemoSampleIfEmpty() {
         if (dao.getActivityCount() > 0) return
         val now = System.currentTimeMillis()
@@ -431,6 +454,7 @@ class GildamRepository @Inject constructor(
             movingAvgSpeedMps = 1.17f,
             maxSpeedMps = 1.85f,
             elevationGainMeters = 248f,
+            elevationLossMeters = 235f,
             visibility = Visibility.PRIVATE,
             syncState = SyncState.SYNCED,
             pointsSynced = true,

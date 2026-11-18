@@ -1,5 +1,6 @@
 package kr.co.nuni.gildam.sync.weather
 
+import kr.co.nuni.gildam.data.weather.LiveWeatherFetcher
 import kr.co.nuni.gildam.data.weather.WeatherNow
 import kr.co.nuni.gildam.data.weather.WeatherNowParser
 import kr.co.nuni.gildam.sync.api.GildamOvhApi
@@ -16,7 +17,7 @@ import kotlin.math.roundToInt
 @Singleton
 class WeatherRepository @Inject constructor(
     private val api: GildamOvhApi
-) {
+) : LiveWeatherFetcher {
     private data class Cache(val key: String, val weather: WeatherNow, val atEpochMs: Long)
 
     @Volatile
@@ -35,8 +36,29 @@ class WeatherRepository @Inject constructor(
         return hit.weather
     }
 
+    override fun recentCached(nowMs: Long): Pair<WeatherNow, Long>? {
+        val hit = cache ?: return null
+        if (nowMs - hit.atEpochMs > TTL_MS) return null
+        return hit.weather to hit.atEpochMs
+    }
+
+    override suspend fun fetchLive(lat: Double, lon: Double): Pair<WeatherNow, Long>? {
+        val now = System.currentTimeMillis()
+        val hit = cache
+        if (hit != null && now - hit.atEpochMs <= LIVE_FRESH_MS && hit.key == gridKey(lat, lon)) {
+            return hit.weather to hit.atEpochMs
+        }
+        val fetched = fetchUncached(lat, lon) ?: return null
+        val savedAt = cache?.atEpochMs ?: System.currentTimeMillis()
+        return fetched to savedAt
+    }
+
     suspend fun fetchNow(lat: Double, lon: Double): WeatherNow? {
         cached(lat, lon)?.let { return it }
+        return fetchUncached(lat, lon)
+    }
+
+    private suspend fun fetchUncached(lat: Double, lon: Double): WeatherNow? {
         val response = runCatching { api.getWeatherNow(lat, lon) }.getOrNull() ?: return null
         if (!response.isSuccessful) return null
         val body = response.body() ?: return null
@@ -50,5 +72,7 @@ class WeatherRepository @Inject constructor(
 
     private companion object {
         const val TTL_MS = 15 * 60 * 1000L
+        /** 기록 시작 직후 출발 시트에서 방금 받아 둔(5분 이내) 값은 그대로 재사용 */
+        const val LIVE_FRESH_MS = 5 * 60 * 1000L
     }
 }

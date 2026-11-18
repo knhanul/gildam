@@ -7,8 +7,14 @@ import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Intent
 import android.content.pm.ServiceInfo
+import android.hardware.Sensor
+import android.hardware.SensorEvent
+import android.hardware.SensorEventListener
+import android.hardware.SensorManager
 import android.location.Location
 import android.os.Build
+import android.os.Handler
+import android.os.HandlerThread
 import android.os.Looper
 import androidx.core.app.NotificationCompat
 import androidx.core.app.ServiceCompat
@@ -29,12 +35,14 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kr.co.nuni.gildam.auth.KeystoreTokenStore
+import kr.co.nuni.gildam.data.elevation.ElevationAccumulator
 import kr.co.nuni.gildam.data.gpx.GpxExporter
 import kr.co.nuni.gildam.data.local.entity.TrackPointEntity
 import kr.co.nuni.gildam.data.model.ActivityStatus
 import kr.co.nuni.gildam.data.model.TransportType
 import kr.co.nuni.gildam.data.prefs.RecordingPrefs
 import kr.co.nuni.gildam.data.repository.GildamRepository
+import kr.co.nuni.gildam.data.weather.LiveWeatherFetcher
 import javax.inject.Inject
 
 /**
@@ -49,9 +57,20 @@ class LocationTrackingService : LifecycleService() {
     @Inject lateinit var recordingController: RecordingController
     @Inject lateinit var tokenStore: KeystoreTokenStore
     @Inject lateinit var recordingPrefs: RecordingPrefs
+    @Inject lateinit var liveWeatherFetcher: LiveWeatherFetcher
+    @Inject lateinit var lastKnownLocationProvider: LastKnownLocationProvider
 
     private lateinit var fusedLocationClient: FusedLocationProviderClient
+    private var sensorManager: SensorManager? = null
+    private var pressureSensor: Sensor? = null
+    private var sensorThread: HandlerThread? = null
+    private var sensorHandler: Handler? = null
+    private var pressureRegistered: Boolean = false
+    private val elevationLock = Any()
+    private var elevationAccumulator: ElevationAccumulator = ElevationAccumulator(hasBarometer = false)
+
     private var timerJob: Job? = null
+    private var weatherJob: Job? = null
 
     private var activeActivityId: String? = null
     private var transportType: TransportType = TransportType.WALK
@@ -72,7 +91,9 @@ class LocationTrackingService : LifecycleService() {
 
     private var totalDistanceMeters: Double = 0.0
     private var maxSpeedMps: Float = 0f
-    private var elevationGainMeters: Float = 0f
+    @Volatile private var elevationGainMeters: Float = 0f
+    @Volatile private var elevationLossMeters: Float = 0f
+    @Volatile private var currentlyMoving: Boolean = false
     private var pointSequence: Int = 0
     private var lastValidLocation: Location? = null
 
@@ -93,10 +114,52 @@ class LocationTrackingService : LifecycleService() {
         }
     }
 
+    private val pressureListener = object : SensorEventListener {
+        override fun onSensorChanged(event: SensorEvent) {
+            if (event.sensor.type != Sensor.TYPE_PRESSURE || event.values.isEmpty()) return
+            if (isPaused || activeActivityId == null) return
+            val hpa = event.values[0]
+            if (!hpa.isFinite() || hpa <= 0f) return
+            val altM = SensorManager.getAltitude(SensorManager.PRESSURE_STANDARD_ATMOSPHERE, hpa)
+            val movingNow = currentlyMoving && (System.currentTimeMillis() - lastMovementAtMs) <= RECENT_MOVEMENT_WINDOW_MS
+            var changed = false
+            var newGain = 0f
+            var newLoss = 0f
+            synchronized(elevationLock) {
+                val prevG = elevationAccumulator.gainM
+                val prevL = elevationAccumulator.lossM
+                elevationAccumulator.onBarometerAltitude(altM, moving = movingNow)
+                newGain = elevationAccumulator.gainM
+                newLoss = elevationAccumulator.lossM
+                if (newGain != prevG || newLoss != prevL) {
+                    elevationGainMeters = newGain
+                    elevationLossMeters = newLoss
+                    changed = true
+                }
+            }
+            if (changed) {
+                recordingController.updateState { it.copy(elevationGainM = newGain, elevationLossM = newLoss) }
+            }
+        }
+
+        override fun onAccuracyChanged(sensor: Sensor?, accuracy: Int) = Unit
+    }
+
     override fun onCreate() {
         super.onCreate()
         fusedLocationClient = LocationServices.getFusedLocationProviderClient(this)
+        sensorManager = getSystemService(SensorManager::class.java)
+        pressureSensor = sensorManager?.getDefaultSensor(Sensor.TYPE_PRESSURE)
         createNotificationChannel()
+    }
+
+    override fun onDestroy() {
+        unregisterPressureSensor()
+        sensorThread?.quitSafely()
+        sensorThread = null
+        sensorHandler = null
+        weatherJob?.cancel()
+        super.onDestroy()
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -144,6 +207,11 @@ class LocationTrackingService : LifecycleService() {
         totalDistanceMeters = 0.0
         maxSpeedMps = 0f
         elevationGainMeters = 0f
+        elevationLossMeters = 0f
+        currentlyMoving = false
+        synchronized(elevationLock) {
+            elevationAccumulator = ElevationAccumulator(hasBarometer = pressureSensor != null)
+        }
         pointSequence = 0
         lastValidLocation = null
         liveTrack = LiveTrackSimplifier()
@@ -168,15 +236,21 @@ class LocationTrackingService : LifecycleService() {
                 currentUserId = tokenStore.getNuniUserId()
             )
             activeActivityId = activity.id
+            val initialWeather = liveWeatherFetcher.recentCached()?.let { (w, atMs) ->
+                LiveWeatherState(weather = w, fetchedAtEpochMs = atMs)
+            } ?: LiveWeatherState()
             recordingController.updateState {
                 LiveRecordingState(
                     isRecording = true,
                     isPaused = false,
                     activeActivityId = activity.id,
-                    transportType = type
+                    transportType = type,
+                    liveWeather = initialWeather
                 )
             }
+            registerPressureSensor()
             startTimerLoop()
+            startWeatherLoop()
         }
 
         // 약 1초 주기 고정밀 위치 요청 (현실적 배터리·스케줄링 허용폭 800ms ~ 2500ms 설정)
@@ -227,6 +301,12 @@ class LocationTrackingService : LifecycleService() {
                 }
             }
             val restoredLast = savedPoints.lastOrNull()?.let { LatLonPoint(it.latitude, it.longitude, it.altitudeMeters, it.isPauseBoundary) }
+            val restoredEle = withContext(Dispatchers.Default) {
+                val initialLoss = activity.elevationLossMeters?.takeIf { it >= 0f }
+                    ?: ElevationAccumulator.computeFromTrackPoints(savedPoints)?.second
+                    ?: 0f
+                activity.elevationGainMeters to initialLoss
+            }
             val now = System.currentTimeMillis()
 
             liveTrack = restoredTrack
@@ -239,7 +319,16 @@ class LocationTrackingService : LifecycleService() {
             totalDistanceMeters = activity.distanceMeters
             movingDurationMs = activity.movingDurationMs
             maxSpeedMps = activity.maxSpeedMps
-            elevationGainMeters = activity.elevationGainMeters
+            elevationGainMeters = restoredEle.first
+            elevationLossMeters = restoredEle.second
+            currentlyMoving = false
+            synchronized(elevationLock) {
+                elevationAccumulator = ElevationAccumulator(
+                    hasBarometer = pressureSensor != null,
+                    initialGainM = elevationGainMeters,
+                    initialLossM = elevationLossMeters
+                ).also { it.resetSegment() }
+            }
 
             val lastPt = savedPoints.lastOrNull()
             lastValidLocation = lastPt?.let { pt ->
@@ -267,6 +356,10 @@ class LocationTrackingService : LifecycleService() {
 
             val activeElapsed = (now - startTimestampMs - accumulatedPauseMs - accumulatedGapMs).coerceAtLeast(0L)
 
+            val initialWeather = liveWeatherFetcher.recentCached()?.let { (w, atMs) ->
+                LiveWeatherState(weather = w, fetchedAtEpochMs = atMs)
+            } ?: LiveWeatherState()
+
             recordingController.updateState {
                 LiveRecordingState(
                     isRecording = true,
@@ -279,16 +372,20 @@ class LocationTrackingService : LifecycleService() {
                     currentSpeedMps = 0f,
                     movingAvgSpeedMps = activity.movingAvgSpeedMps,
                     maxSpeedMps = maxSpeedMps,
-                    elevationGainMeters = elevationGainMeters,
+                    elevationGainM = elevationGainMeters,
+                    elevationLossM = elevationLossMeters,
+                    liveWeather = initialWeather,
                     currentLocation = restoredLast,
                     liveTrackPoints = restoredTrack.snapshot(),
                     liveTrackPointCount = restoredTrack.rawCount,
                     isGpsSignalWeak = false
                 )
             }
+            registerPressureSensor()
             persistProgress(ActivityStatus.RECORDING)
             updateNotification(force = true)
             startTimerLoop()
+            startWeatherLoop()
         }
 
         val request = LocationRequest.Builder(Priority.PRIORITY_HIGH_ACCURACY, 1000L)
@@ -307,8 +404,11 @@ class LocationTrackingService : LifecycleService() {
     private fun pauseTracking() {
         if (isPaused || activeActivityId == null) return
         isPaused = true
+        currentlyMoving = false
         pauseStartedAtMs = System.currentTimeMillis()
         markNextPointAsPauseBoundary = true
+        unregisterPressureSensor()
+        synchronized(elevationLock) { elevationAccumulator.resetSegment() }
 
         lifecycleScope.launch {
             flushPointBufferToRoom()
@@ -322,6 +422,7 @@ class LocationTrackingService : LifecycleService() {
         if (!isPaused || activeActivityId == null) return
         val now = System.currentTimeMillis()
         isPaused = false
+        currentlyMoving = false
         if (pauseStartedAtMs > 0L) {
             val pausedDelta = (now - pauseStartedAtMs).coerceAtLeast(0L)
             accumulatedPauseMs += pausedDelta
@@ -330,6 +431,8 @@ class LocationTrackingService : LifecycleService() {
         }
         // 재개 직후 오래 멈춤 경고가 즉시 뜨지 않도록 현재 시각으로 갱신
         lastMovementAtMs = now
+        synchronized(elevationLock) { elevationAccumulator.resetSegment() }
+        registerPressureSensor()
         recordingController.updateState { it.copy(isPaused = false) }
         updateNotification(force = true)
     }
@@ -351,7 +454,9 @@ class LocationTrackingService : LifecycleService() {
             return
         }
         fusedLocationClient.removeLocationUpdates(locationCallback)
+        unregisterPressureSensor()
         timerJob?.cancel()
+        weatherJob?.cancel()
         cancelAutoStopAlertNotification()
 
         lifecycleScope.launch {
@@ -373,6 +478,7 @@ class LocationTrackingService : LifecycleService() {
                 movingDurationMs = stats.movingDurationMs
                 maxSpeedMps = stats.maxSpeedMps
                 elevationGainMeters = stats.elevationGainMeters
+                elevationLossMeters = stats.elevationLossMeters ?: elevationLossMeters
                 repository.updateRecordingProgress(
                     activityId = finishingId,
                     status = ActivityStatus.COMPLETED,
@@ -382,7 +488,8 @@ class LocationTrackingService : LifecycleService() {
                     avgSpeedMps = stats.avgSpeedMps,
                     movingAvgSpeedMps = stats.movingAvgSpeedMps,
                     maxSpeedMps = stats.maxSpeedMps,
-                    elevationGainMeters = stats.elevationGainMeters,
+                    elevationGainMeters = elevationGainMeters,
+                    elevationLossMeters = elevationLossMeters,
                     endedAtEpochMs = stats.endedAtEpochMs
                 )
             } else {
@@ -443,13 +550,23 @@ class LocationTrackingService : LifecycleService() {
                 }
                 computedSpeedMps = 0f
             }
+        }
 
-            if (location.hasAltitude() && prev.hasAltitude()) {
-                val altDiff = (location.altitude - prev.altitude).toFloat()
-                if (altDiff in 0.5f..15.0f) {
-                    elevationGainMeters += altDiff
-                }
+        val isMovingNow = computedSpeedMps >= ElevationAccumulator.MIN_MOVING_SPEED_MPS ||
+            (prev != null && !markNextPointAsPauseBoundary && deltaMeters >= AutoStopPolicy.MIN_MOVEMENT_METERS)
+        currentlyMoving = isMovingNow
+
+        synchronized(elevationLock) {
+            if (markNextPointAsPauseBoundary) {
+                elevationAccumulator.resetSegment()
             }
+            elevationAccumulator.updateMoving(isMovingNow)
+            if (location.hasAltitude()) {
+                val vertAcc = if (location.hasVerticalAccuracy()) location.verticalAccuracyMeters else null
+                elevationAccumulator.onGpsAltitude(location.altitude, vertAcc, moving = isMovingNow)
+            }
+            elevationGainMeters = elevationAccumulator.gainM
+            elevationLossMeters = elevationAccumulator.lossM
         }
 
         lastValidLocation = location
@@ -509,7 +626,8 @@ class LocationTrackingService : LifecycleService() {
                 currentSpeedMps = computedSpeedMps,
                 movingAvgSpeedMps = movingAvgMps,
                 maxSpeedMps = maxSpeedMps,
-                elevationGainMeters = elevationGainMeters,
+                elevationGainM = elevationGainMeters,
+                elevationLossM = elevationLossMeters,
                 currentBearingDeg = movementBearing ?: state.currentBearingDeg,
                 currentLocation = newLatLon,
                 liveTrackPoints = displayTrack,
@@ -575,6 +693,76 @@ class LocationTrackingService : LifecycleService() {
         }
     }
 
+    /** 기압 센서 등록 (전용 백그라운드 HandlerThread, SENSOR_DELAY_NORMAL). 센서가 없는 기기는 조용히 건너뜀. */
+    private fun registerPressureSensor() {
+        val mgr = sensorManager ?: return
+        val sensor = pressureSensor ?: return
+        if (pressureRegistered) return
+        val handler = sensorHandler ?: run {
+            val thread = HandlerThread("gildam-barometer").apply { start() }
+            sensorThread = thread
+            Handler(thread.looper).also { sensorHandler = it }
+        }
+        pressureRegistered = mgr.registerListener(
+            pressureListener,
+            sensor,
+            SensorManager.SENSOR_DELAY_NORMAL,
+            handler
+        )
+    }
+
+    private fun unregisterPressureSensor() {
+        if (!pressureRegistered) return
+        sensorManager?.unregisterListener(pressureListener)
+        pressureRegistered = false
+    }
+
+    /**
+     * 기록 중 날씨 조회 루프:
+     * - 시작 시 1회, 이후 30분마다 백그라운드(IO)에서 /gildam-api/v1/weather/now 호출.
+     * - 실패·오프라인·미로그인 시 조용히 백오프 재시도(최대 다음 주기 30분까지)하며 로그에 좌표를 남기지 않음.
+     */
+    private fun startWeatherLoop() {
+        weatherJob?.cancel()
+        weatherJob = lifecycleScope.launch(Dispatchers.IO) {
+            var consecutiveFailures = 0
+            while (isActive && activeActivityId != null) {
+                val targetLoc = resolveLiveWeatherLocation()
+                if (targetLoc == null) {
+                    // 첫 GPS 좌표가 잡힐 때까지 짧게 대기
+                    delay(5_000L)
+                    continue
+                }
+                val fetched = runCatching {
+                    liveWeatherFetcher.fetchLive(targetLoc.latitude, targetLoc.longitude)
+                }.getOrNull()
+
+                if (fetched != null) {
+                    consecutiveFailures = 0
+                    val (weather, atMs) = fetched
+                    recordingController.updateState {
+                        it.copy(liveWeather = LiveWeatherState(weather = weather, fetchedAtEpochMs = atMs))
+                    }
+                    activeActivityId?.let { actId ->
+                        runCatching { repository.saveWeatherSnapshotIfAbsent(actId, weather) }
+                    }
+                    delay(LiveWeatherPollScheduler.nextDelayAfterSuccessMs())
+                } else {
+                    consecutiveFailures += 1
+                    delay(LiveWeatherPollScheduler.nextDelayAfterFailureMs(consecutiveFailures))
+                }
+            }
+        }
+    }
+
+    private suspend fun resolveLiveWeatherLocation(): LatLonPoint? {
+        val state = recordingController.liveState.value
+        state.currentLocation?.let { return it }
+        lastValidLocation?.let { return LatLonPoint(it.latitude, it.longitude) }
+        state.lastFinishedLocation?.let { return it }
+        return runCatching { lastKnownLocationProvider.lastLocation() }.getOrNull()
+    }
+
     private suspend fun flushPointBufferToRoom() {
         val batch = synchronized(pendingRoomBuffer) {
             if (pendingRoomBuffer.isEmpty()) return
@@ -601,7 +789,8 @@ class LocationTrackingService : LifecycleService() {
             avgSpeedMps = avgSpeed,
             movingAvgSpeedMps = state.movingAvgSpeedMps,
             maxSpeedMps = maxSpeedMps,
-            elevationGainMeters = elevationGainMeters
+            elevationGainMeters = elevationGainMeters,
+            elevationLossMeters = elevationLossMeters
         )
     }
 
@@ -769,5 +958,6 @@ class LocationTrackingService : LifecycleService() {
         const val EXTRA_TITLE = "extra_title"
         const val EXTRA_ACTIVITY_ID = "extra_activity_id"
         const val EXTRA_STOP_REASON = "extra_stop_reason"
+        private const val RECENT_MOVEMENT_WINDOW_MS = 6_000L
     }
 }

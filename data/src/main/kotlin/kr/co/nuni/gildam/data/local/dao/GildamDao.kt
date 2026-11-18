@@ -181,6 +181,13 @@ interface GildamDao {
     @Upsert
     suspend fun upsertWeatherSnapshot(snapshot: WeatherSnapshotEntity)
 
+    @Query("SELECT * FROM activities WHERE status = 'COMPLETED' AND deleted_at IS NULL AND elevation_loss_m IS NULL ORDER BY started_at DESC LIMIT :limit")
+    suspend fun getActivitiesMissingElevationLoss(limit: Int): List<ActivityEntity>
+
+    /** 동기화 updated_at 을 건드리지 않고 로컬 오르막·내리막만 백필합니다(못 계산한 경우 -1f 로 표시해 재시도 방지). */
+    @Query("UPDATE activities SET elevation_gain_m = :gainM, elevation_loss_m = :lossM WHERE id = :activityId")
+    suspend fun updateActivityElevationOnly(activityId: String, gainM: Float, lossM: Float)
+
     @Query("DELETE FROM activities WHERE id = :activityId")
     suspend fun hardDeleteActivity(activityId: String)
 

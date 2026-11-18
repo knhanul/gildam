@@ -55,6 +55,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
+import kr.co.nuni.gildam.data.elevation.ElevationAccumulator
 import kr.co.nuni.gildam.data.gpx.TrackGapDetector
 import kr.co.nuni.gildam.data.local.entity.ActivityDetailBundle
 import kr.co.nuni.gildam.data.local.entity.TrackPointEntity
@@ -63,6 +64,7 @@ import kr.co.nuni.gildam.data.model.UriStatus
 import kr.co.nuni.gildam.map.GildamMapLibreView
 import kr.co.nuni.gildam.recording.LatLonPoint
 import java.io.File
+import kotlin.math.roundToInt
 
 /**
  * 기록 상세 화면 (설계서 4.2 텍스트 와이어 완벽 구현):
@@ -271,6 +273,41 @@ fun ActivityDetailScreen(
                     }
                 }
 
+                // 기존 기록(elevationLossMeters == null)은 저장된 경로 점 고도로 한 번 계산해 보고, 못 구하면 null('–')
+                val resolvedElevation = remember(activity.elevationGainMeters, activity.elevationLossMeters, trackPoints) {
+                    val savedLoss = activity.elevationLossMeters
+                    if (savedLoss != null) {
+                        val validLoss = savedLoss.takeIf { it >= 0f }
+                        val hasGainOrLoss = validLoss != null || activity.elevationGainMeters > 0f
+                        if (hasGainOrLoss) activity.elevationGainMeters to validLoss else null to null
+                    } else {
+                        val computed = ElevationAccumulator.computeFromTrackPoints(trackPoints)
+                        if (computed != null) {
+                            val gain = if (activity.elevationGainMeters > 0f) activity.elevationGainMeters else computed.first
+                            gain to computed.second
+                        } else if (activity.elevationGainMeters > 0f) {
+                            activity.elevationGainMeters to null
+                        } else {
+                            null to null
+                        }
+                    }
+                }
+                val elevationDetailText = when {
+                    resolvedElevation.first == null && resolvedElevation.second == null ->
+                        stringResource(R.string.gauge_value_missing)
+                    resolvedElevation.second != null ->
+                        stringResource(
+                            R.string.detail_elevation_pair,
+                            (resolvedElevation.first ?: 0f).coerceAtLeast(0f).roundToInt(),
+                            "${resolvedElevation.second!!.coerceAtLeast(0f).roundToInt()} m"
+                        )
+                    else ->
+                        stringResource(
+                            R.string.detail_elevation_gain_only,
+                            (resolvedElevation.first ?: 0f).coerceAtLeast(0f).roundToInt()
+                        )
+                }
+
                 // 핵심 통계 요약 바
                 Surface(
                     shape = RoundedCornerShape(16.dp),
@@ -282,13 +319,13 @@ fun ActivityDetailScreen(
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(16.dp),
+                            .padding(horizontal = 12.dp, vertical = 14.dp),
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
                         DetailMetricColumn(stringResource(R.string.detail_total_distance), String.format("%.2f km", activity.distanceMeters / 1000.0))
                         DetailMetricColumn(stringResource(R.string.detail_total_time), formatDurationHms(activity.totalDurationMs))
                         DetailMetricColumn(stringResource(R.string.detail_moving_avg), String.format("%.1f km/h", activity.movingAvgSpeedMps * 3.6f))
-                        DetailMetricColumn(stringResource(R.string.detail_elevation_gain), String.format("+%.0f m", activity.elevationGainMeters))
+                        DetailMetricColumn(stringResource(R.string.detail_elevation_up_down), elevationDetailText)
                     }
                 }
 
@@ -364,12 +401,14 @@ private fun DetailMetricColumn(label: String, value: String) {
         Text(
             text = label,
             style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            maxLines = 1
         )
         Spacer(modifier = Modifier.height(4.dp))
         Text(
             text = value,
-            style = MaterialTheme.typography.titleMedium
+            style = MaterialTheme.typography.titleSmall.copy(fontFeatureSettings = "tnum"),
+            maxLines = 1
         )
     }
 }
