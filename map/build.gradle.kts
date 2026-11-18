@@ -42,6 +42,8 @@ dependencies {
     implementation(libs.androidx.compose.material3)
     implementation(libs.maplibre.android.sdk)
     implementation(libs.kotlinx.serialization.json)
+    implementation(libs.kotlinx.coroutines.android)
 
     testImplementation(libs.junit)
+    testImplementation(libs.kotlinx.coroutines.test)
 }

@@ -183,6 +183,31 @@ fun GildamMapLibreView(
             onCreate(null)
         }
     }
+    // 지도 객체는 한 번만 받아 보관 (재구성마다 getMapAsync 를 부르지 않음)
+    val mapHolder = remember { androidx.compose.runtime.mutableStateOf<org.maplibre.android.maps.MapLibreMap?>(null) }
+    DisposableEffect(mapView) {
+        mapView.getMapAsync { mapHolder.value = it }
+        onDispose { }
+    }
+    // 경로·코스 선: 바뀐 것만, 최대 2초에 한 번, GeoJSON 은 백그라운드에서 만듦
+    val lineScope = androidx.compose.runtime.rememberCoroutineScope()
+    val lineUpdater = remember {
+        LineSourceUpdater(lineScope, object : LineSourceSink {
+            override fun isReady(): Boolean = runCatching {
+                mapHolder.value?.style?.let { it.isFullyLoaded && it.getSource(ROUTE_SOURCE_ID) != null } == true
+            }.getOrDefault(false)
+
+            override fun apply(built: BuiltLineSources) {
+                val style = mapHolder.value?.style ?: return
+                runCatching {
+                    built.route?.let { style.getSourceAs<GeoJsonSource>(ROUTE_SOURCE_ID)?.setGeoJson(it) }
+                    built.remainingCourse?.let { style.getSourceAs<GeoJsonSource>(COURSE_SOURCE_ID)?.setGeoJson(it) }
+                    built.walkedCourse?.let { style.getSourceAs<GeoJsonSource>(WALKED_SOURCE_ID)?.setGeoJson(it) }
+                }
+            }
+        })
+    }
+    val appliedRouteOpacity = remember { floatArrayOf(Float.NaN) }
     val loadedStyleKey = remember { arrayOfNulls<String>(1) }
     val markerStyleKey = remember { arrayOfNulls<String>(1) }
     val photoKey = remember { arrayOfNulls<String>(1) }
@@ -193,7 +218,7 @@ fun GildamMapLibreView(
     val photoMarkersNow = androidx.compose.runtime.rememberUpdatedState(photoMarkers)
     val photoTapCallback = androidx.compose.runtime.rememberUpdatedState(onPhotoMarkerTap)
     val bearingCallback = androidx.compose.runtime.rememberUpdatedState(onMapBearingChanged)
-    val camState = remember { object { var initialized = false; var lastFit: GeoBounds? = null; var lastFitMs = 0L; var lastFollowMs = 0L; var listener = false; var lastMode: MapCameraMode? = null; var lastKey = 0; var overviewBearing: Double? = null; var overviewOriented: Double? = null } }
+    val camState = remember { object { var initialized = false; var lastFit: GeoBounds? = null; var lastFitMs = 0L; var lastFollowMs = 0L; var listener = false; var lastMode: MapCameraMode? = null; var lastKey = 0; var overviewBearing: Double? = null; var overviewOriented: Double? = null; var bestBearingKey: Any? = null; var bestBearing = 0.0 } }
     val gestureCallback = androidx.compose.runtime.rememberUpdatedState(onUserGesture)
 
     DisposableEffect(lifecycleOwner, mapView) {
@@ -218,7 +243,7 @@ fun GildamMapLibreView(
             modifier = Modifier.fillMaxSize(),
             factory = { mapView },
             update = { view ->
-                view.getMapAsync { map ->
+                mapHolder.value?.let { map ->
                     val styleUrl = if (isDarkTheme) GildamMapConfig.DARK_STYLE_URL else GildamMapConfig.LIGHT_STYLE_URL
 
                     // 현재 위치 → 경로 마지막 점 → 코스 첫 점. 아무것도 없으면 null (카메라를 옮기지 않음, 서울로 튀지 않게)
@@ -317,7 +342,13 @@ fun GildamMapLibreView(
                                 val pts = ArrayList<LatLonPoint>(trackPoints.size + coursePoints.size + 1).apply {
                                     addAll(trackPoints); currentLocation?.let(::add); addAll(coursePoints)
                                 }
-                                val axisNow = OverviewBearingPlanner.choose(camState.overviewBearing, OverviewBearingPlanner.bestBearing(pts))
+                                // 경로 모양의 축은 선이 바뀌었을 때만 다시 계산 (같은 선이면 캐시)
+                                val bearingKey = LineSourceKey(PolylineKey.of(trackPoints), PolylineKey.of(coursePoints), currentLocation)
+                                if (camState.bestBearingKey != bearingKey) {
+                                    camState.bestBearingKey = bearingKey
+                                    camState.bestBearing = OverviewBearingPlanner.bestBearing(pts)
+                                }
+                                val axisNow = OverviewBearingPlanner.choose(camState.overviewBearing, camState.bestBearing)
                                 val rotated = axisNow != camState.overviewBearing
                                 camState.overviewBearing = axisNow
                                 // 방향(위/아래)은 축을 새로 정할 때만 정해서 갑자기 뒤집히지 않게
@@ -370,20 +401,18 @@ fun GildamMapLibreView(
                     }
                     }
 
-                    val geoJson = buildLineStringGeoJson(trackPoints)
+                    // 선(경로·코스)은 lineUpdater 가 백그라운드에서 만들어 가끔 넣음.
                     // 코스를 따라 걷는 중이면 '지나온 부분 / 남은 부분'으로 나눠 남은 쪽을 흐리게
-                    val courseSplit = MapRouteGeometry.splitCourseAt(coursePoints, currentLocation)
-                    val walkedCourseGeoJson = buildLineStringGeoJson(courseSplit?.walked ?: emptyList())
-                    val remainingCourseGeoJson = buildLineStringGeoJson(courseSplit?.remaining ?: coursePoints)
+                    val arrowShown = showDirectionArrow && routeOpacity > 0.9f
                     val markers = MapMarkers(
                         start = trackPoints.firstOrNull() ?: coursePoints.firstOrNull(),
                         current = currentLocation ?: trackPoints.lastOrNull(),
                         // 끝난 뒤(스냅샷, 반투명 선)에는 화살표 대신 도착 점만
-                        showArrow = showDirectionArrow && routeOpacity > 0.9f,
+                        showArrow = arrowShown,
                         bearing = MapCameraPlanner.resolveBearing(bearingDeg, trackPoints, currentLocation),
-                        // 화살표가 현재 위치이므로, 같은 자리의 진행 점은 겹치지 않게 숨김
-                        onCourseProgress = courseSplit?.let {
-                            if (it.walked.isNotEmpty() && !(showDirectionArrow && routeOpacity > 0.9f)) currentLocation else null
+                        // 화살표가 현재 위치이므로, 같은 자리의 진행 점은 겹치지 않게 숨김 (화살표가 없을 때만 코스를 훑어 봄)
+                        onCourseProgress = currentLocation?.takeIf {
+                            !arrowShown && coursePoints.size >= 2 && MapRouteGeometry.splitIndexAt(coursePoints, it) > 0
                         },
                         offCourse = offCourse,
                         selectedCourse = selectedCourseKm?.let { km -> MapRouteGeometry.pointAtKm(coursePoints, km) }
@@ -391,7 +420,8 @@ fun GildamMapLibreView(
                     // 길담 레이어(코스·경로·점·사진 핀)를 스타일 위에 쌓기
                     val addGildamLayers: (Style) -> Unit = { style ->
                             // 남은 코스(흐리게) → 지나온 코스 → 내 경로 → 점들 순서로 쌓기
-                            style.addSource(GeoJsonSource(COURSE_SOURCE_ID, remainingCourseGeoJson))
+                            // 선 소스는 빈 값으로 만들고 lineUpdater 가 곧바로 채움 (invalidate)
+                            style.addSource(GeoJsonSource(COURSE_SOURCE_ID, MapGeoJson.EMPTY))
                             style.addLayer(LineLayer(COURSE_LAYER_ID, COURSE_SOURCE_ID).withProperties(
                                 PropertyFactory.lineColor(themeCourse.toArgb()),
                                 PropertyFactory.lineOpacity(0.42f),
@@ -400,7 +430,7 @@ fun GildamMapLibreView(
                                 PropertyFactory.lineCap(Property.LINE_CAP_ROUND),
                                 PropertyFactory.lineJoin(Property.LINE_JOIN_ROUND)
                             ))
-                            style.addSource(GeoJsonSource(WALKED_SOURCE_ID, walkedCourseGeoJson))
+                            style.addSource(GeoJsonSource(WALKED_SOURCE_ID, MapGeoJson.EMPTY))
                             style.addLayer(LineLayer(WALKED_LAYER_ID, WALKED_SOURCE_ID).withProperties(
                                 PropertyFactory.lineColor(themeCourse.toArgb()),
                                 PropertyFactory.lineOpacity(0.95f),
@@ -408,7 +438,7 @@ fun GildamMapLibreView(
                                 PropertyFactory.lineCap(Property.LINE_CAP_ROUND),
                                 PropertyFactory.lineJoin(Property.LINE_JOIN_ROUND)
                             ))
-                            style.addSource(GeoJsonSource(ROUTE_SOURCE_ID, geoJson))
+                            style.addSource(GeoJsonSource(ROUTE_SOURCE_ID, MapGeoJson.EMPTY))
                             val lineColor = String.format("#%06X", 0xFFFFFF and themeRoute.toArgb())
                             style.addLayer(LineLayer(ROUTE_LAYER_ID, ROUTE_SOURCE_ID).withProperties(
                                 PropertyFactory.lineColor(Color.parseColor(lineColor)),
@@ -433,6 +463,8 @@ fun GildamMapLibreView(
                             )
                             markerStyleKey[0] = markersKey(markers)
                             photoKey[0] = photoMarkersKey(photoMarkers)
+                            appliedRouteOpacity[0] = routeOpacity
+                            lineUpdater.invalidate()
                     }
                     val existingStyle = map.style
                     val action = MapStyleLoadPlanner.decide(
@@ -450,12 +482,12 @@ fun GildamMapLibreView(
                     } else if (action == StyleAction.ADD_LAYERS && existingStyle != null) {
                         runCatching { addGildamLayers(existingStyle) }
                     } else if (action == StyleAction.UPDATE && existingStyle != null) {
-                        existingStyle.getSourceAs<GeoJsonSource>(ROUTE_SOURCE_ID)?.setGeoJson(geoJson)
-                        existingStyle.getSourceAs<GeoJsonSource>(COURSE_SOURCE_ID)?.setGeoJson(remainingCourseGeoJson)
-                        existingStyle.getSourceAs<GeoJsonSource>(WALKED_SOURCE_ID)?.setGeoJson(walkedCourseGeoJson)
-                        existingStyle.getLayerAs<LineLayer>(ROUTE_LAYER_ID)?.setProperties(
-                            PropertyFactory.lineOpacity(routeOpacity)
-                        )
+                        if (appliedRouteOpacity[0] != routeOpacity) {
+                            appliedRouteOpacity[0] = routeOpacity
+                            existingStyle.getLayerAs<LineLayer>(ROUTE_LAYER_ID)?.setProperties(
+                                PropertyFactory.lineOpacity(routeOpacity)
+                            )
+                        }
                         // 점·화살표는 바뀔 때만 갱신
                         val key = markersKey(markers)
                         if (markerStyleKey[0] != key) {
@@ -491,6 +523,8 @@ fun GildamMapLibreView(
                             }
                         }
                     }
+                    // 선 갱신 요청: 여기서는 요약 비교만, 실제 GeoJSON 은 백그라운드에서 (최대 2초에 한 번)
+                    lineUpdater.submit(trackPoints, coursePoints, currentLocation)
                 }
             }
         )
@@ -633,23 +667,6 @@ private fun PreviewFallbackMapCanvas(
             }
         }
     }
-}
-
-internal fun splitIntoSegments(points: List<LatLonPoint>): List<List<LatLonPoint>> {
-    if (points.isEmpty()) return emptyList()
-    val segments = mutableListOf<MutableList<LatLonPoint>>()
-    var current = mutableListOf<LatLonPoint>()
-    for (pt in points) {
-        if (pt.isPauseBoundary && current.isNotEmpty()) {
-            segments.add(current)
-            current = mutableListOf()
-        }
-        current.add(pt)
-    }
-    if (current.isNotEmpty()) {
-        segments.add(current)
-    }
-    return segments.filter { it.size >= 2 }
 }
 
 private val EMPTY_FEATURE_COLLECTION = """{"type":"FeatureCollection","features":[]}"""
@@ -868,18 +885,6 @@ private fun updateMarkerSources(style: Style, markers: MapMarkers, routeColor: I
     style.getLayerAs<CircleLayer>(CURRENT_LAYER_ID)?.setProperties(
         PropertyFactory.circleColor(currentColor)
     )
-}
-
-private fun buildLineStringGeoJson(points: List<LatLonPoint>): String {
-    val segments = splitIntoSegments(points)
-    if (segments.isEmpty()) {
-        return """{"type":"FeatureCollection","features":[]}"""
-    }
-    val multiCoords = segments.joinToString(",") { seg ->
-        val coords = seg.joinToString(",") { "[${it.longitude},${it.latitude}]" }
-        "[$coords]"
-    }
-    return """{"type":"FeatureCollection","features":[{"type":"Feature","geometry":{"type":"MultiLineString","coordinates":[$multiCoords]}}]}"""
 }
 
 private val LocalMapPreviewColors = androidx.compose.runtime.staticCompositionLocalOf {

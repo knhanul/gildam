@@ -23,6 +23,18 @@ object MapRouteGeometry {
 
     fun splitCourseAt(course: List<LatLonPoint>, current: LatLonPoint?): Split? {
         if (course.size < 2 || current == null) return null
+        val idx = splitIndexAt(course, current)
+        if (idx == 0) return Split(emptyList(), course)
+        if (idx == course.lastIndex) return Split(course, emptyList())
+        return Split(course.subList(0, idx + 1).toList(), course.subList(idx, course.size).toList())
+    }
+
+    /**
+     * 지나온 부분의 마지막 점 번호 (지나온 코스 = 0..번호, 남은 코스 = 번호..끝).
+     * 0 이면 아직 지나온 부분 없음 (위치가 없거나 1.5km 넘게 떨어진 경우 포함).
+     */
+    fun splitIndexAt(course: List<LatLonPoint>, current: LatLonPoint?): Int {
+        if (course.size < 2 || current == null) return 0
         val kx = cos(Math.toRadians(current.latitude))
         var bestIdx = 0
         var best = Double.MAX_VALUE
@@ -33,10 +45,8 @@ object MapRouteGeometry {
             if (d < best) { best = d; bestIdx = i }
         }
         // 너무 멀리 떨어져 있으면(1.5km 이상) 자르지 않음 (엉뚱한 곳에서 잘리는 것 방지)
-        if (sqrt(best) * 111_320.0 > MAX_SNAP_M) return Split(emptyList(), course)
-        if (bestIdx == 0) return Split(emptyList(), course)
-        if (bestIdx == course.lastIndex) return Split(course, emptyList())
-        return Split(course.subList(0, bestIdx + 1).toList(), course.subList(bestIdx, course.size).toList())
+        if (sqrt(best) * 111_320.0 > MAX_SNAP_M) return 0
+        return bestIdx
     }
 
     /** 거리(km) 위치의 코스 좌표 (범위 밖은 양 끝) */

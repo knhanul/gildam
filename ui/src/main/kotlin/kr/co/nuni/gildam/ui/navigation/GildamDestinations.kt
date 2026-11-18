@@ -39,6 +39,10 @@ object RecordingAutoStopRoute
 @Serializable
 object PhotoStorageRoute
 
+/** 설정 > 앱 정보 > 앱 종료 기록 */
+@Serializable
+object AppExitLogRoute
+
 /**
  * 길의 험함 비교 (저장·동기화 없음).
  * [courseIds] 를 주면 코스 목록에서 고른 코스로 시작하고(쉼표 구분), 비었으면 GPX 파일 고르기로 시작.

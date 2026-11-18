@@ -20,6 +20,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
+import androidx.compose.material.icons.outlined.BugReport
 import androidx.compose.material.icons.outlined.DarkMode
 import androidx.compose.material.icons.outlined.FilterAlt
 import androidx.compose.material.icons.outlined.Map
@@ -59,7 +60,7 @@ import kr.co.nuni.gildam.ui.theme.gildamColorScheme
 
 /**
  * 설정 첫 화면.
- * 순서: 1) 계정·동기화 카드  2) 기록 설정  3) 데이터 보관  4) 화면 설정
+ * 순서: 1) 계정·동기화 카드  2) 기록 설정  3) 데이터 보관  4) 화면 설정  5) 앱 정보
  * 세부 설명과 선택지는 각 항목을 눌렀을 때 열리는 상세 화면/시트에서 보여 줍니다.
  */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -93,7 +94,9 @@ fun SettingsScreen(
     graceMs: Long = kr.co.nuni.gildam.recording.AutoStopPolicy.DEFAULT_GRACE_MS,
     onOpenRecordingAutoStop: () -> Unit = {},
     hideShortRecords: Boolean = false,
-    onHideShortRecordsChange: (Boolean) -> Unit = {}
+    onHideShortRecordsChange: (Boolean) -> Unit = {},
+    /** 설정 > 앱 정보 > 앱 종료 기록 */
+    onOpenExitLog: () -> Unit = {}
 ) {
     var showThemeSheet by remember { mutableStateOf(false) }
     var showModeSheet by remember { mutableStateOf(false) }
@@ -231,6 +234,19 @@ fun SettingsScreen(
                     icon = Icons.Outlined.DarkMode,
                     valueText = darkMode.label,
                     onClick = { showModeSheet = true }
+                )
+            }
+
+            Spacer(Modifier.height(16.dp))
+
+            // 5. 앱 정보
+            SettingsGroupLabel(stringResource(R.string.settings_group_app_info))
+            SettingsListCard {
+                SettingsListItem(
+                    title = stringResource(R.string.exit_log_title),
+                    supportingText = stringResource(R.string.exit_log_desc),
+                    icon = Icons.Outlined.BugReport,
+                    onClick = onOpenExitLog
                 )
             }
 

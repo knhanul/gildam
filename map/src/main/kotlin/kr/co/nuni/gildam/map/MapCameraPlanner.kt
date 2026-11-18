@@ -221,10 +221,13 @@ object MapCameraPlanner {
         if (bearingDeg != null && !bearingDeg.isNaN()) {
             return ((bearingDeg.toDouble() % 360.0) + 360.0) % 360.0
         }
-        val pts = if (current != null && (track.isEmpty() || track.last() != current)) track + current else track
-        for (i in pts.size - 1 downTo 1) {
-            val prev = pts[i - 1]
-            val curr = pts[i]
+        // 경로 끝 + 현재 위치를 이어 본 것처럼 거꾸로 훑음 (리스트를 복사하지 않음)
+        val withCurrent = current != null && (track.isEmpty() || track.last() != current)
+        val size = track.size + if (withCurrent) 1 else 0
+        fun at(i: Int): LatLonPoint = if (i == track.size) current!! else track[i]
+        for (i in size - 1 downTo 1) {
+            val prev = at(i - 1)
+            val curr = at(i)
             if (prev.latitude != curr.latitude || prev.longitude != curr.longitude) {
                 return bearingDegrees(prev, curr)
             }

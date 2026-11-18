@@ -23,7 +23,13 @@ data class LiveRecordingState(
     val elevationGainMeters: Float = 0f,
     val currentBearingDeg: Float? = null,
     val currentLocation: LatLonPoint? = null,
+    /**
+     * 지도에 그릴 **화면용** 경로 (줄인 점, 약 2,000점 이하). 원본 점은 DB 에만 있고,
+     * 거리·저장·동기화는 원본을 씁니다.
+     */
     val liveTrackPoints: List<LatLonPoint> = emptyList(),
+    /** 지금까지 받은 원본 점 수 (경로가 바뀌었는지 보는 버전 번호) */
+    val liveTrackPointCount: Int = 0,
     val isGpsSignalWeak: Boolean = false,
     /** 방금 끝난 기록의 마지막 위치·경로. 새 기록을 시작하면 비워집니다. */
     val lastFinishedLocation: LatLonPoint? = null,

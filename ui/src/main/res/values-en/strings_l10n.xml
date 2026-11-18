@@ -479,4 +479,23 @@
         <item quantity="one">Merged %1$d record</item>
         <item quantity="other">Merged %1$d records into one</item>
     </plurals>
+    <!-- App exit log -->
+    <string name="settings_group_app_info">App info</string>
+    <string name="exit_log_title">App exit log</string>
+    <string name="exit_log_desc">Why the app froze or closed, kept on this device only.</string>
+    <string name="exit_log_intro">When the app stops responding or closes with an error, the reason is saved on this phone only. No locations are kept and nothing is sent to the server. Use Copy or Share when reporting a problem.</string>
+    <string name="exit_log_empty">No exit records yet.</string>
+    <string name="exit_log_copy">Copy</string>
+    <string name="exit_log_share">Share</string>
+    <string name="exit_log_copied">Copied</string>
+    <string name="exit_log_share_title">Share app exit log</string>
+    <string name="exit_reason_anr">Closed because the screen stopped responding</string>
+    <string name="exit_reason_crash">Closed by an error</string>
+    <string name="exit_reason_low_memory">Closed by the system (low memory)</string>
+    <string name="exit_reason_excessive_resource_usage">Closed by the system (too much battery/CPU use)</string>
+    <string name="exit_reason_user_requested">Closed by you</string>
+    <string name="exit_reason_exit_self">The app closed itself</string>
+    <string name="exit_reason_signaled">Closed by the system</string>
+    <string name="exit_reason_app_updated">Closed for an app update</string>
+    <string name="exit_reason_other">Closed for another reason</string>
 </resources>

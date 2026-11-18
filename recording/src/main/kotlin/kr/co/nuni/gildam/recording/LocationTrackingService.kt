@@ -21,8 +21,10 @@ import com.google.android.gms.location.LocationResult
 import com.google.android.gms.location.LocationServices
 import com.google.android.gms.location.Priority
 import dagger.hilt.android.AndroidEntryPoint
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
@@ -75,6 +77,13 @@ class LocationTrackingService : LifecycleService() {
     private var lastValidLocation: Location? = null
 
     private val pendingRoomBuffer = mutableListOf<TrackPointEntity>()
+
+    /** 화면용 경로 (점이 들어올 때마다 조금씩 줄임, 원본 전체를 복사하지 않음) */
+    private var liveTrack = LiveTrackSimplifier()
+
+    /** 알림은 내용이 바뀌고 최소 간격이 지났을 때만 다시 올림 */
+    private var lastNotificationKey: String? = null
+    private var lastNotificationAtMs: Long = 0L
 
     private val locationCallback = object : LocationCallback() {
         override fun onLocationResult(result: LocationResult) {
@@ -137,6 +146,7 @@ class LocationTrackingService : LifecycleService() {
         elevationGainMeters = 0f
         pointSequence = 0
         lastValidLocation = null
+        liveTrack = LiveTrackSimplifier()
         cancelAutoStopAlertNotification()
 
         val notification = buildOngoingNotification(distanceKm = 0.0, elapsedSec = 0L, paused = false)
@@ -208,8 +218,18 @@ class LocationTrackingService : LifecycleService() {
             }
             val savedPoints = repository.getTrackPoints(activityId)
             val maxSeq = repository.getMaxTrackPointSeq(activityId)
+            // 화면용 경로는 백그라운드에서 줄여 둠 (기록 id 를 정하기 전이라 그동안 들어온 위치는 무시됨)
+            val restoredTrack = withContext(Dispatchers.Default) {
+                LiveTrackSimplifier().apply {
+                    savedPoints.forEach { pt ->
+                        add(LatLonPoint(pt.latitude, pt.longitude, pt.altitudeMeters, pt.isPauseBoundary))
+                    }
+                }
+            }
+            val restoredLast = savedPoints.lastOrNull()?.let { LatLonPoint(it.latitude, it.longitude, it.altitudeMeters, it.isPauseBoundary) }
             val now = System.currentTimeMillis()
 
+            liveTrack = restoredTrack
             activeActivityId = activity.id
             transportType = activity.transportType
             isPaused = false
@@ -245,14 +265,6 @@ class LocationTrackingService : LifecycleService() {
             warningShownAtMs = null
             warnedReason = null
 
-            val restoredTrack = savedPoints.map { pt ->
-                LatLonPoint(
-                    latitude = pt.latitude,
-                    longitude = pt.longitude,
-                    altitudeMeters = pt.altitudeMeters,
-                    isPauseBoundary = pt.isPauseBoundary
-                )
-            }
             val activeElapsed = (now - startTimestampMs - accumulatedPauseMs - accumulatedGapMs).coerceAtLeast(0L)
 
             recordingController.updateState {
@@ -268,13 +280,14 @@ class LocationTrackingService : LifecycleService() {
                     movingAvgSpeedMps = activity.movingAvgSpeedMps,
                     maxSpeedMps = maxSpeedMps,
                     elevationGainMeters = elevationGainMeters,
-                    currentLocation = restoredTrack.lastOrNull(),
-                    liveTrackPoints = restoredTrack,
+                    currentLocation = restoredLast,
+                    liveTrackPoints = restoredTrack.snapshot(),
+                    liveTrackPointCount = restoredTrack.rawCount,
                     isGpsSignalWeak = false
                 )
             }
             persistProgress(ActivityStatus.RECORDING)
-            updateNotification()
+            updateNotification(force = true)
             startTimerLoop()
         }
 
@@ -302,7 +315,7 @@ class LocationTrackingService : LifecycleService() {
             persistProgress(ActivityStatus.PAUSED)
         }
         recordingController.updateState { it.copy(isPaused = true, currentSpeedMps = 0f) }
-        updateNotification()
+        updateNotification(force = true)
     }
 
     private fun resumeTracking() {
@@ -318,7 +331,7 @@ class LocationTrackingService : LifecycleService() {
         // 재개 직후 오래 멈춤 경고가 즉시 뜨지 않도록 현재 시각으로 갱신
         lastMovementAtMs = now
         recordingController.updateState { it.copy(isPaused = false) }
-        updateNotification()
+        updateNotification(force = true)
     }
 
     private fun continueRecordingAfterWarning() {
@@ -486,6 +499,10 @@ class LocationTrackingService : LifecycleService() {
             prev != null && deltaMeters >= 0.8 -> ((prev.bearingTo(location) % 360f) + 360f) % 360f
             else -> null
         }
+        // 원본 전체를 복사하지 않고 화면용 경로에 점 하나만 더함 (꼬리만 가끔 줄임)
+        liveTrack.add(newLatLon)
+        val displayTrack = liveTrack.snapshot()
+        val rawCount = liveTrack.rawCount
         recordingController.updateState { state ->
             state.copy(
                 distanceMeters = totalDistanceMeters,
@@ -495,7 +512,8 @@ class LocationTrackingService : LifecycleService() {
                 elevationGainMeters = elevationGainMeters,
                 currentBearingDeg = movementBearing ?: state.currentBearingDeg,
                 currentLocation = newLatLon,
-                liveTrackPoints = state.liveTrackPoints + newLatLon,
+                liveTrackPoints = displayTrack,
+                liveTrackPointCount = rawCount,
                 isGpsSignalWeak = false
             )
         }
@@ -514,9 +532,7 @@ class LocationTrackingService : LifecycleService() {
                             elapsedMovingMs = movingDurationMs
                         )
                     }
-                    if ((activeElapsed / 1000L) % 5L == 0L) {
-                        updateNotification()
-                    }
+                    updateNotification()
 
                     val maxDurationMs = recordingPrefs.maxDurationMs.first()
                     val idleLimitMs = recordingPrefs.idleLimitMs.first()
@@ -589,14 +605,25 @@ class LocationTrackingService : LifecycleService() {
         )
     }
 
-    private fun updateNotification() {
+    /**
+     * 진행 알림 갱신. 표시 내용(거리·시간·일시정지)이 바뀌었고 마지막 갱신 뒤 [NOTIFICATION_MIN_INTERVAL_MS] 가 지났을 때만 올림.
+     * 일시정지·재개처럼 상태가 바뀐 순간은 [force] 로 바로 올림.
+     */
+    private fun updateNotification(force: Boolean = false) {
         val state = recordingController.liveState.value
+        val distanceKm = state.distanceMeters / 1000.0
+        val elapsedSec = state.elapsedTotalMs / 1000L
+        val key = String.format(java.util.Locale.ROOT, "%.2f|%d|%b", distanceKm, elapsedSec, isPaused)
+        val now = android.os.SystemClock.elapsedRealtime()
+        if (!force && (key == lastNotificationKey || now - lastNotificationAtMs < NOTIFICATION_MIN_INTERVAL_MS)) return
+        lastNotificationKey = key
+        lastNotificationAtMs = now
         val manager = getSystemService(NotificationManager::class.java)
         manager.notify(
             NOTIFICATION_ID,
             buildOngoingNotification(
-                distanceKm = state.distanceMeters / 1000.0,
-                elapsedSec = state.elapsedTotalMs / 1000L,
+                distanceKm = distanceKm,
+                elapsedSec = elapsedSec,
                 paused = isPaused
             )
         )
@@ -727,6 +754,8 @@ class LocationTrackingService : LifecycleService() {
         const val CHANNEL_ID = "gildam_location_recording_channel"
         const val ALERT_CHANNEL_ID = "gildam_recording_alert_channel"
         const val NOTIFICATION_ID = 4100
+        /** 진행 알림 최소 갱신 간격 */
+        const val NOTIFICATION_MIN_INTERVAL_MS = 5_000L
         const val ALERT_NOTIFICATION_ID = 4101
 
         const val ACTION_START = "kr.co.nuni.gildam.recording.ACTION_START"

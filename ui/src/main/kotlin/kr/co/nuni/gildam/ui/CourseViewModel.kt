@@ -20,6 +20,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -38,6 +39,7 @@ import kr.co.nuni.gildam.data.model.TransportType
 import kr.co.nuni.gildam.data.repository.GildamRepository
 import kr.co.nuni.gildam.recording.LatLonPoint
 import kr.co.nuni.gildam.recording.RecordingController
+import kr.co.nuni.gildam.recording.TrackSimplifier
 import java.util.UUID
 import kotlin.math.abs
 import kr.co.nuni.gildam.ui.screens.CourseDetailUi
@@ -134,10 +136,10 @@ class CourseViewModel @Inject constructor(
             val c = courses.getCourse(id) ?: return@launch
             val rawPts = c.points()
             val pts = if (reversed) rawPts.reversed() else rawPts
-            val r = withContext(Dispatchers.Default) { GpxRuggedness.analyze(c.name, pts) }
+            val (r, route) = withContext(Dispatchers.Default) { GpxRuggedness.analyze(c.name, pts) to displayRoute(pts) }
             val newSessionId = UUID.randomUUID().toString()
             val activeId = activities.getActiveRecording()?.id
-            _follow.value = Following(c.id, c.name, r, pts.map { LatLonPoint(it.lat, it.lon) }, CourseFollower(pts), newSessionId, activeId, reversed)
+            _follow.value = Following(c.id, c.name, r, route, CourseFollower(pts), newSessionId, activeId, reversed)
             // 기록 중이면 앱이 정리돼도 다시 살아나도록 저장 (기록 없이 코스만 볼 때는 저장하지 않음)
             if (activeId != null || recordingController.liveState.value.let { it.isRecording || it.isPaused }) {
                 followPrefs.saveNow(SavedFollow(c.id, 0.0, 0.0, false, newSessionId, activeId, reversed))
@@ -180,12 +182,16 @@ class CourseViewModel @Inject constructor(
         if (_follow.value != null) return
         val rawPts = c!!.points()
         val pts = if (saved.reversed) rawPts.reversed() else rawPts
-        val r = withContext(Dispatchers.Default) { GpxRuggedness.analyze(c.name, pts) }
+        val (r, route) = withContext(Dispatchers.Default) { GpxRuggedness.analyze(c.name, pts) to displayRoute(pts) }
         val follower = CourseFollower(pts).also {
             it.restoreState(saved.alongM, saved.offsetM, saved.offCourse)
         }
-        _follow.value = Following(c.id, c.name, r, pts.map { LatLonPoint(it.lat, it.lon) }, follower, saved.sessionId, saved.activityId, saved.reversed)
+        _follow.value = Following(c.id, c.name, r, route, follower, saved.sessionId, saved.activityId, saved.reversed)
     }
+
+    /** 기록 화면 지도에 그릴 코스 선: 화면용으로 점을 줄임 (남은 거리·이탈 계산은 원본 [CourseFollower] 가 함) */
+    private fun displayRoute(pts: List<kr.co.nuni.gildam.data.gpxcompare.GpxPoint>): List<LatLonPoint> =
+        TrackSimplifier.simplifyToLimit(pts.map { LatLonPoint(it.lat, it.lon) }).first
 
     /**
      * 따라 걷는 동안 진행 상황을 가끔 저장하고(25m 이상 진행 또는 이탈 상태 변화),
@@ -253,10 +259,15 @@ class CourseViewModel @Inject constructor(
         }
     }
 
-    /** 따라가기 카드 값: 남은 거리와 이탈 여부, 반대 방향 배지만 계산합니다. */
-    val follow: StateFlow<CourseFollowUi?> = combine(_follow, recordingController.liveState) { f, live ->
+    /**
+     * 따라가기 카드 값: 남은 거리와 이탈 여부, 반대 방향 배지만 계산합니다.
+     * 위치가 바뀔 때만(1초 타이머 갱신은 무시) 백그라운드에서 코스 전체와 비교합니다.
+     */
+    val follow: StateFlow<CourseFollowUi?> = combine(
+        _follow,
+        recordingController.liveState.map { it.currentLocation }.distinctUntilChanged()
+    ) { f, loc ->
         f ?: return@combine null
-        val loc = live.currentLocation
         if (loc == null) {
             // 아직 위치 신호가 없을 때: 저장해 둔 진행 지점이 있으면 거기서부터 보여 줌
             val along = f.follower.lastAlongM
@@ -266,7 +277,7 @@ class CourseViewModel @Inject constructor(
         val (p, newlyOff) = f.follower.update(loc.latitude, loc.longitude)
         if (newlyOff) vibrateOffCourse()
         CourseFollowUi(f.name, f.route, f.follower.totalM, p.remainingM, f.follower.isOffCourse, p.offsetM, f.reversed)
-    }.stateIn(viewModelScope, SharingStarted.Eagerly, null)
+    }.flowOn(Dispatchers.Default).stateIn(viewModelScope, SharingStarted.Eagerly, null)
 
     init {
         // follow(위 상태 흐름)가 만들어진 뒤에 감시를 시작

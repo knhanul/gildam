@@ -262,6 +262,19 @@ fun describePhotoPosition(context: Context, alongTrackM: Double?, offsetM: Doubl
     return if (offsetM != null) context.getString(R.string.photo_position_offset, base, String.format(locale, "%.0f", offsetM)) else base
 }
 
+/** 앱 종료 기록: 종료 이유 설명 */
+@StringRes fun kr.co.nuni.gildam.data.diagnostics.ExitKind.labelRes(): Int = when (this) {
+    kr.co.nuni.gildam.data.diagnostics.ExitKind.ANR -> R.string.exit_reason_anr
+    kr.co.nuni.gildam.data.diagnostics.ExitKind.CRASH -> R.string.exit_reason_crash
+    kr.co.nuni.gildam.data.diagnostics.ExitKind.LOW_MEMORY -> R.string.exit_reason_low_memory
+    kr.co.nuni.gildam.data.diagnostics.ExitKind.EXCESSIVE_RESOURCE_USAGE -> R.string.exit_reason_excessive_resource_usage
+    kr.co.nuni.gildam.data.diagnostics.ExitKind.USER_REQUESTED -> R.string.exit_reason_user_requested
+    kr.co.nuni.gildam.data.diagnostics.ExitKind.EXIT_SELF -> R.string.exit_reason_exit_self
+    kr.co.nuni.gildam.data.diagnostics.ExitKind.SIGNALED -> R.string.exit_reason_signaled
+    kr.co.nuni.gildam.data.diagnostics.ExitKind.APP_UPDATED -> R.string.exit_reason_app_updated
+    kr.co.nuni.gildam.data.diagnostics.ExitKind.OTHER -> R.string.exit_reason_other
+}
+
 @StringRes fun kr.co.nuni.gildam.data.gpxcompare.GpxParseException.Reason.messageRes(): Int = when (this) {
     kr.co.nuni.gildam.data.gpxcompare.GpxParseException.Reason.OPEN_FAILED -> R.string.gpx_open_failed
     kr.co.nuni.gildam.data.gpxcompare.GpxParseException.Reason.UNREADABLE -> R.string.gpx_parse_failed

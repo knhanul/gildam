@@ -44,6 +44,8 @@ import kr.co.nuni.gildam.ui.navigation.GaugeHighlightRoute
 import kr.co.nuni.gildam.ui.navigation.RecordingAutoStopRoute
 import kr.co.nuni.gildam.ui.screens.RecordingAutoStopScreen
 import kr.co.nuni.gildam.ui.navigation.PhotoStorageRoute
+import kr.co.nuni.gildam.ui.navigation.AppExitLogRoute
+import kr.co.nuni.gildam.ui.screens.AppExitLogScreen
 import kr.co.nuni.gildam.ui.screens.ActivityDetailScreen
 import kr.co.nuni.gildam.ui.screens.ActivityListScreen
 import kr.co.nuni.gildam.ui.screens.LiveRecordingScreen
@@ -375,8 +377,15 @@ fun GildamAppRoot(
                     graceMs = graceMs,
                     onOpenRecordingAutoStop = { navController.navigate(RecordingAutoStopRoute) },
                     hideShortRecords = hideShortRecords,
-                    onHideShortRecordsChange = appearanceViewModel::setHideShortRecords
+                    onHideShortRecordsChange = appearanceViewModel::setHideShortRecords,
+                    onOpenExitLog = { navController.navigate(AppExitLogRoute) }
                 )
+            }
+
+            composable<AppExitLogRoute> {
+                val exitLogViewModel: ExitLogViewModel = hiltViewModel()
+                val exitEntries by exitLogViewModel.entries.collectAsState()
+                AppExitLogScreen(entries = exitEntries, onNavigateBack = { navController.popBackStack() })
             }
 
             composable<RecordingAutoStopRoute> {
