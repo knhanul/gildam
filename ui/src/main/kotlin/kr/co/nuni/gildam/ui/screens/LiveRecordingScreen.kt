@@ -109,7 +109,7 @@ fun LiveRecordingScreen(
     onNavigateToSettings: () -> Unit,
     /** 하단 탭바가 있을 때는 상단 목록/설정 아이콘을 숨김 */
     showTopNavIcons: Boolean = true,
-    /** 코스 따라 걷기 중이면 코스 선·남은 거리·도착 예정 표시 */
+    /** 코스 따라가기 중이면 코스 선·남은 거리 표시 */
     follow: CourseFollowUi? = null,
     onStopFollow: () -> Unit = {},
     /** 마지막으로 선택했던 '기록 중 지도 보기' 모드 (DataStore에서 복원) */
@@ -151,12 +151,12 @@ fun LiveRecordingScreen(
 
     // 현재 시간 계기판만 1초마다 다시 그리도록, 시각 상태는 읽는 곳에서만 구독합니다.
     val clockTick = rememberClockTick(fixedClockMs)
-    // 따라가기는 '나침반(북쪽 위)'과 '주행 방향 위' 두 가지. 설정에 저장된 기본값을 그대로 씁니다.
+    // 따라가기 중에도 나침반은 보여 줍니다. 북쪽 위는 쓰지 않고, 누르면 진행 방향 위로 다시 맞춥니다.
     val followingCourse = follow != null
     var cameraMode by rememberSaveable {
         mutableStateOf(defaultCameraMode)
     }
-    // 코스 따라 걷기 중에는 주행 방향 위만 (두 손가락 회전은 그대로)
+    // 코스 따라가기 중에는 진행 방향 위만 (두 손가락 회전은 그대로, 나침반으로 복귀)
     var lastFollowMode by rememberSaveable {
         mutableStateOf(if (defaultCameraMode.isFollow) defaultCameraMode else MapCameraMode.HEADING)
     }
@@ -301,13 +301,21 @@ fun LiveRecordingScreen(
                 },
                 onRecenter = { cameraPaused = false; recenterKey++ },
                 allowNorthUp = !followingCourse,
+                showCompass = true,
                 mapBearingDeg = mapBearing,
                 status = if (liveState.isRecording) RecordingStatus.of(liveState.isPaused, false) else null,
                 // 기록 시작 전에도 문제를 미리 보여 줌 (시작은 막지 않음)
                 issues = issues,
                 onOpenIssues = { showIssues = true },
                 followMode = lastFollowMode,
-                modifier = Modifier.padding(top = if (liveState.isRecording) 0.dp else 10.dp)
+                // 따라가기 띠가 있을 때는 버튼 행·상태 칩이 바로 아래에 붙도록 작은 간격만 둡니다.
+                modifier = Modifier.padding(
+                    top = when {
+                        follow != null && liveState.isRecording -> 8.dp
+                        liveState.isRecording -> 0.dp
+                        else -> 10.dp
+                    }
+                )
             )
         }
 

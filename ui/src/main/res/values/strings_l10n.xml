@@ -29,6 +29,7 @@
     <string name="map_mode_follow">현재 경로 보기</string>
     <string name="compass_north_up">북쪽 위 · 누르면 주행 방향 위로</string>
     <string name="compass_heading_up">주행 방향 위 · 누르면 북쪽 위로</string>
+    <string name="compass_align_heading">진행 방향 위로 맞추기</string>
     <string name="health_badge_cd">기록 점검 필요: %1$s. 눌러서 자세히 보기</string>
     <string name="health_sheet_title">기록 점검</string>
     <string name="health_sheet_desc">아래 항목을 고치면 기록이 끊기지 않아요. 기록은 지금도 계속돼요.</string>
@@ -186,6 +187,7 @@
     <string name="follow_following">따라가는 중 · %1$s</string>
     <string name="follow_stop">따라가기 그만두기</string>
     <string name="follow_remaining_distance">남은 거리</string>
+    <string name="follow_remaining_value_cd">남은 거리 %1$s</string>
     <string name="follow_reverse_badge">반대 방향</string>
     <string name="course_reverse_title">반대 방향으로 따라가기</string>
     <string name="course_reverse_desc">도착점부터 출발점 쪽으로 경로와 오르막을 바꿔 봐요</string>

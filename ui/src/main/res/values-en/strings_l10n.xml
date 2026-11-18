@@ -29,6 +29,7 @@
     <string name="map_mode_follow">Current route</string>
     <string name="compass_north_up">North up · tap for heading up</string>
     <string name="compass_heading_up">Heading up · tap for north up</string>
+    <string name="compass_align_heading">Align heading up</string>
     <string name="health_badge_cd">Recording check needed: %1$s. Tap for details</string>
     <string name="health_sheet_title">Recording check</string>
     <string name="health_sheet_desc">Fix these to avoid gaps. Recording continues for now.</string>
@@ -186,6 +187,7 @@
     <string name="follow_following">Following · %1$s</string>
     <string name="follow_stop">Stop following</string>
     <string name="follow_remaining_distance">Distance left</string>
+    <string name="follow_remaining_value_cd">Distance left %1$s</string>
     <string name="follow_reverse_badge">Reverse</string>
     <string name="course_reverse_title">Follow in reverse</string>
     <string name="course_reverse_desc">Starts at the finish and flips the climb profile</string>

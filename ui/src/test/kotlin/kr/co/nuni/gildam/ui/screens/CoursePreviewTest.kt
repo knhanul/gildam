@@ -17,7 +17,7 @@ import kr.co.nuni.gildam.ui.theme.GildamTheme
 import org.junit.Rule
 import org.junit.Test
 
-/** 코스 상세(정방향·반대 방향 미리보기)와 따라가기 카드(반대 방향 배지, 시간 추정 없음) 스냅샷 */
+/** 코스 상세(정방향·반대 방향 미리보기)와 따라가기 띠(한 줄 알약, 반대 방향 배지, 시간 추정 없음) 스냅샷 */
 class CoursePreviewTest {
 
     @get:Rule

@@ -555,53 +555,96 @@ private fun StatTile(label: String, value: String, modifier: Modifier) {
     }
 }
 
-// ---------------- 기록 화면: 따라가기 카드 ----------------
+// ---------------- 기록 화면: 따라가기 띠 (한 줄 알약) ----------------
+
+private val FollowBannerHeight = 44.dp
+private val FollowBannerProgressHeight = 3.dp
 
 @Composable
 fun FollowCourseCard(f: CourseFollowUi, onStop: () -> Unit, modifier: Modifier = Modifier) {
     val off = f.isOffCourse
-    val bg = if (off) WarningAmber else MaterialTheme.colorScheme.primary
+    val bg = (if (off) WarningAmber else MaterialTheme.colorScheme.primary).copy(alpha = 0.92f)
     val fg = if (off) Color.White else MaterialTheme.colorScheme.onPrimary
-    Surface(shape = RoundedCornerShape(18.dp), color = bg, shadowElevation = 6.dp, modifier = modifier.fillMaxWidth()) {
-        Column(Modifier.padding(start = 16.dp, end = 6.dp, top = 10.dp, bottom = 12.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(if (off) Icons.Outlined.WarningAmber else Icons.Outlined.Route, null, tint = fg, modifier = Modifier.size(18.dp))
+    val remaining = kmText(f.remainingM)
+    val reverseLabel = stringResource(R.string.follow_reverse_badge)
+    val remainingCd = stringResource(R.string.follow_remaining_value_cd, remaining)
+    val bannerCd = buildString {
+        if (off) append(stringResource(R.string.follow_off_course).format(f.offsetM ?: 0.0))
+        else append(stringResource(R.string.follow_following, f.name))
+        if (f.reversed) { append(", "); append(reverseLabel) }
+        append(", "); append(remainingCd)
+    }
+    val stopLabel = stringResource(R.string.follow_stop)
+    val progress = if (f.totalM > 0) (1 - f.remainingM / f.totalM).toFloat().coerceIn(0f, 1f) else 0f
+    Surface(
+        shape = RoundedCornerShape(50),
+        color = bg,
+        shadowElevation = 4.dp,
+        modifier = modifier.fillMaxWidth().height(FollowBannerHeight)
+    ) {
+        Box {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(start = 12.dp, end = 2.dp)
+                    .align(Alignment.CenterStart)
+                    .semantics { contentDescription = bannerCd },
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(
+                    if (off) Icons.Outlined.WarningAmber else Icons.Outlined.Route,
+                    contentDescription = null,
+                    tint = fg,
+                    modifier = Modifier.size(18.dp)
+                )
                 Spacer(Modifier.width(6.dp))
-                Text(if (off) stringResource(R.string.follow_off_course).format(f.offsetM ?: 0.0) else stringResource(R.string.follow_following, f.name),
-                    style = MaterialTheme.typography.labelLarge, color = fg, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
+                Text(
+                    f.name,
+                    style = MaterialTheme.typography.labelLarge,
+                    color = fg,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f)
+                )
                 if (f.reversed) {
                     Spacer(Modifier.width(6.dp))
-                    Surface(shape = RoundedCornerShape(50), color = fg.copy(alpha = 0.2f)) {
+                    Surface(shape = RoundedCornerShape(50), color = fg.copy(alpha = 0.22f)) {
                         Text(
-                            text = stringResource(R.string.follow_reverse_badge),
+                            text = reverseLabel,
                             style = MaterialTheme.typography.labelSmall,
                             fontWeight = FontWeight.SemiBold,
                             color = fg,
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
+                            maxLines = 1,
+                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 1.dp)
                         )
                     }
                 }
-                val stopLabel = stringResource(R.string.follow_stop)
+                Spacer(Modifier.width(8.dp))
+                Text(
+                    remaining,
+                    style = MaterialTheme.typography.labelLarge,
+                    fontWeight = FontWeight.Bold,
+                    color = fg,
+                    maxLines = 1
+                )
                 kr.co.nuni.gildam.ui.illustration.GildamTooltip(stopLabel) {
-                    IconButton(onClick = onStop, modifier = Modifier.semantics { contentDescription = stopLabel }) {
-                        Icon(Icons.Outlined.Close, contentDescription = null, tint = fg)
+                    Box(
+                        modifier = Modifier
+                            .size(40.dp)
+                            .clip(CircleShape)
+                            .clickable(role = Role.Button, onClick = onStop)
+                            .semantics { contentDescription = stopLabel },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(Icons.Outlined.Close, contentDescription = null, tint = fg, modifier = Modifier.size(18.dp))
                     }
                 }
             }
-            FollowStat(stringResource(R.string.follow_remaining_distance), kmText(f.remainingM), fg)
-            val progress = if (f.totalM > 0) (1 - f.remainingM / f.totalM).toFloat().coerceIn(0f, 1f) else 0f
-            Spacer(Modifier.height(10.dp))
-            Box(Modifier.padding(end = 10.dp).fillMaxWidth().height(6.dp).clip(RoundedCornerShape(3.dp)).background(fg.copy(alpha = 0.25f))) {
-                Box(Modifier.fillMaxWidth(progress).height(6.dp).clip(RoundedCornerShape(3.dp)).background(fg))
+            Box(Modifier.align(Alignment.BottomStart).fillMaxWidth().height(FollowBannerProgressHeight).background(fg.copy(alpha = 0.25f))) {
+                Box(Modifier.fillMaxWidth(progress).height(FollowBannerProgressHeight).background(fg))
             }
         }
     }
-}
-
-@Composable
-private fun FollowStat(label: String, value: String, fg: Color) = Column {
-    Text(label, style = MaterialTheme.typography.labelSmall, color = fg.copy(alpha = 0.8f))
-    Text(value, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold, color = fg)
 }
 
 /**

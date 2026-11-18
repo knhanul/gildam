@@ -77,7 +77,9 @@ enum class RecordingStatus(val color: Color, val titleRes: Int, val detailRes: I
 /**
  * 기록 중 지도 상단 한 줄: [상태 점] ……… [다시 맞추기] [전체 경로 | 현재 경로] [나침반]
  * - 경로 버튼 2개: 전체 경로 보기 / 현재 경로 보기
- * - 나침반: 북쪽 위 ↔ 주행 방향 위. 코스 따라 걷기 중에는 주행 방향 위만 쓰므로 숨김
+ * - 나침반: 기본적으로 북쪽 위 ↔ 주행 방향 위.
+ *   코스 따라가기 중에는 진행 방향 위만 쓰고, 나침반은 현재 지도 회전을 보여 주며
+ *   누르면 진행 방향 위로 다시 맞춘다 (두 손가락으로 돌렸을 때 복귀).
  */
 @Composable
 fun MapCameraControls(
@@ -86,8 +88,10 @@ fun MapCameraControls(
     onSelect: (MapCameraMode) -> Unit,
     onRecenter: () -> Unit,
     modifier: Modifier = Modifier,
-    /** 나침반(북쪽 위 전환) 버튼을 보일지 */
+    /** 북쪽 위 모드로 전환을 허용할지. false면 나침반은 표시만 하고 누르면 진행 방향 위로 다시 맞춤 */
     allowNorthUp: Boolean = true,
+    /** 나침반 버튼을 보일지. 따라가기 중에도 회전 표시·다시 맞추기를 위해 켠다 */
+    showCompass: Boolean = true,
     /** 현재 지도 회전각(도). 주행 방향 위일 때 나침반 바늘이 북쪽을 가리키도록 돌림 */
     mapBearingDeg: Float = 0f,
     /** 기록 중이면 왼쪽에 상태 점 */
@@ -120,13 +124,18 @@ fun MapCameraControls(
                 }
             }
         }
-        if (allowNorthUp) {
+        if (showCompass) {
             Spacer(Modifier.width(6.dp))
+            val northUp = allowNorthUp && mode == MapCameraMode.FOLLOW
             CompassToggle(
                 // 전체 경로 보기는 경로에 맞춰 돌아갈 수 있으므로 바늘이 진짜 북쪽을 가리킴
-                northUp = mode == MapCameraMode.FOLLOW,
-                mapBearingDeg = if (mode == MapCameraMode.FOLLOW) 0f else mapBearingDeg,
-                onClick = { onSelect(MapCameraMode.toggleCompass(if (mode.isFollow) mode else followMode)) }
+                northUp = northUp,
+                mapBearingDeg = if (northUp) 0f else mapBearingDeg,
+                alignHeadingUp = !allowNorthUp,
+                onClick = {
+                    if (allowNorthUp) onSelect(MapCameraMode.toggleCompass(if (mode.isFollow) mode else followMode))
+                    else onSelect(MapCameraMode.HEADING)
+                }
             )
         }
     }
@@ -142,9 +151,19 @@ private fun Seg(icon: androidx.compose.ui.graphics.vector.ImageVector, label: St
  * 북쪽 위: 바늘은 위로 고정, 'N' 글자를 함께 표시.
  */
 @Composable
-fun CompassToggle(northUp: Boolean, mapBearingDeg: Float, onClick: () -> Unit) {
+fun CompassToggle(
+    northUp: Boolean,
+    mapBearingDeg: Float,
+    onClick: () -> Unit,
+    /** true면 북쪽 위 전환 없이, 누르면 진행 방향 위로 다시 맞춤 */
+    alignHeadingUp: Boolean = false
+) {
     val cs = MaterialTheme.colorScheme
-    val label = if (northUp) stringResource(R.string.compass_north_up) else stringResource(R.string.compass_heading_up)
+    val label = when {
+        alignHeadingUp -> stringResource(R.string.compass_align_heading)
+        northUp -> stringResource(R.string.compass_north_up)
+        else -> stringResource(R.string.compass_heading_up)
+    }
     GildamTooltip(label) {
         Surface(
             shape = CircleShape,
