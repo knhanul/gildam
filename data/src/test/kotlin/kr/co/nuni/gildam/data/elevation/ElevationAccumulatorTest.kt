@@ -19,6 +19,7 @@ class ElevationAccumulatorTest {
             val alt = 50.0f + (1.2 * sin(i * 0.6)).toFloat()
             acc.onBarometerAltitude(alt, moving = true)
         }
+        acc.finish()
         assertEquals(0f, acc.gainM, 0.5f)
         assertEquals(0f, acc.lossM, 0.5f)
     }
@@ -31,6 +32,7 @@ class ElevationAccumulatorTest {
             val alt = 100.0 + 3.5 * sin(i * 0.5)
             acc.onGpsAltitude(alt, verticalAccuracyM = 8f, moving = true)
         }
+        acc.finish()
         assertEquals(0f, acc.gainM, 0.5f)
         assertEquals(0f, acc.lossM, 0.5f)
     }
@@ -43,6 +45,8 @@ class ElevationAccumulatorTest {
         for (level in plateaus) {
             repeat(30) { acc.onBarometerAltitude(level, moving = true) }
         }
+        // 마지막 내리막의 임계값 미만 나머지는 종료 시 마무리해야 더해짐
+        acc.finish()
         assertEquals(40f, acc.gainM, 0.8f)
         assertEquals(30f, acc.lossM, 0.8f)
     }
@@ -80,6 +84,7 @@ class ElevationAccumulatorTest {
 
         // 정상 수직 정확도로 +20m 상승하면 정확히 반영됨
         repeat(30) { acc.onGpsAltitude(70.0, verticalAccuracyM = 6f, moving = true) }
+        acc.finish()
         assertEquals(20f, acc.gainM, 0.8f)
     }
 
@@ -97,6 +102,7 @@ class ElevationAccumulatorTest {
 
         // 다시 출발(moving = true)해 115m → 125m(+10m) 오르면 정지 중 드리프트(15m)는 빼고 +10m만 더해짐
         repeat(30) { acc.onBarometerAltitude(125f, moving = true) }
+        acc.finish()
         assertEquals(10f, acc.gainM, 0.8f)
     }
 
@@ -129,5 +135,78 @@ class ElevationAccumulatorTest {
         assertNotNull(pair)
         assertEquals(50f, pair!!.first, 2f)
         assertEquals(40f, pair.second, 2f)
+    }
+
+
+    @Test
+    fun reversalCommitsPeakLeftoverBeforeFinish() {
+        val acc = ElevationAccumulator(hasBarometer = true)
+        // 100→140m 오르막만 먼저 주고, 아직 종료하지 않은 상태에서는 실시간 누적이 임계값 단위라
+        // 꼭대기 나머지가 잠깐 남을 수 있음. 내리막으로 방향이 바뀌면 꼭대기까지 더해져야 함.
+        for (level in listOf(100f, 110f, 120f, 130f, 140f)) {
+            repeat(30) { acc.onBarometerAltitude(level, moving = true) }
+        }
+        assertTrue("방향 전환 전 오르막은 이미 상당 부분 누적되어야 함: ${acc.gainM}", acc.gainM >= 36f)
+        for (level in listOf(125f, 110f)) {
+            repeat(30) { acc.onBarometerAltitude(level, moving = true) }
+        }
+        // finish 없이도 꼭대기 나머지가 방향 전환 때 더해져 40m에 가까워짐
+        assertEquals(40f, acc.gainM, 0.8f)
+        acc.finish()
+        assertEquals(30f, acc.lossM, 0.8f)
+    }
+
+    @Test
+    fun slowGentleBarometerClimbOverOneKilometer() {
+        val acc = ElevationAccumulator(hasBarometer = true)
+        // 1 km, 1 m 간격으로 1000점, 천천히 30 m 상승 (기압 센서)
+        for (i in 0 until 1000) {
+            val alt = 100f + 30f * i / 999f
+            acc.onBarometerAltitude(alt, moving = true)
+        }
+        acc.finish()
+        // 저역 필터가 앞부분을 조금 따라가지만, 끝까지 마무리하면 30m에 매우 가까움
+        assertEquals(30f, acc.gainM, 1.5f)
+        assertEquals(0f, acc.lossM, 0.5f)
+    }
+
+    @Test
+    fun slowGentleGpsClimbOverOneKilometer() {
+        val acc = ElevationAccumulator(hasBarometer = false)
+        for (i in 0 until 1000) {
+            val alt = 100.0 + 30.0 * i / 999.0
+            acc.onGpsAltitude(alt, verticalAccuracyM = 6f, moving = true)
+        }
+        acc.finish()
+        assertEquals(30f, acc.gainM, 2f)
+        assertEquals(0f, acc.lossM, 0.5f)
+    }
+
+    @Test
+    fun noisyBarometerStillCapturesRealAscent() {
+        val acc = ElevationAccumulator(hasBarometer = true)
+        // ±1.2 m 잔진동 위에 30 m 상승. 노이즈는 기압 임계값(2m) 미만이라 누적되지 않고, 실제 상승만 남음
+        for (i in 0 until 1000) {
+            val alt = (100.0 + 30.0 * i / 999.0 + 1.2 * sin(i * 0.6)).toFloat()
+            acc.onBarometerAltitude(alt, moving = true)
+        }
+        acc.finish()
+        assertEquals(30f, acc.gainM, 2f)
+        assertEquals(0f, acc.lossM, 1f)
+    }
+
+    @Test
+    fun noisyGpsStillCapturesRealAscent() {
+        val acc = ElevationAccumulator(hasBarometer = false)
+        // ±3.5 m GPS 흔들림 위에 30 m 상승. 꼭대기를 노이즈가 조금 밀어 올릴 수 있어 허용 오차를 조금 넓힘
+        for (i in 0 until 1000) {
+            val alt = 100.0 + 30.0 * i / 999.0 + 3.5 * sin(i * 0.5)
+            acc.onGpsAltitude(alt, verticalAccuracyM = 8f, moving = true)
+        }
+        acc.finish()
+        // GPS 임계값 5m·노이즈 진폭 3.5m 때문에 꼭대기 극값이 실제보다 조금 높을 수 있음
+        assertEquals(30f, acc.gainM, 4f)
+        assertEquals(0f, acc.lossM, 2f)
+        assertTrue("실제 상승이 노이즈에 묻히면 안 됨: ${acc.gainM}", acc.gainM >= 26f)
     }
 }

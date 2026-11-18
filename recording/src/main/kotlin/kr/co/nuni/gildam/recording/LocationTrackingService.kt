@@ -408,7 +408,12 @@ class LocationTrackingService : LifecycleService() {
         pauseStartedAtMs = System.currentTimeMillis()
         markNextPointAsPauseBoundary = true
         unregisterPressureSensor()
-        synchronized(elevationLock) { elevationAccumulator.resetSegment() }
+        synchronized(elevationLock) {
+            // resetSegment 가 남은 오르막·내리막을 마무리한 뒤 필터를 비움
+            elevationAccumulator.resetSegment()
+            elevationGainMeters = elevationAccumulator.gainM
+            elevationLossMeters = elevationAccumulator.lossM
+        }
 
         lifecycleScope.launch {
             flushPointBufferToRoom()
@@ -493,6 +498,11 @@ class LocationTrackingService : LifecycleService() {
                     endedAtEpochMs = stats.endedAtEpochMs
                 )
             } else {
+                synchronized(elevationLock) {
+                    elevationAccumulator.finish()
+                    elevationGainMeters = elevationAccumulator.gainM
+                    elevationLossMeters = elevationAccumulator.lossM
+                }
                 flushPointBufferToRoom()
                 persistProgress(ActivityStatus.COMPLETED)
             }

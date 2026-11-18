@@ -10,8 +10,11 @@ import kotlin.math.abs
  * 2) 기압 → 고도는 기압 센서 값을 표준 대기 해면 기압 기준 상대 고도로 바꾼 값(또는 SensorManager.getAltitude 결과)을 받으며,
  *    기압 고도는 상대 변화만 누적합니다. 해발 표시용 기준 오프셋은 정확도 좋은 GPS 고도로 가끔 부드럽게 보정합니다.
  * 3) 노이즈 처리: 지수 이동 평균(저역 필터)으로 다듬고, 히스테리시스 임계값(기압 2 m, GPS 5 m)을 넘게 바뀌었을 때만
- *    오르막/내리막에 더합니다.
- * 4) 정지 중(속도 ≈ 0 또는 최근 실제 이동 없음)에는 기준점만 천천히 따라가고 오르막·내리막은 누적하지 않습니다(기압 표류 방지).
+ *    오르막/내리막에 더합니다. 같은 방향으로 이어지는 구간의 꼭대기·바닥(극값)을 기억해 두고,
+ *    방향이 바뀌거나 정지·종료([finish])될 때 임계값에 못 미친 나머지도 극값 기준으로 더해 잃지 않습니다.
+ *    임계값을 한 번도 넘지 않은 흔들림(노이즈)은 더하지 않습니다.
+ * 4) 정지 중(속도 ≈ 0 또는 최근 실제 이동 없음)에는 이미 확정된 구간만 마무리하고, 기준점과 필터를
+ *    현재 측정값에 맞춰 기압 표류가 재출발 후 누적되지 않게 합니다.
  */
 class ElevationAccumulator(
     val hasBarometer: Boolean,
@@ -42,7 +45,12 @@ class ElevationAccumulator(
         }
 
     private var smoothedAlt: Double? = null
+    /** 마지막으로 오르막·내리막에 반영한 고도 */
     private var referenceAlt: Double? = null
+    /** 현재 구간의 극값(오르막이면 꼭대기, 내리막이면 바닥) */
+    private var extremumAlt: Double? = null
+    /** 현재 구간이 시작된 기준 고도. 극값과의 차이가 임계값 이상이면 확정된 구간으로 봄 */
+    private var legOriginAlt: Double? = null
     private var seaLevelOffsetM: Double = 0.0
     private var hasSeaLevelCalibration: Boolean = false
     private var isMoving: Boolean = false
@@ -54,14 +62,30 @@ class ElevationAccumulator(
      * 기준점이 기압 드리프트를 따라가도록 합니다.
      */
     fun updateMoving(moving: Boolean) {
+        if (isMoving && !moving) {
+            // 멈추는 순간, 이미 확정된 오르막·내리막의 나머지 높이를 더하고 기준점을 현재 값에 맞춤
+            finish()
+            smoothedAlt?.let { snapAnchors(it) }
+        }
         isMoving = moving
     }
 
-    /** 일시정지·재개 등으로 연속 구간이 끊겼을 때 다음 샘플에서 필터/기준점을 새로 잡도록 표시합니다. */
+    /**
+     * 확정된 구간의 남은 높이를 오르막·내리막에 더합니다.
+     * 기록 종료·저장된 경로 계산이 끝날 때 호출해, 마지막 언덕의 임계값 미만 나머지를 잃지 않게 합니다.
+     */
+    fun finish() {
+        commitLeftoverIfConfirmed(hysteresisForSource)
+    }
+
+    /** 일시정지·재개 등으로 연속 구간이 끊겼을 때, 남은 높이를 마무리한 뒤 필터/기준점을 새로 잡습니다. */
     fun resetSegment() {
+        finish()
         lastSampleResetPending = true
         smoothedAlt = null
         referenceAlt = null
+        extremumAlt = null
+        legOriginAlt = null
     }
 
     /**
@@ -118,46 +142,105 @@ class ElevationAccumulator(
         }
     }
 
+    private val hysteresisForSource: Double
+        get() = if (hasBarometer) baroHysteresisM else gpsHysteresisM
+
+    private fun snapAnchors(alt: Double) {
+        referenceAlt = alt
+        extremumAlt = alt
+        legOriginAlt = alt
+    }
+
+    private fun commitDelta(from: Double, to: Double) {
+        val d = to - from
+        when {
+            d > 0.0 -> gainM += d.toFloat()
+            d < 0.0 -> lossM += (-d).toFloat()
+        }
+    }
+
+    /** 다듬은 극값이 기준점보다 임계값 이상 벌어졌으면 그 차이를 더하고 기준점을 극값으로 옮김 */
+    private fun commitIfPastHysteresis(hysteresisM: Double) {
+        val ref = referenceAlt ?: return
+        val ext = extremumAlt ?: return
+        val d = ext - ref
+        if (d >= hysteresisM || d <= -hysteresisM) {
+            commitDelta(ref, ext)
+            referenceAlt = ext
+        }
+    }
+
+    /**
+     * 이미 임계값을 넘긴 구간이라면, 꼭대기·바닥에 못 미친 나머지도 더하고 기준점을 극값으로 옮김.
+     * 임계값을 한 번도 넘지 않은 흔들림은 노이즈로 보고 더하지 않음.
+     */
+    private fun commitLeftoverIfConfirmed(hysteresisM: Double) {
+        val origin = legOriginAlt ?: return
+        val ext = extremumAlt ?: return
+        val ref = referenceAlt ?: return
+        if (abs(ext - origin) < hysteresisM) return
+        if (ext != ref) {
+            commitDelta(ref, ext)
+            referenceAlt = ext
+        }
+    }
+
     private fun feedSample(rawM: Double, alpha: Double, hysteresisM: Double, moving: Boolean) {
         if (lastSampleResetPending) {
             lastSampleResetPending = false
             smoothedAlt = rawM
-            referenceAlt = rawM
+            snapAnchors(rawM)
             return
         }
         val prevSmoothed = smoothedAlt
         if (prevSmoothed == null) {
             smoothedAlt = rawM
-            referenceAlt = rawM
+            snapAnchors(rawM)
             return
         }
         // 비정상적인 단일 스파이크(센서 글리치·터널 직후 GPS 점프)는 기준을 재설정하고 누적하지 않음
         if (abs(rawM - prevSmoothed) > maxStepJumpM) {
             smoothedAlt = rawM
-            referenceAlt = rawM
+            snapAnchors(rawM)
             return
         }
         val nextSmoothed = prevSmoothed + alpha * (rawM - prevSmoothed)
-        smoothedAlt = nextSmoothed
 
-        val ref = referenceAlt ?: run {
-            referenceAlt = nextSmoothed
-            return
-        }
         if (!moving) {
-            // 정지 중 기압 변화(날씨·실내외 기압차)가 나중에 한꺼번에 누적되지 않도록 기준점이 필터 값을 따라감
-            referenceAlt = nextSmoothed
+            // 확정된 구간만 마무리한 뒤, 필터와 기준점을 현재 측정값에 맞춤 (날씨 드리프트가 재출발 후 더해지지 않게)
+            commitLeftoverIfConfirmed(hysteresisM)
+            smoothedAlt = rawM
+            snapAnchors(rawM)
             return
         }
 
-        val diff = nextSmoothed - ref
-        if (diff >= hysteresisM) {
-            gainM += diff.toFloat()
-            referenceAlt = nextSmoothed
-        } else if (diff <= -hysteresisM) {
-            lossM += (-diff).toFloat()
-            referenceAlt = nextSmoothed
+        smoothedAlt = nextSmoothed
+        val ext = extremumAlt ?: nextSmoothed
+        val origin = legOriginAlt ?: referenceAlt ?: nextSmoothed
+        if (referenceAlt == null) {
+            snapAnchors(nextSmoothed)
+            return
         }
+        if (extremumAlt == null) extremumAlt = ext
+        if (legOriginAlt == null) legOriginAlt = origin
+
+        val legDir = when {
+            ext > origin -> 1
+            ext < origin -> -1
+            else -> 0
+        }
+        if (legDir == 0 || (nextSmoothed - ext) * legDir >= 0) {
+            // 같은 방향으로 극값을 갱신. 임계값을 넘을 때마다 더해 실시간 계기판이 따라가게 함
+            extremumAlt = nextSmoothed
+            commitIfPastHysteresis(hysteresisM)
+        } else if (abs(nextSmoothed - ext) >= hysteresisM) {
+            // 방향이 바뀜: 직전 꼭대기·바닥까지의 나머지를 더한 뒤, 새 구간을 극값에서 시작
+            commitLeftoverIfConfirmed(hysteresisM)
+            legOriginAlt = referenceAlt
+            extremumAlt = nextSmoothed
+            commitIfPastHysteresis(hysteresisM)
+        }
+        // 극값에서 임계값 미만으로만 되돌아간 흔들림은 극값을 유지 (노이즈)
     }
 
     companion object {
@@ -202,6 +285,7 @@ class ElevationAccumulator(
                 val moving = i == 0 || pt.speedMps == null || pt.speedMps >= MIN_MOVING_SPEED_MPS
                 acc.onGpsAltitude(alt, verticalAccuracyM = null, moving = moving)
             }
+            acc.finish()
             return acc.gainM to acc.lossM
         }
     }
