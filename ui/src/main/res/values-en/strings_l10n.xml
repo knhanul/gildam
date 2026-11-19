@@ -511,4 +511,30 @@
     <string name="record_elevation_compact">↑%1$d ↓%2$d m</string>
     <string name="record_elevation_gain_compact">↑%1$d m</string>
     <string name="weather_sky_icon_cd">Sky condition</string>
+    <string name="course_reverse_chip">Reverse</string>
+    <string name="course_import_from_file">From a file</string>
+    <string name="course_import_from_file_desc">Pick a GPX file saved on your phone</string>
+    <string name="course_import_from_records">From my records</string>
+    <string name="course_import_from_records_desc">Turn your Gildam records into courses</string>
+    <string name="course_from_records_title">Make courses from records</string>
+    <string name="course_from_records_hint">You can pick several. Courses are made on this device only.</string>
+    <string name="course_from_records_empty">No finished records yet</string>
+    <string name="course_from_records_make">Make courses</string>
+    <string name="course_block_not_finished">This record is not finished yet</string>
+    <string name="course_block_no_points">This record has no route points</string>
+    <string name="course_block_too_short">Too short (under 0.1 km)</string>
+    <string name="course_import_no_points">This file has no route points</string>
+    <string name="course_import_partial">Imported %1$d, couldn’t import %2$d (%3$s)</string>
+    <string name="course_from_records_skipped">(%1$d skipped)</string>
+    <string name="record_save_as_course">Save as course</string>
+    <string name="record_saved_as_course">Saved as a course. See it in the Courses tab</string>
+    <plurals name="course_imported">
+        <item quantity="one">Imported %1$d course</item>
+        <item quantity="other">Imported %1$d courses</item>
+    </plurals>
+    <plurals name="course_from_records_done">
+        <item quantity="one">Made %1$d course from your records</item>
+        <item quantity="other">Made %1$d courses from your records</item>
+    </plurals>
+    <string name="gpx_export_no_points">This record has no route points, so it can’t be exported as GPX</string>
 </resources>

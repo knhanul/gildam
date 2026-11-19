@@ -59,8 +59,12 @@ fun SafeShareExportScreen(
     trackPoints: List<TrackPointEntity>,
     computePreview: (List<TrackPointEntity>, Double) -> MaskedPreviewResult,
     onExportGpx: suspend (GpxExportOptions) -> GpxExportResult?,
-    onNavigateBack: () -> Unit
+    onNavigateBack: () -> Unit,
+    /** 경로 점을 다 불러왔는지 (불러오기 전엔 '점 없음' 안내를 띄우지 않음) */
+    pointsLoaded: Boolean = true
 ) {
+    // 경로 점이 하나도 없는 기록은 빈 GPX 가 되므로 내보내기를 막고 이유를 보여 줌
+    val noPoints = pointsLoaded && trackPoints.isEmpty()
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
     var maskRadiusMeters by remember { mutableFloatStateOf(200f) }
@@ -228,13 +232,21 @@ fun SafeShareExportScreen(
                         }
                     }
                 },
-                enabled = !exporting,
+                enabled = !exporting && !noPoints && pointsLoaded,
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(54.dp),
                 shape = RoundedCornerShape(16.dp)
             ) {
                 Text(if (exporting) stringResource(R.string.gpx_exporting) else stringResource(R.string.gpx_export_save))
+            }
+            if (noPoints) {
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = stringResource(R.string.gpx_export_no_points),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.error
+                )
             }
         }
     }

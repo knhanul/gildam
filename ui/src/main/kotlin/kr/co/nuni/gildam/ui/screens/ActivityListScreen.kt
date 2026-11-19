@@ -139,8 +139,12 @@ fun ActivityListScreen(
     /** 아주 짧은 기록(0.1 km 미만 또는 1분 미만) 숨기기 */
     hideShortRecords: Boolean = false,
     onToggleHideShortRecords: (Boolean) -> Unit = {},
-    onDeleteShortActivities: (List<String>) -> Unit = {}
+    onDeleteShortActivities: (List<String>) -> Unit = {},
+    /** '코스로 저장' (길게 눌러 여는 메뉴·⋮ 메뉴) */
+    onSaveAsCourse: ((String) -> Unit)? = null
 ) {
+    // 길게 누른 기록의 메뉴 (기록 id)
+    var menuOpenId by remember { mutableStateOf<String?>(null) }
     // 찾기: 기본은 가려져 있고 앱바 돋보기 아이콘으로 펼침/접음
     var searchExpanded by rememberSaveable { mutableStateOf(false) }
     val searchFocusRequester = remember { FocusRequester() }
@@ -403,11 +407,11 @@ fun ActivityListScreen(
                             val onRowClick: () -> Unit = {
                                 if (merging) toggleMerge(item) else onSelectActivity(item.id)
                             }
+                            // 길게 누르면 그 기록의 메뉴(코스로 저장·합치기·수정·삭제)를 엶
                             val onRowLongClick: () -> Unit = {
-                                if (!merging && item.status == ActivityStatus.COMPLETED) {
+                                if (!merging) {
                                     haptics.performHapticFeedback(HapticFeedbackType.LongPress)
-                                    merging = true
-                                    toggleMerge(item)
+                                    menuOpenId = item.id
                                 }
                             }
                             ActivityCompactRow(
@@ -419,7 +423,13 @@ fun ActivityListScreen(
                                 onLongClick = onRowLongClick,
                                 onEdit = { editingId = item.id },
                                 onDelete = { deletingId = item.id },
-                                onUpload = { onUploadActivity(item.id) }
+                                onUpload = { onUploadActivity(item.id) },
+                                onSaveAsCourse = onSaveAsCourse?.let { cb -> { cb(item.id) } },
+                                onStartMerge = if (item.status == ActivityStatus.COMPLETED) {
+                                    { merging = true; toggleMerge(item) }
+                                } else null,
+                                menuExpanded = menuOpenId == item.id,
+                                onMenuExpandedChange = { open -> menuOpenId = if (open) item.id else null }
                             )
                         }
                     }
@@ -711,6 +721,10 @@ internal fun ActivityCompactRow(
     onEdit: () -> Unit = {},
     onDelete: () -> Unit = {},
     onUpload: () -> Unit = {},
+    onSaveAsCourse: (() -> Unit)? = null,
+    onStartMerge: (() -> Unit)? = null,
+    menuExpanded: Boolean? = null,
+    onMenuExpandedChange: (Boolean) -> Unit = {},
     zoneId: ZoneId = ZoneId.systemDefault()
 ) {
     val cs = MaterialTheme.colorScheme
@@ -848,7 +862,11 @@ internal fun ActivityCompactRow(
                 isLoggedIn = isLoggedIn,
                 onEdit = onEdit,
                 onDelete = onDelete,
-                onUpload = onUpload
+                onUpload = onUpload,
+                onSaveAsCourse = onSaveAsCourse,
+                onStartMerge = onStartMerge,
+                menuExpanded = menuExpanded,
+                onMenuExpandedChange = onMenuExpandedChange
             )
         }
     }

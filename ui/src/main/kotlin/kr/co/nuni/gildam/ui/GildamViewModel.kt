@@ -514,6 +514,8 @@ class GildamViewModel @Inject constructor(
         options: GpxExportOptions
     ): GpxExportResult? {
         val points = repository.getTrackPoints(activityId)
+        // 경로 점이 없는 기록은 빈 GPX 가 되므로 내보내지 않음 (화면에서도 버튼을 막음)
+        if (points.isEmpty()) return null
         val waypoints = repository.getWaypoints(activityId)
         val all = repository.getActivityById(activityId) ?: return null
         val xml = gpxExporter.exportToGpxXml(all, points, waypoints, options)

@@ -504,4 +504,28 @@
     <string name="record_elevation_compact">↑%1$d ↓%2$d m</string>
     <string name="record_elevation_gain_compact">↑%1$d m</string>
     <string name="weather_sky_icon_cd">하늘 상태</string>
+    <string name="course_reverse_chip">반대 방향</string>
+    <string name="course_import_from_file">파일에서</string>
+    <string name="course_import_from_file_desc">휴대폰에 저장된 GPX 파일을 골라요</string>
+    <string name="course_import_from_records">내 기록에서</string>
+    <string name="course_import_from_records_desc">길담 기록의 경로로 바로 코스를 만들어요</string>
+    <string name="course_from_records_title">내 기록에서 코스 만들기</string>
+    <string name="course_from_records_hint">여러 개 고를 수 있어요. 기록은 기기 안에서만 코스로 바뀌어요.</string>
+    <string name="course_from_records_empty">끝난 기록이 아직 없어요</string>
+    <string name="course_from_records_make">코스 만들기</string>
+    <string name="course_block_not_finished">아직 끝나지 않은 기록이에요</string>
+    <string name="course_block_no_points">경로 점이 없는 기록이에요</string>
+    <string name="course_block_too_short">0.1 km 미만이라 너무 짧아요</string>
+    <string name="course_import_no_points">경로 점이 없는 파일이에요</string>
+    <string name="course_import_partial">%1$d개 불러왔고 %2$d개는 못 불러왔어요 (%3$s)</string>
+    <string name="course_from_records_skipped">(%1$d개는 건너뜀)</string>
+    <string name="record_save_as_course">코스로 저장</string>
+    <string name="record_saved_as_course">코스로 저장했어요. 코스 탭에서 볼 수 있어요</string>
+    <plurals name="course_imported">
+        <item quantity="other">코스 %1$d개를 불러왔어요</item>
+    </plurals>
+    <plurals name="course_from_records_done">
+        <item quantity="other">기록 %1$d개로 코스를 만들었어요</item>
+    </plurals>
+    <string name="gpx_export_no_points">경로 점이 없는 기록이라 GPX로 내보낼 수 없어요</string>
 </resources>

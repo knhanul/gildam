@@ -70,6 +70,19 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.rememberModalBottomSheetState
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.material.icons.outlined.History
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.emptyFlow
+import kr.co.nuni.gildam.data.course.RecordCourseBlock
+import kr.co.nuni.gildam.data.gpxcompare.GpxParseException
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.ModalBottomSheet
@@ -120,6 +133,24 @@ data class CourseFollowUi(
     val reversed: Boolean = false
 )
 
+/** '내 기록에서' 목록 한 줄. [block] 이 있으면 고를 수 없고 그 이유를 보여 줌 */
+data class RecordCourseChoice(
+    val id: String,
+    val title: String,
+    val startedAtEpochMs: Long,
+    val distanceM: Double,
+    val transportType: TransportType,
+    val block: RecordCourseBlock? = null
+)
+
+/** 코스 탭 아래 안내(스낵바)로 보여 줄 결과 */
+sealed interface CourseMessage {
+    data class Imported(val count: Int) : CourseMessage
+    data class ImportFailed(val imported: Int, val reasons: List<GpxParseException.Reason>) : CourseMessage
+    data class FromRecords(val created: Int, val skipped: Int) : CourseMessage
+    data class FromRecordsBlocked(val reason: RecordCourseBlock) : CourseMessage
+}
+
 internal fun kmText(m: Double) = if (m >= 10_000) "%.0f km".format(m / 1000) else "%.1f km".format(m / 1000)
 
 // ---------------- 코스 목록 (탭) ----------------
@@ -135,8 +166,53 @@ fun CourseListScreen(
     /** 코스 목록에서 골라 바로 비교 (고른 순서 그대로 코스 id 전달) */
     onCompareCourses: (List<String>) -> Unit = {},
     /** 한 번에 비교할 수 있는 코스 수 (GPX 파일 비교와 같은 값) */
-    maxCompare: Int = 4
+    maxCompare: Int = 4,
+    /** '내 기록에서' 목록을 열 때 불러올 기록들 (null 이면 '파일에서'만 바로 엶) */
+    recordChoices: (() -> Flow<List<RecordCourseChoice>>)? = null,
+    /** 고른 기록들로 코스 만들기 */
+    onCreateFromRecords: (List<String>) -> Unit = {},
+    /** 불러오기 결과 안내 */
+    messages: Flow<CourseMessage> = emptyFlow()
 ) {
+    // 'GPX 불러오기' → 파일에서 / 내 기록에서
+    var showImportChooser by rememberSaveable { mutableStateOf(false) }
+    var showRecordPicker by rememberSaveable { mutableStateOf(false) }
+    val openImport: () -> Unit = { if (recordChoices == null) onImport() else showImportChooser = true }
+    val snackbarHostState = remember { SnackbarHostState() }
+    val context = LocalContext.current
+    LaunchedEffect(messages) {
+        messages.collect { m -> snackbarHostState.showSnackbar(courseMessageText(context, m)) }
+    }
+    if (showImportChooser) {
+        ModalBottomSheet(onDismissRequest = { showImportChooser = false }) {
+            ImportSourceContent(
+                onFromFile = { showImportChooser = false; onImport() },
+                onFromRecords = { showImportChooser = false; showRecordPicker = true }
+            )
+        }
+    }
+    if (showRecordPicker && recordChoices != null) {
+        val choices by remember { recordChoices() }.collectAsState(initial = null)
+        var pickedCsv by rememberSaveable { mutableStateOf("") }
+        val picked = remember(pickedCsv) { pickedCsv.split(',').filter { it.isNotEmpty() }.toSet() }
+        ModalBottomSheet(
+            onDismissRequest = { showRecordPicker = false },
+            sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+        ) {
+            RecordPickerContent(
+                choices = choices,
+                selected = picked,
+                onToggle = { id -> pickedCsv = (if (id in picked) picked - id else picked + id).joinToString(",") },
+                onConfirm = {
+                    val ids = choices.orEmpty().map { it.id }.filter { it in picked }
+                    showRecordPicker = false
+                    pickedCsv = ""
+                    onCreateFromRecords(ids)
+                },
+                onCancel = { showRecordPicker = false; pickedCsv = "" }
+            )
+        }
+    }
     // 선택 모드: 코스를 눌러 고르고 상단 '비교'로 넘어감. 길게 눌러도 시작
     var selecting by rememberSaveable { mutableStateOf(false) }
     // 고른 코스 id 를 쉼표로 이어 저장 (화면 회전에도 유지)
@@ -152,6 +228,7 @@ fun CourseListScreen(
     fun exitSelection() { selecting = false; selectedCsv = "" }
 
     Scaffold(
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             if (selecting) {
                 TopAppBar(
@@ -180,7 +257,7 @@ fun CourseListScreen(
                             modifier = Modifier.padding(end = 4.dp)
                         )
                         if (courses.isNotEmpty()) kr.co.nuni.gildam.ui.illustration.TooltipIconButton(
-                            Icons.AutoMirrored.Outlined.NoteAdd, stringResource(R.string.course_import_gpx), onImport,
+                            Icons.AutoMirrored.Outlined.NoteAdd, stringResource(R.string.course_import_gpx), openImport,
                             style = kr.co.nuni.gildam.ui.illustration.IconButtonStyle.BRAND, visualSize = 38.dp, iconSize = 20.dp,
                             modifier = Modifier.padding(end = 8.dp)
                         )
@@ -196,7 +273,7 @@ fun CourseListScreen(
         ) {
             if (!selecting) item { CompareEntryCard(enabled = true, onClick = onOpenCompare) }
             if (isImporting) item { LinearProgressIndicator(Modifier.fillMaxWidth()) }
-            if (courses.isEmpty()) item { EmptyCourses(onImport) }
+            if (courses.isEmpty()) item { EmptyCourses(openImport) }
             else {
                 item {
                     Text(
@@ -356,6 +433,167 @@ internal fun RouteThumb(points: List<LatLonPoint>, modifier: Modifier = Modifier
     }
 }
 
+// ---------------- GPX 불러오기: 파일에서 / 내 기록에서 ----------------
+
+/** 'GPX 불러오기'를 누르면 나오는 두 갈래 선택 (시트 내용) */
+@Composable
+internal fun ImportSourceContent(onFromFile: () -> Unit, onFromRecords: () -> Unit) {
+    Column(Modifier.fillMaxWidth().padding(horizontal = 20.dp).padding(bottom = 24.dp)) {
+        Text(stringResource(R.string.gpx_import), style = MaterialTheme.typography.titleLarge)
+        Spacer(Modifier.height(14.dp))
+        ImportSourceRow(Icons.Outlined.FileOpen, stringResource(R.string.course_import_from_file), stringResource(R.string.course_import_from_file_desc), onFromFile)
+        Spacer(Modifier.height(10.dp))
+        ImportSourceRow(Icons.Outlined.History, stringResource(R.string.course_import_from_records), stringResource(R.string.course_import_from_records_desc), onFromRecords)
+    }
+}
+
+@Composable
+private fun ImportSourceRow(icon: androidx.compose.ui.graphics.vector.ImageVector, title: String, desc: String, onClick: () -> Unit) {
+    Surface(
+        shape = RoundedCornerShape(16.dp),
+        color = MaterialTheme.colorScheme.surfaceVariant,
+        modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).clickable(role = Role.Button, onClick = onClick)
+    ) {
+        Row(Modifier.padding(horizontal = 16.dp, vertical = 14.dp), verticalAlignment = Alignment.CenterVertically) {
+            Box(Modifier.size(40.dp).clip(CircleShape).background(MaterialTheme.colorScheme.primaryContainer), contentAlignment = Alignment.Center) {
+                Icon(icon, null, tint = MaterialTheme.colorScheme.onPrimaryContainer, modifier = Modifier.size(22.dp))
+            }
+            Spacer(Modifier.width(14.dp))
+            Column(Modifier.weight(1f)) {
+                Text(title, style = MaterialTheme.typography.titleMedium)
+                Text(desc, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            Icon(Icons.Outlined.ChevronRight, null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+    }
+}
+
+/**
+ * '내 기록에서' 고르기 (시트 내용). 여러 개 고를 수 있고,
+ * 점이 없거나 너무 짧은 기록은 흐리게 두고 이유를 보여 줍니다.
+ * [choices] 가 null 이면 불러오는 중.
+ */
+@Composable
+internal fun RecordPickerContent(
+    choices: List<RecordCourseChoice>?,
+    selected: Set<String>,
+    onToggle: (String) -> Unit,
+    onConfirm: () -> Unit,
+    onCancel: () -> Unit,
+    zoneId: java.time.ZoneId = java.time.ZoneId.systemDefault()
+) {
+    val count = choices.orEmpty().count { it.id in selected && it.block == null }
+    Column(Modifier.fillMaxWidth().padding(horizontal = 20.dp).padding(bottom = 20.dp)) {
+        Text(stringResource(R.string.course_from_records_title), style = MaterialTheme.typography.titleLarge)
+        Text(
+            stringResource(R.string.course_from_records_hint),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        Spacer(Modifier.height(12.dp))
+        when {
+            choices == null -> LinearProgressIndicator(Modifier.fillMaxWidth())
+            choices.isEmpty() -> Text(
+                stringResource(R.string.course_from_records_empty),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(vertical = 24.dp)
+            )
+            else -> LazyColumn(
+                modifier = Modifier.fillMaxWidth().heightIn(max = 460.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                items(choices, key = { it.id }) { c -> RecordChoiceRow(c, c.id in selected, { onToggle(c.id) }, zoneId) }
+            }
+        }
+        Spacer(Modifier.height(14.dp))
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End, verticalAlignment = Alignment.CenterVertically) {
+            TextButton(onClick = onCancel) { Text(stringResource(R.string.action_cancel)) }
+            Spacer(Modifier.width(8.dp))
+            Button(onClick = onConfirm, enabled = count > 0, shape = RoundedCornerShape(14.dp)) {
+                Text(stringResource(R.string.course_from_records_make) + if (count > 0) " ($count)" else "")
+            }
+        }
+    }
+}
+
+@Composable
+private fun RecordChoiceRow(c: RecordCourseChoice, checked: Boolean, onToggle: () -> Unit, zoneId: java.time.ZoneId) {
+    val enabled = c.block == null
+    val cs = MaterialTheme.colorScheme
+    val date = remember(c.startedAtEpochMs, zoneId) {
+        java.time.format.DateTimeFormatter.ofPattern("yyyy.MM.dd HH:mm")
+            .format(java.time.Instant.ofEpochMilli(c.startedAtEpochMs).atZone(zoneId))
+    }
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(14.dp))
+            .background(if (checked && enabled) cs.primaryContainer else cs.surfaceVariant)
+            .clickable(enabled = enabled, role = Role.Checkbox, onClick = onToggle)
+            .padding(horizontal = 12.dp, vertical = 10.dp)
+            .alpha(if (enabled) 1f else 0.55f),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(
+            if (checked && enabled) Icons.Filled.CheckCircle else Icons.Outlined.RadioButtonUnchecked,
+            contentDescription = null,
+            tint = if (checked && enabled) cs.primary else cs.onSurfaceVariant,
+            modifier = Modifier.size(20.dp)
+        )
+        Spacer(Modifier.width(10.dp))
+        kr.co.nuni.gildam.ui.illustration.TransportSticker(c.transportType, selected = true, size = 24.dp)
+        Spacer(Modifier.width(10.dp))
+        Column(Modifier.weight(1f)) {
+            Text(c.title, style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(
+                "$date · ${kmText(c.distanceM)}",
+                style = MaterialTheme.typography.labelSmall.copy(fontFeatureSettings = "tnum"),
+                color = cs.onSurfaceVariant,
+                maxLines = 1
+            )
+            c.block?.let { b ->
+                Text(b.label, style = MaterialTheme.typography.labelSmall, color = cs.error, maxLines = 1)
+            }
+        }
+    }
+}
+
+/** 기록 → 코스를 못 만드는 이유 글자 */
+internal val RecordCourseBlock.label: String
+    @Composable get() = stringResource(labelRes)
+
+@androidx.annotation.StringRes
+internal fun RecordCourseBlock.labelResOf(): Int = labelRes
+
+private val RecordCourseBlock.labelRes: Int
+    get() = when (this) {
+        RecordCourseBlock.NOT_FINISHED -> R.string.course_block_not_finished
+        RecordCourseBlock.NO_POINTS -> R.string.course_block_no_points
+        RecordCourseBlock.TOO_SHORT -> R.string.course_block_too_short
+    }
+
+private fun importReasonRes(r: GpxParseException.Reason): Int = when (r) {
+    GpxParseException.Reason.OPEN_FAILED -> R.string.gpx_open_failed
+    GpxParseException.Reason.UNREADABLE -> R.string.gpx_parse_failed
+    GpxParseException.Reason.TOO_FEW_POINTS -> R.string.course_import_no_points
+}
+
+/** 스낵바 글자 */
+internal fun courseMessageText(context: android.content.Context, m: CourseMessage): String = when (m) {
+    is CourseMessage.Imported -> context.resources.getQuantityString(R.plurals.course_imported, m.count, m.count)
+    is CourseMessage.ImportFailed -> {
+        val reason = context.getString(importReasonRes(m.reasons.first()))
+        if (m.imported == 0 && m.reasons.size == 1) reason
+        else context.getString(R.string.course_import_partial, m.imported, m.reasons.size, reason)
+    }
+    is CourseMessage.FromRecords -> {
+        val made = context.resources.getQuantityString(R.plurals.course_from_records_done, m.created, m.created)
+        if (m.skipped > 0) made + " " + context.getString(R.string.course_from_records_skipped, m.skipped) else made
+    }
+    is CourseMessage.FromRecordsBlocked -> context.getString(m.reason.labelRes)
+}
+
 // ---------------- 코스 상세 ----------------
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -451,7 +689,8 @@ fun CourseDetailScreen(
                     modifier = Modifier.align(Alignment.TopEnd).padding(6.dp)
                 )
             }
-            ReverseDirectionToggleCard(
+            // 반대 방향은 작은 칩으로 지도 바로 아래에 (켜면 출발 표시·고도 그래프가 바로 뒤집힘)
+            ReverseDirectionChip(
                 reversed = reversed,
                 onReversedChange = { next ->
                     reversed = next
@@ -492,56 +731,29 @@ fun CourseDetailScreen(
     }
 }
 
+/** 작은 '⇄ 반대 방향' 칩. 켜면 코스를 도착점→출발점 순서로 봅니다. */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun ReverseDirectionToggleCard(
+internal fun ReverseDirectionChip(
     reversed: Boolean,
     onReversedChange: (Boolean) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val cs = MaterialTheme.colorScheme
-    val title = stringResource(R.string.course_reverse_title)
-    Surface(
-        shape = RoundedCornerShape(16.dp),
-        color = if (reversed) cs.primaryContainer else cs.surfaceVariant,
-        border = if (reversed) BorderStroke(1.5.dp, cs.primary) else null,
+    val desc = stringResource(R.string.course_reverse_title)
+    val stateOn = stringResource(R.string.state_selected)
+    val stateOff = stringResource(R.string.state_not_selected)
+    FilterChip(
+        selected = reversed,
+        onClick = { onReversedChange(!reversed) },
+        label = { Text(stringResource(R.string.course_reverse_chip), style = MaterialTheme.typography.labelLarge) },
+        leadingIcon = { Icon(Icons.Outlined.SwapHoriz, contentDescription = null, modifier = Modifier.size(18.dp)) },
         modifier = modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(16.dp))
-            .clickable(role = Role.Switch) { onReversedChange(!reversed) }
-    ) {
-        Row(
-            modifier = Modifier
-                .heightIn(min = 54.dp)
-                .padding(horizontal = 14.dp, vertical = 10.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Icon(
-                Icons.Outlined.SwapHoriz,
-                contentDescription = null,
-                tint = if (reversed) cs.primary else cs.onSurfaceVariant,
-                modifier = Modifier.size(22.dp)
-            )
-            Spacer(Modifier.width(10.dp))
-            Column(Modifier.weight(1f)) {
-                Text(
-                    text = title,
-                    style = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.SemiBold,
-                    color = if (reversed) cs.onPrimaryContainer else cs.onSurface
-                )
-                Text(
-                    text = stringResource(R.string.course_reverse_desc),
-                    style = MaterialTheme.typography.labelSmall,
-                    color = if (reversed) cs.onPrimaryContainer.copy(alpha = 0.8f) else cs.onSurfaceVariant
-                )
+            .heightIn(min = 32.dp)
+            .semantics {
+                contentDescription = desc
+                stateDescription = if (reversed) stateOn else stateOff
             }
-            Switch(
-                checked = reversed,
-                onCheckedChange = onReversedChange,
-                modifier = Modifier.semantics { contentDescription = title }
-            )
-        }
-    }
+    )
 }
 
 @Composable
@@ -808,7 +1020,7 @@ internal fun FollowActivitySheet(
                 }
             }
             Spacer(Modifier.height(14.dp))
-            ReverseDirectionToggleCard(
+            ReverseDirectionChip(
                 reversed = reversed,
                 onReversedChange = onReversedChange
             )

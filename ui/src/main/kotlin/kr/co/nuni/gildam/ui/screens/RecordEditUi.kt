@@ -32,6 +32,8 @@ import androidx.compose.material3.BasicAlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.DropdownMenu
+import androidx.compose.material.icons.outlined.Route
+import androidx.compose.material.icons.automirrored.outlined.CallMerge
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
@@ -133,13 +135,22 @@ fun RecordOverflowMenu(
     isLoggedIn: Boolean,
     onEdit: () -> Unit,
     onDelete: () -> Unit,
-    onUpload: () -> Unit
+    onUpload: () -> Unit,
+    /** '코스로 저장' (null 이면 메뉴에 안 보임) */
+    onSaveAsCourse: (() -> Unit)? = null,
+    /** '여러 기록 합치기' 고르기 시작 (null 이면 안 보임) */
+    onStartMerge: (() -> Unit)? = null,
+    /** 밖에서 메뉴를 열고 닫을 때 (기록을 길게 누르면 열림). null 이면 메뉴가 스스로 관리 */
+    menuExpanded: Boolean? = null,
+    onMenuExpandedChange: (Boolean) -> Unit = {}
 ) {
-    var expanded by remember { mutableStateOf(false) }
+    var ownExpanded by remember { mutableStateOf(false) }
+    val expanded = menuExpanded ?: ownExpanded
+    val setExpanded: (Boolean) -> Unit = { v -> if (menuExpanded != null) onMenuExpandedChange(v) else ownExpanded = v }
     val canUpload = isLoggedIn && RecordEditPolicy.canRequestUpload(activity)
     Box {
         IconButton(
-            onClick = { expanded = true },
+            onClick = { setExpanded(true) },
             modifier = Modifier.size(30.dp)
         ) {
             Icon(
@@ -149,7 +160,21 @@ fun RecordOverflowMenu(
                 modifier = Modifier.size(18.dp)
             )
         }
-        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+        DropdownMenu(expanded = expanded, onDismissRequest = { setExpanded(false) }) {
+            if (onSaveAsCourse != null) {
+                DropdownMenuItem(
+                    text = { Text(stringResource(R.string.record_save_as_course), style = MaterialTheme.typography.bodyMedium) },
+                    leadingIcon = { Icon(Icons.Outlined.Route, contentDescription = null, modifier = Modifier.size(18.dp)) },
+                    onClick = { setExpanded(false); onSaveAsCourse() }
+                )
+            }
+            if (onStartMerge != null) {
+                DropdownMenuItem(
+                    text = { Text(stringResource(R.string.merge_records_tooltip), style = MaterialTheme.typography.bodyMedium) },
+                    leadingIcon = { Icon(Icons.AutoMirrored.Outlined.CallMerge, contentDescription = null, modifier = Modifier.size(18.dp)) },
+                    onClick = { setExpanded(false); onStartMerge() }
+                )
+            }
             if (canUpload) {
                 val failed = activity.syncState == SyncState.SYNC_ERROR
                 DropdownMenuItem(
@@ -160,13 +185,13 @@ fun RecordOverflowMenu(
                         )
                     },
                     leadingIcon = { Icon(Icons.Outlined.CloudUpload, contentDescription = null, modifier = Modifier.size(18.dp)) },
-                    onClick = { expanded = false; onUpload() }
+                    onClick = { setExpanded(false); onUpload() }
                 )
             }
             DropdownMenuItem(
                 text = { Text(stringResource(R.string.edit_title_activity), style = MaterialTheme.typography.bodyMedium) },
                 leadingIcon = { Icon(Icons.Outlined.Edit, contentDescription = null, modifier = Modifier.size(18.dp)) },
-                onClick = { expanded = false; onEdit() }
+                onClick = { setExpanded(false); onEdit() }
             )
             DropdownMenuItem(
                 text = {
@@ -184,7 +209,7 @@ fun RecordOverflowMenu(
                         modifier = Modifier.size(18.dp)
                     )
                 },
-                onClick = { expanded = false; onDelete() }
+                onClick = { setExpanded(false); onDelete() }
             )
         }
     }

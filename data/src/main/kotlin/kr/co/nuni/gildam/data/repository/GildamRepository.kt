@@ -46,6 +46,10 @@ class GildamRepository @Inject constructor(
     suspend fun getTrackPoints(activityId: String): List<TrackPointEntity> =
         dao.getTrackPoints(activityId)
 
+    /** 기록 id → 경로 점 개수 (점이 하나도 없는 기록은 빠짐) */
+    suspend fun trackPointCounts(): Map<String, Int> =
+        dao.countTrackPointsByActivity().associate { it.activityId to it.pointCount }
+
     suspend fun getActivityById(activityId: String): ActivityEntity? =
         dao.getActivityById(activityId)
 

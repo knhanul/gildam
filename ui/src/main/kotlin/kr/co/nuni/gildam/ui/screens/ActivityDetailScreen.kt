@@ -1,5 +1,8 @@
 package kr.co.nuni.gildam.ui.screens
 
+import kr.co.nuni.gildam.ui.illustration.IconButtonStyle
+import kr.co.nuni.gildam.ui.illustration.TooltipIconButton
+import androidx.compose.material.icons.outlined.Route
 import androidx.compose.ui.res.pluralStringResource
 import kr.co.nuni.gildam.ui.l10n.*
 import androidx.compose.ui.res.stringResource
@@ -89,7 +92,9 @@ fun ActivityDetailScreen(
     /** 기기 사진에서 이 기록과 같은 시간·자리의 사진 찾기 (사진은 기기에만) */
     recordPhotos: kr.co.nuni.gildam.ui.GildamViewModel.RecordPhotosState =
         kr.co.nuni.gildam.ui.GildamViewModel.RecordPhotosState(),
-    onFindRecordPhotos: () -> Unit = {}
+    onFindRecordPhotos: () -> Unit = {},
+    /** '코스로 저장' (null 이면 버튼 없음) */
+    onSaveAsCourse: ((String) -> Unit)? = null
 ) {
     // 사진 접근 권한 요청. Android 14+ 는 전체/일부(선택한 사진만) 중 고를 수 있게 두 권한을 함께 요청.
     // 결과와 상관없이 다시 찾아 봄 — 허용된 범위의 사진만 보이고, 거절되면 안내 줄이 그대로 남습니다.
@@ -160,6 +165,14 @@ fun ActivityDetailScreen(
                     if (bundle != null) {
                         RecordActionButtons(bundle.activity, isLoggedIn, onEdit = { showEdit = true }, onDelete = { showDelete = true },
                             onUpload = { onUploadActivity(bundle.activity.id) })
+                        if (onSaveAsCourse != null) {
+                            TooltipIconButton(
+                                icon = Icons.Outlined.Route,
+                                label = stringResource(R.string.record_save_as_course),
+                                onClick = { onSaveAsCourse(bundle.activity.id) },
+                                style = IconButtonStyle.TONAL, visualSize = 34.dp, iconSize = 18.dp
+                            )
+                        }
                         IconButton(onClick = { onNavigateToSafeExport(bundle.activity.id) }) {
                             Icon(Icons.Outlined.IosShare, contentDescription = stringResource(R.string.detail_share_cd))
                         }

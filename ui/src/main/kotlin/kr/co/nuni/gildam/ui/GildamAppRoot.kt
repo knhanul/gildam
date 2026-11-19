@@ -1,5 +1,7 @@
 package kr.co.nuni.gildam.ui
 
+import kotlinx.coroutines.launch
+import kr.co.nuni.gildam.ui.screens.labelResOf
 import android.Manifest
 import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -86,6 +88,16 @@ fun GildamAppRoot(
     }
     val navController = rememberNavController()
     val context = LocalContext.current
+    val rootScope = androidx.compose.runtime.rememberCoroutineScope()
+    // 기록 상세·목록의 '코스로 저장': 결과를 짧은 안내로 보여 줌
+    val saveRecordAsCourse: (String) -> Unit = { id ->
+        rootScope.launch {
+            val block = courseViewModel.saveRecordAsCourse(id)
+            val msg = if (block == null) context.getString(R.string.record_saved_as_course)
+            else context.getString(block.labelResOf())
+            android.widget.Toast.makeText(context, msg, android.widget.Toast.LENGTH_SHORT).show()
+        }
+    }
 
     val liveState by viewModel.liveRecordingState.collectAsState()
     val sessionState by viewModel.authSessionState.collectAsState()
@@ -249,7 +261,10 @@ fun GildamAppRoot(
                     onOpenCourse = { id -> navController.navigate(CourseDetailRoute(id)) },
                     onOpenCompare = { navController.navigate(GpxCompareRoute()) },
                     onCompareCourses = { ids -> navController.navigate(GpxCompareRoute(ids.joinToString(","))) },
-                    maxCompare = GpxCompareViewModel.MAX_FILES
+                    maxCompare = GpxCompareViewModel.MAX_FILES,
+                    recordChoices = courseViewModel::recordChoices,
+                    onCreateFromRecords = courseViewModel::createFromRecords,
+                    messages = courseViewModel.messages
                 )
             }
 
@@ -300,7 +315,8 @@ fun GildamAppRoot(
                     places = activityPlaces,
                     hideShortRecords = hideShortRecords,
                     onToggleHideShortRecords = appearanceViewModel::setHideShortRecords,
-                    onDeleteShortActivities = viewModel::deleteActivities
+                    onDeleteShortActivities = viewModel::deleteActivities,
+                    onSaveAsCourse = saveRecordAsCourse
                 )
             }
 
@@ -325,17 +341,19 @@ fun GildamAppRoot(
                     onDeleteActivity = viewModel::deleteActivity,
                     onUploadActivity = viewModel::uploadActivityToCloud,
                     recordPhotos = recordPhotos,
-                    onFindRecordPhotos = { detailBundle?.activity?.let { viewModel.findRecordPhotos(it, trackPoints) } }
+                    onFindRecordPhotos = { detailBundle?.activity?.let { viewModel.findRecordPhotos(it, trackPoints) } },
+                    onSaveAsCourse = saveRecordAsCourse
                 )
             }
 
             composable<SafeShareExportRoute> { backStackEntry ->
                 val route: SafeShareExportRoute = backStackEntry.toRoute()
-                val trackPoints by viewModel.observeTrackPoints(route.activityId)
-                    .collectAsState(initial = emptyList())
+                val loadedPoints by remember(route.activityId) { viewModel.observeTrackPoints(route.activityId) }
+                    .collectAsState(initial = null)
 
                 SafeShareExportScreen(
-                    trackPoints = trackPoints,
+                    trackPoints = loadedPoints.orEmpty(),
+                    pointsLoaded = loadedPoints != null,
                     computePreview = viewModel::computeMaskedPreview,
                     onExportGpx = { options ->
                         viewModel.generateSafeGpxExport(route.activityId, options)

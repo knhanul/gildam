@@ -46,6 +46,10 @@ interface GildamDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertTrackPointsBatch(points: List<TrackPointEntity>)
 
+    /** 기록별 경로 점 개수 (코스로 만들 수 있는지 미리 보여 줄 때) */
+    @Query("SELECT activity_id AS activityId, COUNT(*) AS pointCount FROM track_points GROUP BY activity_id")
+    suspend fun countTrackPointsByActivity(): List<ActivityPointCount>
+
     @Query("SELECT * FROM track_points WHERE activity_id = :activityId ORDER BY seq ASC")
     fun observeTrackPoints(activityId: String): Flow<List<TrackPointEntity>>
 
@@ -213,3 +217,6 @@ interface GildamDao {
         waypoints.forEach { upsertWaypoint(it) }
     }
 }
+
+/** [GildamDao.countTrackPointsByActivity] 결과 한 줄 */
+data class ActivityPointCount(val activityId: String, val pointCount: Int)

@@ -28,6 +28,16 @@ import kotlinx.coroutines.withContext
 import kr.co.nuni.gildam.data.course.CourseEntity
 import kr.co.nuni.gildam.data.course.CourseFollower
 import kr.co.nuni.gildam.data.course.CourseRepository
+import kr.co.nuni.gildam.data.course.RecordCourseBlock
+import kr.co.nuni.gildam.data.course.RecordCoursePolicy
+import kr.co.nuni.gildam.data.gpxcompare.GpxPoint
+import kr.co.nuni.gildam.data.model.ActivityStatus
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.asSharedFlow
+import kotlinx.coroutines.flow.flow
+import kr.co.nuni.gildam.ui.screens.CourseMessage
+import kr.co.nuni.gildam.ui.screens.RecordCourseChoice
 import kr.co.nuni.gildam.data.course.FollowActivityGuess
 import kr.co.nuni.gildam.data.gpxcompare.GpxRuggedness
 import kr.co.nuni.gildam.data.gpxcompare.RuggednessResult
@@ -88,9 +98,77 @@ class CourseViewModel @Inject constructor(
         }
     }
 
+    private val _messages = MutableSharedFlow<CourseMessage>(extraBufferCapacity = 4)
+    /** 코스 탭 아래 안내(스낵바)로 보여 줄 결과 */
+    val messages: SharedFlow<CourseMessage> = _messages.asSharedFlow()
+
     fun import(uris: List<Uri>) {
         if (uris.isEmpty()) return
-        viewModelScope.launch { _importing.value = true; try { courses.importFromUris(uris) } finally { _importing.value = false } }
+        viewModelScope.launch {
+            _importing.value = true
+            val outcome = try { courses.importFromUris(uris) } finally { _importing.value = false }
+            _messages.tryEmit(
+                if (outcome.failures.isEmpty()) CourseMessage.Imported(outcome.imported)
+                else CourseMessage.ImportFailed(outcome.imported, outcome.failures)
+            )
+        }
+    }
+
+    /**
+     * '내 기록에서' 목록: 끝난 기록만, 최근 순. 점 개수는 목록을 열 때 한 번 셉니다.
+     * 점이 없거나 너무 짧은 기록은 [RecordCourseChoice.block] 에 이유를 담아 고를 수 없게 합니다.
+     */
+    fun recordChoices(): Flow<List<RecordCourseChoice>> = combine(
+        activities.observeAllActivities(),
+        flow { emit(activities.trackPointCounts()) }
+    ) { list, counts ->
+        list.filter { it.status == ActivityStatus.COMPLETED }
+            .sortedByDescending { it.startedAtEpochMs }
+            .map { a ->
+                RecordCourseChoice(
+                    id = a.id,
+                    title = a.title,
+                    startedAtEpochMs = a.startedAtEpochMs,
+                    distanceM = a.distanceMeters,
+                    transportType = a.transportType,
+                    block = RecordCoursePolicy.check(counts[a.id] ?: 0, a.distanceMeters)
+                )
+            }
+    }.flowOn(Dispatchers.Default)
+
+    /** 고른 기록들로 코스 만들기 (코스 탭의 '내 기록에서') */
+    fun createFromRecords(ids: List<String>) {
+        if (ids.isEmpty()) return
+        viewModelScope.launch {
+            _importing.value = true
+            val r = try { saveRecordsAsCourses(ids) } finally { _importing.value = false }
+            _messages.tryEmit(
+                if (r.created > 0 || r.blocks.isEmpty()) CourseMessage.FromRecords(r.created, r.blocks.size)
+                else CourseMessage.FromRecordsBlocked(r.blocks.first())
+            )
+        }
+    }
+
+    /** 기록 상세·목록의 '코스로 저장'. 만들었으면 null, 못 만들었으면 이유 */
+    suspend fun saveRecordAsCourse(id: String): RecordCourseBlock? {
+        val r = saveRecordsAsCourses(listOf(id))
+        return if (r.created > 0) null else r.blocks.firstOrNull() ?: RecordCourseBlock.NO_POINTS
+    }
+
+    private class RecordsToCourses(val created: Int, val blocks: List<RecordCourseBlock>)
+
+    private suspend fun saveRecordsAsCourses(ids: List<String>): RecordsToCourses {
+        var created = 0
+        val blocks = mutableListOf<RecordCourseBlock>()
+        for (id in ids) {
+            val a = activities.getActivityById(id) ?: continue
+            val pts = activities.getTrackPoints(id)
+            val block = RecordCoursePolicy.check(pts.size, a.distanceMeters, a.status == ActivityStatus.COMPLETED)
+            if (block != null) { blocks += block; continue }
+            val gpx = pts.map { GpxPoint(it.latitude, it.longitude, it.altitudeMeters?.toDouble()) }
+            if (courses.createFromPoints(a.title, gpx) != null) created++ else blocks += RecordCourseBlock.TOO_SHORT
+        }
+        return RecordsToCourses(created, blocks)
     }
 
     fun delete(id: String) {
