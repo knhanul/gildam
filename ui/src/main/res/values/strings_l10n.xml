@@ -528,4 +528,30 @@
         <item quantity="other">기록 %1$d개로 코스를 만들었어요</item>
     </plurals>
     <string name="gpx_export_no_points">경로 점이 없는 기록이라 GPX로 내보낼 수 없어요</string>
+    <string name="weather_dir16_n">북풍</string>
+    <string name="weather_dir16_nne">북북동풍</string>
+    <string name="weather_dir16_ne">북동풍</string>
+    <string name="weather_dir16_ene">동북동풍</string>
+    <string name="weather_dir16_e">동풍</string>
+    <string name="weather_dir16_ese">동남동풍</string>
+    <string name="weather_dir16_se">남동풍</string>
+    <string name="weather_dir16_sse">남남동풍</string>
+    <string name="weather_dir16_s">남풍</string>
+    <string name="weather_dir16_ssw">남남서풍</string>
+    <string name="weather_dir16_sw">남서풍</string>
+    <string name="weather_dir16_wsw">서남서풍</string>
+    <string name="weather_dir16_w">서풍</string>
+    <string name="weather_dir16_wnw">서북서풍</string>
+    <string name="weather_dir16_nw">북서풍</string>
+    <string name="weather_dir16_nnw">북북서풍</string>
+    <string name="wind_rel_head">맞바람</string>
+    <string name="wind_rel_tail">뒷바람</string>
+    <string name="wind_rel_cross">옆바람</string>
+    <string name="weather_feels_like">체감 %1$s°</string>
+    <string name="weather_humidity">습도 %1$s%%</string>
+    <string name="weather_precip_mm">강수 %1$s mm</string>
+    <string name="weather_precip_type_mm">%1$s %2$s mm</string>
+    <string name="weather_north_marker">N</string>
+    <string name="wind_mode_heading_cd">진행 방향 기준 바람 화살표</string>
+    <string name="wind_mode_north_cd">북쪽 기준 바람 화살표</string>
 </resources>

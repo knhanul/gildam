@@ -20,6 +20,8 @@ import kr.co.nuni.gildam.data.model.Visibility
 import kr.co.nuni.gildam.data.weather.PrecipType
 import kr.co.nuni.gildam.data.weather.SkyCondition
 import kr.co.nuni.gildam.data.weather.WindCardinal
+import kr.co.nuni.gildam.data.weather.WindCardinal16
+import kr.co.nuni.gildam.data.weather.RelativeWind
 import kr.co.nuni.gildam.data.weather.WindStrength
 import kr.co.nuni.gildam.map.MapCameraMode
 import kr.co.nuni.gildam.ui.R
@@ -113,6 +115,35 @@ val RuggednessGrade.description: String @Composable get() = stringResource(
 fun GradeBucket.label(context: Context): String =
     toPct?.let { "${fromPct.toInt()}–${it.toInt()}%" }
         ?: context.getString(R.string.grade_bucket_over, fromPct.toInt())
+
+val WindCardinal16.label: String @Composable get() = stringResource(
+    when (this) {
+        WindCardinal16.N -> R.string.weather_dir16_n
+        WindCardinal16.NNE -> R.string.weather_dir16_nne
+        WindCardinal16.NE -> R.string.weather_dir16_ne
+        WindCardinal16.ENE -> R.string.weather_dir16_ene
+        WindCardinal16.E -> R.string.weather_dir16_e
+        WindCardinal16.ESE -> R.string.weather_dir16_ese
+        WindCardinal16.SE -> R.string.weather_dir16_se
+        WindCardinal16.SSE -> R.string.weather_dir16_sse
+        WindCardinal16.S -> R.string.weather_dir16_s
+        WindCardinal16.SSW -> R.string.weather_dir16_ssw
+        WindCardinal16.SW -> R.string.weather_dir16_sw
+        WindCardinal16.WSW -> R.string.weather_dir16_wsw
+        WindCardinal16.W -> R.string.weather_dir16_w
+        WindCardinal16.WNW -> R.string.weather_dir16_wnw
+        WindCardinal16.NW -> R.string.weather_dir16_nw
+        WindCardinal16.NNW -> R.string.weather_dir16_nnw
+    }
+)
+
+val RelativeWind.label: String @Composable get() = stringResource(
+    when (this) {
+        RelativeWind.HEAD -> R.string.wind_rel_head
+        RelativeWind.TAIL -> R.string.wind_rel_tail
+        RelativeWind.CROSS -> R.string.wind_rel_cross
+    }
+)
 
 val WindCardinal.label: String @Composable get() = stringResource(
     when (this) {

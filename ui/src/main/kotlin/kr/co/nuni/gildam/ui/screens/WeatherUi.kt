@@ -1,5 +1,23 @@
 package kr.co.nuni.gildam.ui.screens
 
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material.icons.outlined.WbCloudy
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.StrokeJoin
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.layout.Layout
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.unit.Constraints
+import kr.co.nuni.gildam.data.weather.feelsLikeC
+import kr.co.nuni.gildam.data.weather.relativeWind
+import kr.co.nuni.gildam.data.weather.windArrowScreenDeg
+import kr.co.nuni.gildam.data.weather.windCardinal16
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -89,6 +107,11 @@ fun StartWeatherSection(
     }
 }
 
+/**
+ * 출발 전 날씨: 높이를 줄인 한 줄. 두 줄로 넘어가지 않습니다.
+ * 순서: 하늘·강수 아이콘 · 기온 · 체감 · 바람(화살표·m/s·방향) · 습도 · 강수량.
+ * 자전거는 바람을 맨 앞에 굵게. 폭이 좁으면 습도 → 강수량 → 체감 → 아이콘 순으로 뺍니다.
+ */
 @Composable
 fun StartWeatherCard(
     weather: WeatherNow,
@@ -96,14 +119,127 @@ fun StartWeatherCard(
     modifier: Modifier = Modifier
 ) {
     Surface(
-        shape = RoundedCornerShape(16.dp),
+        shape = RoundedCornerShape(12.dp),
         color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.85f),
         modifier = modifier.fillMaxWidth()
     ) {
-        if (transportType == TransportType.BIKE) {
-            BikeWindContent(weather, compact = true, modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp))
-        } else {
-            CompactWeatherRow(weather, modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp))
+        StartWeatherRow(
+            weather = weather,
+            bikeFirst = transportType == TransportType.BIKE,
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp)
+        )
+    }
+}
+
+/** [StartWeatherCard] 안의 한 줄 (미리보기·테스트에서도 씀) */
+@Composable
+internal fun StartWeatherRow(weather: WeatherNow, bikeFirst: Boolean, modifier: Modifier = Modifier) {
+    val cs = MaterialTheme.colorScheme
+    val small = MaterialTheme.typography.bodySmall.copy(fontFeatureSettings = "tnum")
+    val items = mutableListOf<Pair<Int, @Composable () -> Unit>>()
+    // 바람 (자전거면 맨 앞·굵게)
+    val wind: (@Composable () -> Unit)? = if (weather.windSpeedMs != null || weather.windDirDeg != null) {
+        {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                weather.windDirDeg?.let { dir ->
+                    WindArrowGlyph(
+                        rotationDeg = windTowardRotationDeg(dir),
+                        color = if (bikeFirst) cs.primary else cs.onSurfaceVariant,
+                        size = if (bikeFirst) 18.dp else 15.dp
+                    )
+                    Spacer(Modifier.width(3.dp))
+                }
+                val parts = listOfNotNull(
+                    weather.windSpeedMs?.let { stringResource(R.string.weather_wind_ms, formatWeatherNumber(it)) },
+                    weather.windDirDeg?.let { windCardinal(it).label }
+                ).joinToString(" ")
+                Text(
+                    parts,
+                    style = if (bikeFirst) MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold, fontFeatureSettings = "tnum")
+                    else small,
+                    color = cs.onSurface,
+                    maxLines = 1, softWrap = false
+                )
+            }
+        }
+    } else null
+    if (bikeFirst && wind != null) items += 0 to wind
+    val icon = weatherConditionIcon(weather) ?: Icons.Outlined.WbCloudy
+    items += 4 to {
+        Icon(icon, contentDescription = conditionLabel(weather) ?: stringResource(R.string.weather_sky_icon_cd),
+            tint = cs.primary, modifier = Modifier.size(18.dp))
+    }
+    weather.tempC?.let { t ->
+        items += 0 to {
+            Text(
+                stringResource(R.string.weather_temp, formatWeatherNumber(t)),
+                style = MaterialTheme.typography.titleSmall.copy(
+                    fontWeight = if (bikeFirst) FontWeight.Medium else FontWeight.Bold, fontFeatureSettings = "tnum"
+                ),
+                color = cs.onSurface, maxLines = 1, softWrap = false
+            )
+        }
+        items += 3 to {
+            Text(
+                stringResource(R.string.weather_feels_like, formatWeatherNumber(feelsLikeC(t, weather.windSpeedMs, weather.humidity))),
+                style = small, color = cs.onSurfaceVariant, maxLines = 1, softWrap = false
+            )
+        }
+    }
+    if (!bikeFirst && wind != null) items += 0 to wind
+    weather.humidity?.let { h ->
+        items += 1 to {
+            Text(stringResource(R.string.weather_humidity, h.roundToInt().toString()),
+                style = small, color = cs.onSurfaceVariant, maxLines = 1, softWrap = false)
+        }
+    }
+    items += 2 to {
+        val mm = weather.precip1hMm
+        val text = when {
+            weather.precipType != PrecipType.NONE && mm != null ->
+                stringResource(R.string.weather_precip_type_mm, weather.precipType.label, formatWeatherNumber(mm))
+            weather.precipType != PrecipType.NONE -> weather.precipType.label
+            mm != null -> stringResource(R.string.weather_precip_mm, formatWeatherNumber(mm))
+            else -> stringResource(R.string.weather_precip_none)
+        }
+        Text(text, style = small, color = cs.onSurfaceVariant, maxLines = 1, softWrap = false)
+    }
+    OneLineDroppingRow(items = items, minGap = 10.dp, modifier = modifier.fillMaxWidth())
+}
+
+/**
+ * 한 줄에 다 안 들어가면 순위(1부터, 작은 수부터) 낮은 칸을 빼서 언제나 한 줄로 둡니다.
+ * 순위 0 은 빼지 않습니다. 남는 폭은 칸 사이에 고르게 나눕니다.
+ */
+@Composable
+internal fun OneLineDroppingRow(
+    items: List<Pair<Int, @Composable () -> Unit>>,
+    minGap: androidx.compose.ui.unit.Dp,
+    modifier: Modifier = Modifier
+) {
+    Layout(content = { items.forEach { it.second() } }, modifier = modifier) { measurables, constraints ->
+        val placeables = measurables.map { it.measure(Constraints()) }
+        val gap = minGap.roundToPx()
+        val visible = BooleanArray(placeables.size) { true }
+        fun need(): Int {
+            val shown = placeables.indices.filter { visible[it] }
+            return shown.sumOf { placeables[it].width } + gap * (shown.size - 1).coerceAtLeast(0)
+        }
+        val maxW = if (constraints.hasBoundedWidth) constraints.maxWidth else need()
+        items.indices.filter { items[it].first > 0 }.sortedBy { items[it].first }.forEach { i ->
+            if (need() > maxW) visible[i] = false
+        }
+        val shown = placeables.indices.filter { visible[it] }
+        val h = shown.maxOfOrNull { placeables[it].height } ?: 0
+        val used = shown.sumOf { placeables[it].width }
+        val spread = if (shown.size > 1) ((maxW - used) / (shown.size - 1)).coerceAtLeast(gap) else 0
+        layout(maxW, h.coerceIn(constraints.minHeight, constraints.maxHeight)) {
+            var x = 0
+            shown.forEach { i ->
+                val p = placeables[i]
+                p.place(x, (h - p.height) / 2)
+                x += p.width + spread
+            }
         }
     }
 }
@@ -214,14 +350,101 @@ private fun BikeWindContent(
 
 @Composable
 internal fun WindDirectionArrow(dirDeg: Double, size: androidx.compose.ui.unit.Dp) {
-    Icon(
-        imageVector = Icons.Filled.Navigation,
-        contentDescription = stringResource(R.string.weather_dir_arrow_cd),
-        tint = MaterialTheme.colorScheme.primary,
-        modifier = Modifier
-            .size(size)
-            .rotate(windTowardRotationDeg(dirDeg))
+    WindArrowGlyph(
+        rotationDeg = windTowardRotationDeg(dirDeg),
+        color = MaterialTheme.colorScheme.primary,
+        size = size,
+        contentDescription = stringResource(R.string.weather_dir_arrow_cd)
     )
+}
+
+/**
+ * 꼬리가 달린 굵은 화살표 (위를 가리키는 모양을 [rotationDeg] 만큼 돌림).
+ * 삼각형보다 방향이 한눈에 읽힙니다.
+ */
+@Composable
+internal fun WindArrowGlyph(
+    rotationDeg: Float,
+    color: Color,
+    size: androidx.compose.ui.unit.Dp,
+    modifier: Modifier = Modifier,
+    contentDescription: String? = null
+) {
+    Canvas(
+        modifier
+            .size(size)
+            .rotate(rotationDeg)
+            .then(if (contentDescription != null) Modifier.semantics { this.contentDescription = contentDescription } else Modifier)
+    ) {
+        val w = this.size.width
+        val h = this.size.height
+        val shaft = w * 0.2f
+        val headBase = h * 0.48f
+        val path = Path().apply {
+            moveTo(w / 2f, h * 0.04f)            // 머리 끝
+            lineTo(w * 0.9f, headBase)
+            lineTo(w / 2f + shaft / 2f, headBase)
+            lineTo(w / 2f + shaft / 2f, h * 0.96f) // 꼬리
+            lineTo(w / 2f - shaft / 2f, h * 0.96f)
+            lineTo(w / 2f - shaft / 2f, headBase)
+            lineTo(w * 0.1f, headBase)
+            close()
+        }
+        drawPath(path, color)
+        drawPath(path, color, style = Stroke(width = w * 0.06f, join = StrokeJoin.Round))
+    }
+}
+
+/** 진행 방향 위 모드의 바람 색 (주황) */
+internal val WindHeadingOrange = Color(0xFFF57C00)
+
+/**
+ * 기록 중 바람 표시. 두 모드가 확실히 달라 보이게:
+ * - 진행 방향 위([headingUp]): 지도가 돈 만큼 같이 도는 주황 화살표 + 연한 주황 동그라미
+ * - 북쪽 위: 실제 방위 그대로인 회색 화살표 + 테두리 원과 작은 'N'
+ */
+@Composable
+internal fun WindDial(
+    windFromDeg: Double,
+    mapBearingDeg: Float,
+    headingUp: Boolean,
+    size: androidx.compose.ui.unit.Dp,
+    modifier: Modifier = Modifier
+) {
+    val rot = windArrowScreenDeg(windFromDeg, mapBearingDeg.toDouble())
+    if (headingUp) {
+        val cd = stringResource(R.string.wind_mode_heading_cd)
+        Box(
+            modifier
+                .size(size)
+                .clip(CircleShape)
+                .background(WindHeadingOrange.copy(alpha = 0.16f))
+                .semantics { contentDescription = cd },
+            contentAlignment = Alignment.Center
+        ) {
+            WindArrowGlyph(rot, WindHeadingOrange, size * 0.8f)
+        }
+    } else {
+        val gray = MaterialTheme.colorScheme.onSurfaceVariant
+        val cd = stringResource(R.string.wind_mode_north_cd)
+        Box(modifier.size(size).semantics { contentDescription = cd }, contentAlignment = Alignment.Center) {
+            Canvas(Modifier.size(size)) {
+                drawCircle(gray.copy(alpha = 0.55f), radius = this.size.minDimension / 2f - 0.6.dp.toPx(), style = Stroke(1.dp.toPx()))
+            }
+            // 'N' 표시: 지도가 돌아가 있으면 실제 북쪽으로 (북쪽 위면 늘 맨 위)
+            Box(Modifier.size(size).rotate(-mapBearingDeg), contentAlignment = Alignment.TopCenter) {
+                Text(
+                    stringResource(R.string.weather_north_marker),
+                    fontSize = (size.value * 0.30f).coerceAtLeast(6f).sp,
+                    lineHeight = (size.value * 0.30f).coerceAtLeast(6f).sp,
+                    fontWeight = FontWeight.Bold,
+                    color = gray,
+                    modifier = Modifier.background(MaterialTheme.colorScheme.surfaceVariant).padding(horizontal = 1.dp)
+                )
+            }
+            WindArrowGlyph(rot, gray, size * 0.58f)
+        }
+    }
 }
 
 internal fun weatherConditionIcon(weather: WeatherNow): ImageVector? = when {
@@ -247,7 +470,11 @@ internal fun LiveWeatherGaugeCard(
     transportType: TransportType,
     valueStyle: TextStyle,
     compactVertical: Boolean,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    /** 지도가 진행 방향 위인지 (아니면 북쪽 위·전체 보기) */
+    headingUp: Boolean = false,
+    /** 지금 지도가 돌아간 각도 (북쪽 위면 0) */
+    mapBearingDeg: Float = 0f
 ) {
     val contentAlpha = if (isStale) 0.48f else 1f
     val padV = if (compactVertical) 6.dp else 10.dp
@@ -280,6 +507,8 @@ internal fun LiveWeatherGaugeCard(
             } else if (transportType == TransportType.BIKE) {
                 BikeGaugeWeatherBody(
                     weather = weather,
+                    headingUp = headingUp,
+                    mapBearingDeg = mapBearingDeg,
                     valueStyle = valueStyle,
                     compactVertical = compactVertical,
                     modifier = Modifier.alpha(contentAlpha)
@@ -287,6 +516,8 @@ internal fun LiveWeatherGaugeCard(
             } else {
                 GeneralGaugeWeatherBody(
                     weather = weather,
+                    headingUp = headingUp,
+                    mapBearingDeg = mapBearingDeg,
                     valueStyle = valueStyle,
                     compactVertical = compactVertical,
                     modifier = Modifier.alpha(contentAlpha)
@@ -296,76 +527,62 @@ internal fun LiveWeatherGaugeCard(
     }
 }
 
+/** 바람 방향 글자: 진행 방향 위면 맞바람/뒷바람/옆바람(주황), 북쪽 위면 16방위 이름(회색) */
+@Composable
+private fun windSideText(dir: Double, headingUp: Boolean, mapBearingDeg: Float): Pair<String, Color> =
+    if (headingUp) relativeWind(dir, mapBearingDeg.toDouble()).label to WindHeadingOrange
+    else windCardinal16(dir).label to MaterialTheme.colorScheme.onSurfaceVariant
+
+/** 자전거: 바람(화살표 + m/s)을 크게, 아래에 맞바람/방위 · 기온 */
 @Composable
 private fun BikeGaugeWeatherBody(
     weather: WeatherNow,
+    headingUp: Boolean,
+    mapBearingDeg: Float,
     valueStyle: TextStyle,
     compactVertical: Boolean,
     modifier: Modifier = Modifier
 ) {
     val speed = weather.windSpeedMs
     val dir = weather.windDirDeg
-    val skyIcon = weatherConditionIcon(weather)
     val tempText = weather.tempC?.let { stringResource(R.string.weather_temp, formatWeatherNumber(it)) }
     val heroSp = if (compactVertical) 20.sp else 22.sp
-    Column(
-        modifier = modifier.fillMaxWidth(),
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.Center
-        ) {
+    Column(modifier = modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.Center) {
             if (dir != null) {
-                WindDirectionArrow(dir, size = if (compactVertical) 17.dp else 19.dp)
-                Spacer(Modifier.width(4.dp))
+                WindDial(dir, mapBearingDeg, headingUp, size = if (compactVertical) 22.dp else 24.dp)
+                Spacer(Modifier.width(5.dp))
             }
             Text(
-                text = if (speed != null) {
-                    stringResource(R.string.weather_wind_ms, formatWeatherNumber(speed))
-                } else {
-                    tempText ?: stringResource(R.string.gauge_value_missing)
-                },
-                style = valueStyle.copy(
-                    fontSize = heroSp,
-                    lineHeight = (heroSp.value + 4f).sp,
-                    fontWeight = FontWeight.Bold
-                ),
+                text = speed?.let { stringResource(R.string.weather_wind_ms, formatWeatherNumber(it)) }
+                    ?: tempText ?: stringResource(R.string.gauge_value_missing),
+                style = valueStyle.copy(fontSize = heroSp, lineHeight = (heroSp.value + 4f).sp, fontWeight = FontWeight.Bold),
                 color = MaterialTheme.colorScheme.onSurface,
-                maxLines = 1,
-                softWrap = false,
-                overflow = TextOverflow.Clip
+                maxLines = 1, softWrap = false, overflow = TextOverflow.Clip
             )
         }
-        if (speed != null && (tempText != null || skyIcon != null)) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(3.dp)
-            ) {
-                skyIcon?.let { icon ->
-                    Icon(
-                        imageVector = icon,
-                        contentDescription = stringResource(R.string.weather_sky_icon_cd),
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.size(12.dp)
-                    )
+        val side = dir?.let { windSideText(it, headingUp, mapBearingDeg) }
+        if (side != null || (speed != null && tempText != null)) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                side?.let { (t, c) ->
+                    Text(t, style = MaterialTheme.typography.labelSmall, fontWeight = if (headingUp) FontWeight.Bold else FontWeight.Medium,
+                        color = c, maxLines = 1, softWrap = false)
                 }
-                tempText?.let {
-                    Text(
-                        text = it,
-                        style = MaterialTheme.typography.labelSmall.copy(fontFeatureSettings = "tnum"),
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 1
-                    )
+                if (speed != null) tempText?.let {
+                    Text("· $it", style = MaterialTheme.typography.labelSmall.copy(fontFeatureSettings = "tnum"),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, softWrap = false)
                 }
             }
         }
     }
 }
 
+/** 일반 활동: 기온을 크게, 아래에 바람 화살표 · m/s · 맞바람/방위 */
 @Composable
 private fun GeneralGaugeWeatherBody(
     weather: WeatherNow,
+    headingUp: Boolean,
+    mapBearingDeg: Float,
     valueStyle: TextStyle,
     compactVertical: Boolean,
     modifier: Modifier = Modifier
@@ -375,48 +592,33 @@ private fun GeneralGaugeWeatherBody(
     val speed = weather.windSpeedMs
     val dir = weather.windDirDeg
     val heroSp = if (compactVertical) 20.sp else 22.sp
-    Column(
-        modifier = modifier.fillMaxWidth(),
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.Center
-        ) {
+    Column(modifier = modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.Center) {
             skyIcon?.let { icon ->
-                Icon(
-                    imageVector = icon,
-                    contentDescription = stringResource(R.string.weather_sky_icon_cd),
-                    tint = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.size(if (compactVertical) 16.dp else 18.dp)
-                )
+                Icon(icon, contentDescription = stringResource(R.string.weather_sky_icon_cd),
+                    tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(if (compactVertical) 16.dp else 18.dp))
                 Spacer(Modifier.width(4.dp))
             }
             Text(
                 text = tempText ?: speed?.let { stringResource(R.string.weather_wind_ms, formatWeatherNumber(it)) }
                     ?: stringResource(R.string.gauge_value_missing),
-                style = valueStyle.copy(
-                    fontSize = heroSp,
-                    lineHeight = (heroSp.value + 4f).sp
-                ),
+                style = valueStyle.copy(fontSize = heroSp, lineHeight = (heroSp.value + 4f).sp),
                 color = MaterialTheme.colorScheme.onSurface,
-                maxLines = 1,
-                softWrap = false
+                maxLines = 1, softWrap = false
             )
         }
         if (tempText != null && (dir != null || speed != null)) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(3.dp)
-            ) {
-                dir?.let { WindDirectionArrow(it, size = 11.dp) }
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(3.dp)) {
+                dir?.let { WindDial(it, mapBearingDeg, headingUp, size = 17.dp) }
                 speed?.let {
-                    Text(
-                        text = stringResource(R.string.weather_wind_ms, formatWeatherNumber(it)),
+                    Text(stringResource(R.string.weather_wind_ms, formatWeatherNumber(it)),
                         style = MaterialTheme.typography.labelSmall.copy(fontFeatureSettings = "tnum"),
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 1
-                    )
+                        color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, softWrap = false)
+                }
+                dir?.let { d ->
+                    val (t, c) = windSideText(d, headingUp, mapBearingDeg)
+                    Text(t, style = MaterialTheme.typography.labelSmall, fontWeight = if (headingUp) FontWeight.Bold else FontWeight.Medium,
+                        color = c, maxLines = 1, softWrap = false)
                 }
             }
         }

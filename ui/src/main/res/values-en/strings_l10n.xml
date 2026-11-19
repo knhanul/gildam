@@ -537,4 +537,30 @@
         <item quantity="other">Made %1$d courses from your records</item>
     </plurals>
     <string name="gpx_export_no_points">This record has no route points, so it can’t be exported as GPX</string>
+    <string name="weather_dir16_n">N wind</string>
+    <string name="weather_dir16_nne">NNE wind</string>
+    <string name="weather_dir16_ne">NE wind</string>
+    <string name="weather_dir16_ene">ENE wind</string>
+    <string name="weather_dir16_e">E wind</string>
+    <string name="weather_dir16_ese">ESE wind</string>
+    <string name="weather_dir16_se">SE wind</string>
+    <string name="weather_dir16_sse">SSE wind</string>
+    <string name="weather_dir16_s">S wind</string>
+    <string name="weather_dir16_ssw">SSW wind</string>
+    <string name="weather_dir16_sw">SW wind</string>
+    <string name="weather_dir16_wsw">WSW wind</string>
+    <string name="weather_dir16_w">W wind</string>
+    <string name="weather_dir16_wnw">WNW wind</string>
+    <string name="weather_dir16_nw">NW wind</string>
+    <string name="weather_dir16_nnw">NNW wind</string>
+    <string name="wind_rel_head">Headwind</string>
+    <string name="wind_rel_tail">Tailwind</string>
+    <string name="wind_rel_cross">Crosswind</string>
+    <string name="weather_feels_like">Feels %1$s°</string>
+    <string name="weather_humidity">Humidity %1$s%%</string>
+    <string name="weather_precip_mm">Precip %1$s mm</string>
+    <string name="weather_precip_type_mm">%1$s %2$s mm</string>
+    <string name="weather_north_marker">N</string>
+    <string name="wind_mode_heading_cd">Wind arrow relative to your heading</string>
+    <string name="wind_mode_north_cd">Wind arrow relative to north</string>
 </resources>

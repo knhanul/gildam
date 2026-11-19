@@ -443,7 +443,9 @@ fun LiveRecordingScreen(
                                 transportType = activeTransport,
                                 valueStyle = gaugeValueStyle,
                                 compactVertical = compactGauge,
-                                modifier = Modifier.weight(1f)
+                                modifier = Modifier.weight(1f),
+                                headingUp = effectiveMode == MapCameraMode.HEADING,
+                                mapBearingDeg = mapBearing
                             )
                         }
                     }
