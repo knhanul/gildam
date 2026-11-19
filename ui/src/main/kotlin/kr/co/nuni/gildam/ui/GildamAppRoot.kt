@@ -68,6 +68,7 @@ fun GildamAppRoot(
     val darkMode by appearanceViewModel.darkMode.collectAsState()
     val recordMapMode by appearanceViewModel.recordMapMode.collectAsState()
     val gaugeSelections by appearanceViewModel.gaugeSelections.collectAsState()
+    val gaugeLayout by appearanceViewModel.gaugeLayout.collectAsState()
     val recordGroupMode by appearanceViewModel.recordGroupMode.collectAsState()
     val hideShortRecords by appearanceViewModel.hideShortRecords.collectAsState()
     val systemDark = androidx.compose.foundation.isSystemInDarkTheme()
@@ -220,7 +221,8 @@ fun GildamAppRoot(
                         viewModel.finishUnfinishedRecordingNow()
                         courseViewModel.stopFollow()
                     },
-                    startWeather = startWeather
+                    startWeather = startWeather,
+                    gaugeLayout = gaugeLayout
                 )
             }
 
@@ -388,6 +390,7 @@ fun GildamAppRoot(
                     onSelectDarkMode = appearanceViewModel::setDarkMode,
                     onOpenRecordingStatus = { navController.navigate(RecordingStatusRoute) },
                     onOpenGaugeEditor = { navController.navigate(GaugeHighlightRoute) },
+                    onOpenGaugeLayout = { navController.navigate(kr.co.nuni.gildam.ui.navigation.GaugeLayoutRoute) },
                     onOpenPhotoStorage = { navController.navigate(PhotoStorageRoute) },
                     keepScreenOn = keepScreenOn,
                     maxDurationMs = maxDurationMs,
@@ -428,6 +431,15 @@ fun GildamAppRoot(
                 GaugeHighlightEditorScreen(
                     savedSelections = gaugeSelections,
                     onSave = { draft -> appearanceViewModel.applyGaugeSelections(gaugeSelections, draft) },
+                    onNavigateBack = { navController.popBackStack() }
+                )
+            }
+
+            composable<kr.co.nuni.gildam.ui.navigation.GaugeLayoutRoute> {
+                kr.co.nuni.gildam.ui.screens.GaugeLayoutScreen(
+                    layout = gaugeLayout,
+                    onChange = appearanceViewModel::setGaugeLayout,
+                    onReset = appearanceViewModel::resetGaugeLayout,
                     onNavigateBack = { navController.popBackStack() }
                 )
             }

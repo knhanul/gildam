@@ -554,4 +554,13 @@
     <string name="weather_north_marker">N</string>
     <string name="wind_mode_heading_cd">진행 방향 기준 바람 화살표</string>
     <string name="wind_mode_north_cd">북쪽 기준 바람 화살표</string>
+    <string name="gauge_layout_title">계기판 구성</string>
+    <string name="gauge_layout_desc">기록 화면 아래 계기판에 보일 칸을 켜고 끄고, 오른쪽 손잡이를 끌어 순서를 바꿔요.</string>
+    <string name="gauge_layout_preview">기록 중 모양</string>
+    <string name="gauge_layout_note">켠 칸을 2열로 놓고, 홀수면 마지막 칸을 넓게 써요. 지도 위에 크게 띄운 값은 아래 칸에서 빠지고, 오르막·내리막과 날씨는 기록 중에만 보여요.</string>
+    <string name="gauge_layout_reset">기본값으로 되돌리기</string>
+    <string name="gauge_layout_move_up">위로 옮기기</string>
+    <string name="gauge_layout_move_down">아래로 옮기기</string>
+    <string name="gauge_layout_drag_cd">끌어서 순서 바꾸기</string>
+    <string name="settings_gauge_layout_desc">계기판에 보일 칸과 순서를 정해요.</string>
 </resources>

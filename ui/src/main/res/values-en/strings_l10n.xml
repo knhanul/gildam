@@ -563,4 +563,13 @@
     <string name="weather_north_marker">N</string>
     <string name="wind_mode_heading_cd">Wind arrow relative to your heading</string>
     <string name="wind_mode_north_cd">Wind arrow relative to north</string>
+    <string name="gauge_layout_title">Gauge layout</string>
+    <string name="gauge_layout_desc">Turn gauge cells on or off, and drag the handle to reorder them.</string>
+    <string name="gauge_layout_preview">While recording</string>
+    <string name="gauge_layout_note">Cells are laid out in 2 columns; an odd last cell spans the full width. The value shown large on the map is skipped here, and climb/descent and weather appear only while recording.</string>
+    <string name="gauge_layout_reset">Reset to default</string>
+    <string name="gauge_layout_move_up">Move up</string>
+    <string name="gauge_layout_move_down">Move down</string>
+    <string name="gauge_layout_drag_cd">Drag to reorder</string>
+    <string name="settings_gauge_layout_desc">Choose which gauge cells to show and their order.</string>
 </resources>

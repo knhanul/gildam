@@ -19,6 +19,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.GridView
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.outlined.BugReport
 import androidx.compose.material.icons.outlined.DarkMode
@@ -87,6 +88,8 @@ fun SettingsScreen(
     onSelectDarkMode: (DarkModePref) -> Unit = {},
     onOpenRecordingStatus: () -> Unit = {},
     onOpenGaugeEditor: () -> Unit = {},
+    /** 설정 > 계기판 구성 */
+    onOpenGaugeLayout: () -> Unit = {},
     onOpenPhotoStorage: () -> Unit = {},
     keepScreenOn: Boolean = kr.co.nuni.gildam.data.prefs.RecordingPrefs.DEFAULT_KEEP_SCREEN_ON,
     maxDurationMs: Long? = kr.co.nuni.gildam.recording.AutoStopPolicy.DEFAULT_MAX_DURATION_MS,
@@ -162,6 +165,13 @@ fun SettingsScreen(
                     supportingText = stringResource(R.string.settings_gauge_desc),
                     icon = Icons.Outlined.Map,
                     onClick = onOpenGaugeEditor
+                )
+                SettingsItemDivider()
+                SettingsListItem(
+                    title = stringResource(R.string.gauge_layout_title),
+                    supportingText = stringResource(R.string.settings_gauge_layout_desc),
+                    icon = Icons.Outlined.GridView,
+                    onClick = onOpenGaugeLayout
                 )
                 SettingsItemDivider()
                 SettingsListItem(

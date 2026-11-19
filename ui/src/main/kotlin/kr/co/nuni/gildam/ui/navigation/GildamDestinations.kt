@@ -31,6 +31,10 @@ object RecordingStatusRoute
 @Serializable
 object GaugeHighlightRoute
 
+/** 설정 > 기록 설정 > 계기판 구성 (칸 켜고 끄기·순서) */
+@Serializable
+object GaugeLayoutRoute
+
 /** 설정 > 기록 설정 > 기록 중 화면·자동 종료 */
 @Serializable
 object RecordingAutoStopRoute

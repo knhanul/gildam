@@ -7,6 +7,7 @@ import androidx.datastore.preferences.preferencesDataStore
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
+import kr.co.nuni.gildam.data.model.GaugeLayout
 import kr.co.nuni.gildam.data.model.GaugeMetric
 import kr.co.nuni.gildam.data.model.TransportType
 import javax.inject.Inject
@@ -44,5 +45,18 @@ class GaugePrefs @Inject constructor(@ApplicationContext private val context: Co
         context.gaugeStore.edit { prefs ->
             TransportType.entries.forEach { prefs.remove(key(it)) }
         }
+    }
+
+    private val layoutKey = stringPreferencesKey("grid_layout")
+
+    /** 설정 > 계기판 구성 (저장값이 없으면 기본 배치) */
+    val gridLayout: Flow<GaugeLayout> = context.gaugeStore.data.map { GaugeLayout.decode(it[layoutKey]) }
+
+    suspend fun setGridLayout(layout: GaugeLayout) {
+        context.gaugeStore.edit { it[layoutKey] = layout.encode() }
+    }
+
+    suspend fun resetGridLayout() {
+        context.gaugeStore.edit { it.remove(layoutKey) }
     }
 }

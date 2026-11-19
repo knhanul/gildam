@@ -56,6 +56,18 @@ class AppearanceViewModel @Inject constructor(
     }
 
     /** 활동별 선택을 모두 지워 기본값으로 되돌림 */
+    /** 설정 > 계기판 구성 */
+    val gaugeLayout: StateFlow<kr.co.nuni.gildam.data.model.GaugeLayout> = gaugePrefs.gridLayout
+        .stateIn(viewModelScope, SharingStarted.Eagerly, kr.co.nuni.gildam.data.model.GaugeLayout.DEFAULT)
+
+    fun setGaugeLayout(layout: kr.co.nuni.gildam.data.model.GaugeLayout) {
+        viewModelScope.launch {
+            if (layout == kr.co.nuni.gildam.data.model.GaugeLayout.DEFAULT) gaugePrefs.resetGridLayout() else gaugePrefs.setGridLayout(layout)
+        }
+    }
+
+    fun resetGaugeLayout() { viewModelScope.launch { gaugePrefs.resetGridLayout() } }
+
     fun resetGaugeSelections() { viewModelScope.launch { gaugePrefs.resetAll() } }
 
     /**

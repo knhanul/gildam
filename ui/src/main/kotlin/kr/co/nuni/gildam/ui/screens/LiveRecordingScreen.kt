@@ -72,6 +72,8 @@ import kr.co.nuni.gildam.ui.R
 import kr.co.nuni.gildam.data.local.entity.ActivityEntity
 import kr.co.nuni.gildam.data.model.GaugeFormat
 import kr.co.nuni.gildam.data.model.GaugeMetric
+import kr.co.nuni.gildam.data.model.GaugeCell
+import kr.co.nuni.gildam.data.model.GaugeLayout
 import kr.co.nuni.gildam.data.model.TransportType
 import kr.co.nuni.gildam.map.GildamMapLibreView
 import kr.co.nuni.gildam.ui.illustration.TooltipIconButton
@@ -129,7 +131,9 @@ fun LiveRecordingScreen(
     /** 기록 점검 결과. null 이면 휴대폰 상태를 직접 점검 (테스트에서는 목록을 넘김) */
     healthIssues: List<RecordingIssue>? = null,
     /** 출발 전 날씨. 기록 중에는 쓰지 않습니다. */
-    startWeather: StartWeatherUi = StartWeatherUi.Hidden
+    startWeather: StartWeatherUi = StartWeatherUi.Hidden,
+    /** 설정 > 계기판 구성 (켠 칸·순서) */
+    gaugeLayout: GaugeLayout = GaugeLayout.DEFAULT
 ) {
     val checkedIssues by rememberRecordingHealth()
     val issues = remember(healthIssues, checkedIssues, liveState.isGpsSignalWeak, liveState.isRecording) {
@@ -383,70 +387,46 @@ fun LiveRecordingScreen(
                         StartWeatherSection(state = startWeather, transportType = selectedTransport)
                     }
 
-                    // 지도 아래 계기판: 지도 위 강조 지표를 뺀 나머지 (큰 값 2개 + 작은 값들, '표시 안 함'이면 5개 전부)
-                    val heroMetrics = GaugeMetric.heroesFor(overlayMetric)
-                    val subMetrics = GaugeMetric.subsFor(overlayMetric)
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(cellGap)
-                    ) {
-                        heroMetrics.forEach { metric ->
-                            StatSubCard(
-                                metric = metric,
-                                live = liveState,
-                                clockTick = clockTick,
-                                valueStyle = gaugeValueStyle,
-                                compactVertical = compactGauge,
-                                modifier = Modifier.weight(1f)
-                            )
-                        }
-                    }
-
-                    Spacer(modifier = Modifier.height(rowGap))
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(cellGap)
-                    ) {
-                        subMetrics.forEach { metric ->
-                            StatSubCard(
-                                metric = metric,
-                                live = liveState,
-                                clockTick = clockTick,
-                                valueStyle = gaugeValueStyle,
-                                compactVertical = compactGauge,
-                                modifier = Modifier.weight(1f)
-                            )
-                        }
-                    }
-
-                    // 기록 중에는 3번째 줄(2×3, 6칸)로 오르막·내리막 + 실시간 날씨 칸을 더합니다.
-                    if (liveState.isRecording) {
-                        Spacer(modifier = Modifier.height(rowGap))
-                        val activeTransport = liveState.transportType
-                        val staleWeather = liveState.liveWeather.isStale(clockTick.value)
+                    // 지도 아래 계기판: 설정 > 계기판 구성에서 켠 칸을 그 순서대로 2열로 (지도 위 강조 지표는 뺌).
+                    // 오르막·내리막·날씨 칸은 기록 중에만. 홀수면 마지막 칸은 한 줄을 넓게 씀.
+                    val gridCells = gaugeLayout.gridCells(overlayMetric, liveState.isRecording)
+                    val staleWeather = liveState.liveWeather.isStale(clockTick.value)
+                    gridCells.chunked(2).forEachIndexed { rowIndex, rowCells ->
+                        if (rowIndex > 0) Spacer(modifier = Modifier.height(rowGap))
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.spacedBy(cellGap)
                         ) {
-                            ElevationGainLossGaugeCard(
-                                gainM = liveState.elevationGainM,
-                                lossM = liveState.elevationLossM,
-                                valueStyle = gaugeValueStyle,
-                                compactVertical = compactGauge,
-                                modifier = Modifier.weight(1f)
-                            )
-                            LiveWeatherGaugeCard(
-                                weather = liveState.liveWeather.weather,
-                                isStale = staleWeather,
-                                transportType = activeTransport,
-                                valueStyle = gaugeValueStyle,
-                                compactVertical = compactGauge,
-                                modifier = Modifier.weight(1f),
-                                headingUp = effectiveMode == MapCameraMode.HEADING,
-                                mapBearingDeg = mapBearing
-                            )
+                            rowCells.forEach { cell ->
+                                val cellModifier = Modifier.weight(1f)
+                                when (cell) {
+                                    GaugeCell.ELEVATION -> ElevationGainLossGaugeCard(
+                                        gainM = liveState.elevationGainM,
+                                        lossM = liveState.elevationLossM,
+                                        valueStyle = gaugeValueStyle,
+                                        compactVertical = compactGauge,
+                                        modifier = cellModifier
+                                    )
+                                    GaugeCell.WEATHER -> LiveWeatherGaugeCard(
+                                        weather = liveState.liveWeather.weather,
+                                        isStale = staleWeather,
+                                        transportType = liveState.transportType,
+                                        valueStyle = gaugeValueStyle,
+                                        compactVertical = compactGauge,
+                                        modifier = cellModifier,
+                                        headingUp = effectiveMode == MapCameraMode.HEADING,
+                                        mapBearingDeg = mapBearing
+                                    )
+                                    else -> StatSubCard(
+                                        metric = cell.metric ?: GaugeMetric.DISTANCE,
+                                        live = liveState,
+                                        clockTick = clockTick,
+                                        valueStyle = gaugeValueStyle,
+                                        compactVertical = compactGauge,
+                                        modifier = cellModifier
+                                    )
+                                }
+                            }
                         }
                     }
 
