@@ -82,6 +82,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.emptyFlow
 import kr.co.nuni.gildam.data.course.RecordCourseBlock
 import kr.co.nuni.gildam.data.gpxcompare.GpxParseException
+import androidx.compose.material3.ElevatedFilterChip
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -688,15 +689,17 @@ fun CourseDetailScreen(
                     visualSize = 34.dp, iconSize = 18.dp,
                     modifier = Modifier.align(Alignment.TopEnd).padding(6.dp)
                 )
+                // 반대 방향은 지도 오른쪽 아래에 띄운 작은 칩 (켜면 출발 표시·고도 그래프가 바로 뒤집힘)
+                ReverseDirectionChip(
+                    reversed = reversed,
+                    onReversedChange = { next ->
+                        reversed = next
+                        selectedKm = null
+                    },
+                    elevated = true,
+                    modifier = Modifier.align(Alignment.BottomEnd).padding(6.dp)
+                )
             }
-            // 반대 방향은 작은 칩으로 지도 바로 아래에 (켜면 출발 표시·고도 그래프가 바로 뒤집힘)
-            ReverseDirectionChip(
-                reversed = reversed,
-                onReversedChange = { next ->
-                    reversed = next
-                    selectedKm = null
-                }
-            )
             Row(verticalAlignment = Alignment.CenterVertically) {
                 GradeBadge(r.grade); Spacer(Modifier.width(10.dp))
                 Text(r.grade.description, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -731,29 +734,36 @@ fun CourseDetailScreen(
     }
 }
 
-/** 작은 '⇄ 반대 방향' 칩. 켜면 코스를 도착점→출발점 순서로 봅니다. */
+/** 작은 '⇄ 반대 방향' 칩. 켜면 코스를 도착점→출발점 순서로 봅니다. [elevated] 는 지도 위에 띄울 때(불투명 배경+그림자). */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun ReverseDirectionChip(
     reversed: Boolean,
     onReversedChange: (Boolean) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    elevated: Boolean = false
 ) {
     val desc = stringResource(R.string.course_reverse_title)
     val stateOn = stringResource(R.string.state_selected)
     val stateOff = stringResource(R.string.state_not_selected)
-    FilterChip(
-        selected = reversed,
-        onClick = { onReversedChange(!reversed) },
-        label = { Text(stringResource(R.string.course_reverse_chip), style = MaterialTheme.typography.labelLarge) },
-        leadingIcon = { Icon(Icons.Outlined.SwapHoriz, contentDescription = null, modifier = Modifier.size(18.dp)) },
-        modifier = modifier
-            .heightIn(min = 32.dp)
-            .semantics {
-                contentDescription = desc
-                stateDescription = if (reversed) stateOn else stateOff
-            }
-    )
+    val m = modifier
+        .heightIn(min = 32.dp)
+        .semantics {
+            contentDescription = desc
+            stateDescription = if (reversed) stateOn else stateOff
+        }
+    val label: @Composable () -> Unit = {
+        Text(stringResource(R.string.course_reverse_chip), style = MaterialTheme.typography.labelLarge)
+    }
+    val icon: @Composable () -> Unit = {
+        Icon(Icons.Outlined.SwapHoriz, contentDescription = null, modifier = Modifier.size(18.dp))
+    }
+    val onClick = { onReversedChange(!reversed) }
+    if (elevated) {
+        ElevatedFilterChip(selected = reversed, onClick = onClick, label = label, leadingIcon = icon, modifier = m)
+    } else {
+        FilterChip(selected = reversed, onClick = onClick, label = label, leadingIcon = icon, modifier = m)
+    }
 }
 
 @Composable
