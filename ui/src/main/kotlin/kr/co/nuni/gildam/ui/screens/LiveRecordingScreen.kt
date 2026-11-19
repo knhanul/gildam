@@ -30,6 +30,8 @@ import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.AddAPhoto
+import androidx.compose.material.icons.outlined.PhotoCamera
+import kr.co.nuni.gildam.data.media.CameraPhotoStore
 import androidx.compose.material.icons.outlined.EditNote
 import androidx.compose.material.icons.outlined.FormatListBulleted
 import androidx.compose.material.icons.outlined.Pause
@@ -172,7 +174,8 @@ fun LiveRecordingScreen(
     var topPx by remember { mutableStateOf(0) }
     var bottomPx by remember { mutableStateOf(0) }
     val haptics = LocalHapticFeedback.current
-    var showAddMemoSheet by remember { mutableStateOf(false) }
+    // 카메라 앱을 다녀오는 동안 화면이 다시 만들어져도 시트가 유지되게
+    var showAddMemoSheet by rememberSaveable { mutableStateOf(false) }
 
     Box(modifier = Modifier.fillMaxSize()) {
         // 1. 전체화면 MapLibre 벡터 지도 + 실시간 폴리라인
@@ -671,99 +674,189 @@ internal fun AutoShrinkSingleLineText(
     )
 }
 
+/** 길 위 메모에 연결한 사진이 어디서 왔는지 */
+internal enum class WaypointPhotoSource { GALLERY, CAMERA }
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun AddWaypointBottomSheet(
     onDismiss: () -> Unit,
     onSaveWaypoint: (memoText: String, caption: String?, photoUri: android.net.Uri?) -> Unit
 ) {
-    var memoText by remember { mutableStateOf("") }
-    var caption by remember { mutableStateOf("") }
-    var selectedUri by remember { mutableStateOf<android.net.Uri?>(null) }
+    val context = androidx.compose.ui.platform.LocalContext.current
+    var memoText by rememberSaveable { mutableStateOf("") }
+    var caption by rememberSaveable { mutableStateOf("") }
+    var selectedUri by rememberSaveable { mutableStateOf<String?>(null) }
+    var source by rememberSaveable { mutableStateOf<WaypointPhotoSource?>(null) }
+    // 카메라에 넘긴 빈 사진 자리 (앱이 잠시 내려가도 기억)
+    var pendingCameraUri by rememberSaveable { mutableStateOf<String?>(null) }
 
     val photoPickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.PickVisualMedia()
     ) { uri ->
         if (uri != null) {
-            selectedUri = uri
+            selectedUri = uri.toString()
+            source = WaypointPhotoSource.GALLERY
         }
+    }
+    val cameraLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.TakePicture()
+    ) { ok ->
+        val pending = pendingCameraUri?.let(android.net.Uri::parse)
+        pendingCameraUri = null
+        if (pending == null) return@rememberLauncherForActivityResult
+        if (ok || CameraPhotoStore.hasContent(context, pending)) {
+            CameraPhotoStore.publish(context, pending)
+            selectedUri = pending.toString()
+            source = WaypointPhotoSource.CAMERA
+        } else {
+            // 찍다가 취소: 빈 항목을 지워 갤러리에 빈 파일이 남지 않게
+            CameraPhotoStore.discard(context, pending)
+        }
+    }
+    val launchCamera: () -> Unit = {
+        val uri = CameraPhotoStore.createPending(context)
+        if (uri == null) {
+            android.widget.Toast.makeText(context, context.getString(R.string.note_camera_failed), android.widget.Toast.LENGTH_SHORT).show()
+        } else {
+            pendingCameraUri = uri.toString()
+            val started = runCatching { cameraLauncher.launch(uri) }.isSuccess
+            if (!started) {
+                pendingCameraUri = null
+                CameraPhotoStore.discard(context, uri)
+                android.widget.Toast.makeText(context, context.getString(R.string.note_camera_unavailable), android.widget.Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+    // Android 9 이하: DCIM/Camera 에 쓰려면 저장소 권한을 먼저 받음
+    val writePermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        if (granted) launchCamera()
+        else android.widget.Toast.makeText(context, context.getString(R.string.note_camera_permission), android.widget.Toast.LENGTH_SHORT).show()
     }
 
     ModalBottomSheet(onDismissRequest = onDismiss) {
-        Column(
+        val defaultNoteTitle = stringResource(R.string.note_default_title)
+        WaypointSheetContent(
+            memoText = memoText,
+            onMemoChange = { memoText = it },
+            caption = caption,
+            onCaptionChange = { caption = it },
+            photoSource = if (selectedUri != null) source else null,
+            onTakePhoto = {
+                if (CameraPhotoStore.needsWritePermission &&
+                    androidx.core.content.ContextCompat.checkSelfPermission(context, android.Manifest.permission.WRITE_EXTERNAL_STORAGE) !=
+                    android.content.pm.PackageManager.PERMISSION_GRANTED
+                ) {
+                    writePermissionLauncher.launch(android.Manifest.permission.WRITE_EXTERNAL_STORAGE)
+                } else {
+                    launchCamera()
+                }
+            },
+            onPickGallery = {
+                photoPickerLauncher.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
+            },
+            onSave = {
+                onSaveWaypoint(
+                    memoText.ifBlank { defaultNoteTitle },
+                    caption.takeIf { it.isNotBlank() },
+                    selectedUri?.let(android.net.Uri::parse)
+                )
+            }
+        )
+    }
+}
+
+/** 길 위 메모 시트 내용 (미리보기·Paparazzi 에서도 그대로 씀) */
+@Composable
+internal fun WaypointSheetContent(
+    memoText: String,
+    onMemoChange: (String) -> Unit,
+    caption: String,
+    onCaptionChange: (String) -> Unit,
+    photoSource: WaypointPhotoSource?,
+    onTakePhoto: () -> Unit,
+    onPickGallery: () -> Unit,
+    onSave: () -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 20.dp, vertical = 12.dp)
+    ) {
+        Text(
+            text = stringResource(R.string.note_sheet_title),
+            style = MaterialTheme.typography.titleLarge
+        )
+        Spacer(modifier = Modifier.height(4.dp))
+        Text(
+            text = stringResource(R.string.note_sheet_desc),
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+
+        Spacer(modifier = Modifier.height(14.dp))
+
+        OutlinedTextField(
+            value = memoText,
+            onValueChange = onMemoChange,
+            label = { Text(stringResource(R.string.note_hint)) },
+            minLines = 3,
+            modifier = Modifier.fillMaxWidth()
+        )
+
+        Spacer(modifier = Modifier.height(10.dp))
+
+        // 카메라로 바로 찍기 / 갤러리에서 고르기
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            OutlinedButton(onClick = onTakePhoto, modifier = Modifier.weight(1f)) {
+                Icon(Icons.Outlined.PhotoCamera, contentDescription = null, modifier = Modifier.size(18.dp))
+                Spacer(modifier = Modifier.width(6.dp))
+                Text(stringResource(R.string.note_take_photo), maxLines = 1)
+            }
+            OutlinedButton(onClick = onPickGallery, modifier = Modifier.weight(1f)) {
+                Icon(Icons.Outlined.AddAPhoto, contentDescription = null, modifier = Modifier.size(18.dp))
+                Spacer(modifier = Modifier.width(6.dp))
+                Text(stringResource(R.string.note_pick_gallery), maxLines = 1)
+            }
+        }
+        Spacer(modifier = Modifier.height(6.dp))
+        Text(
+            text = when (photoSource) {
+                WaypointPhotoSource.CAMERA -> stringResource(R.string.note_photo_linked_camera)
+                WaypointPhotoSource.GALLERY -> stringResource(R.string.note_photo_linked_gallery)
+                null -> stringResource(R.string.note_photo_local_only)
+            },
+            style = MaterialTheme.typography.labelSmall,
+            color = if (photoSource != null) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+        )
+
+        if (photoSource != null) {
+            Spacer(modifier = Modifier.height(8.dp))
+            OutlinedTextField(
+                value = caption,
+                onValueChange = onCaptionChange,
+                label = { Text(stringResource(R.string.note_caption)) },
+                singleLine = true,
+                modifier = Modifier.fillMaxWidth()
+            )
+        }
+
+        Spacer(modifier = Modifier.height(18.dp))
+
+        Button(
+            onClick = onSave,
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 20.dp, vertical = 12.dp)
+                .height(52.dp)
         ) {
-            Text(
-                text = stringResource(R.string.note_sheet_title),
-                style = MaterialTheme.typography.titleLarge
-            )
-            Spacer(modifier = Modifier.height(4.dp))
-            Text(
-                text = stringResource(R.string.note_sheet_desc),
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-
-            Spacer(modifier = Modifier.height(14.dp))
-
-            OutlinedTextField(
-                value = memoText,
-                onValueChange = { memoText = it },
-                label = { Text(stringResource(R.string.note_hint)) },
-                minLines = 3,
-                modifier = Modifier.fillMaxWidth()
-            )
-
-            Spacer(modifier = Modifier.height(10.dp))
-
-            OutlinedButton(
-                onClick = {
-                    photoPickerLauncher.launch(
-                        PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
-                    )
-                },
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Icon(Icons.Outlined.AddAPhoto, contentDescription = null)
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(
-                    if (selectedUri != null) stringResource(R.string.note_photo_linked)
-                    else stringResource(R.string.note_photo_link)
-                )
-            }
-
-            if (selectedUri != null) {
-                Spacer(modifier = Modifier.height(8.dp))
-                OutlinedTextField(
-                    value = caption,
-                    onValueChange = { caption = it },
-                    label = { Text(stringResource(R.string.note_caption)) },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth()
-                )
-            }
-
-            Spacer(modifier = Modifier.height(18.dp))
-
-            val defaultNoteTitle = stringResource(R.string.note_default_title)
-            Button(
-                onClick = {
-                    onSaveWaypoint(
-                        memoText.ifBlank { defaultNoteTitle },
-                        caption.takeIf { it.isNotBlank() },
-                        selectedUri
-                    )
-                },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(52.dp)
-            ) {
-                Text(stringResource(R.string.note_save))
-            }
-            Spacer(modifier = Modifier.height(20.dp))
+            Text(stringResource(R.string.note_save))
         }
+        Spacer(modifier = Modifier.height(20.dp))
     }
 }
 

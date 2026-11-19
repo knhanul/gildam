@@ -572,4 +572,12 @@
     <string name="gauge_layout_move_down">Move down</string>
     <string name="gauge_layout_drag_cd">Drag to reorder</string>
     <string name="settings_gauge_layout_desc">Choose which gauge cells to show and their order.</string>
+    <string name="note_take_photo">Take photo</string>
+    <string name="note_pick_gallery">From gallery</string>
+    <string name="note_photo_linked_camera">Photo linked (saved to gallery, DCIM/Camera)</string>
+    <string name="note_photo_linked_gallery">Gallery photo linked (pick again to change)</string>
+    <string name="note_photo_local_only">Photos stay on your device; Gildam only keeps a link</string>
+    <string name="note_camera_failed">Couldn’t create a place to save the photo</string>
+    <string name="note_camera_unavailable">Couldn’t open a camera app</string>
+    <string name="note_camera_permission">Storage permission is needed to save the photo</string>
 </resources>

@@ -563,4 +563,12 @@
     <string name="gauge_layout_move_down">아래로 옮기기</string>
     <string name="gauge_layout_drag_cd">끌어서 순서 바꾸기</string>
     <string name="settings_gauge_layout_desc">계기판에 보일 칸과 순서를 정해요.</string>
+    <string name="note_take_photo">카메라로 찍기</string>
+    <string name="note_pick_gallery">갤러리에서</string>
+    <string name="note_photo_linked_camera">방금 찍은 사진이 연결됐어요 (갤러리 DCIM/Camera에 저장)</string>
+    <string name="note_photo_linked_gallery">갤러리 사진이 연결됐어요 (바꾸려면 다시 고르세요)</string>
+    <string name="note_photo_local_only">사진은 기기에만 있고, 길담은 연결 정보만 가져요</string>
+    <string name="note_camera_failed">사진을 저장할 자리를 만들지 못했어요</string>
+    <string name="note_camera_unavailable">카메라 앱을 열 수 없어요</string>
+    <string name="note_camera_permission">사진을 저장하려면 저장소 권한이 필요해요</string>
 </resources>
