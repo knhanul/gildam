@@ -185,20 +185,26 @@ fun GildamMapLibreView(
     }
     // 지도 객체는 한 번만 받아 보관 (재구성마다 getMapAsync 를 부르지 않음)
     val mapHolder = remember { androidx.compose.runtime.mutableStateOf<org.maplibre.android.maps.MapLibreMap?>(null) }
+    // 지도 상태 문지기: 화면이 멈췄거나(화면 꺼짐·백그라운드) 지도가 없어지는 중이면 소스·스타일을 건드리지 않음
+    // (MapRenderer::update 네이티브 충돌 방지)
+    val gate = remember { MapLifecycleGate() }
+    val mapStarted = remember { androidx.compose.runtime.mutableStateOf(false) }
     DisposableEffect(mapView) {
-        mapView.getMapAsync { mapHolder.value = it }
+        mapView.getMapAsync { if (!gate.destroyed) mapHolder.value = it }
         onDispose { }
     }
     // 경로·코스 선: 바뀐 것만, 최대 2초에 한 번, GeoJSON 은 백그라운드에서 만듦
     val lineScope = androidx.compose.runtime.rememberCoroutineScope()
     val lineUpdater = remember {
         LineSourceUpdater(lineScope, object : LineSourceSink {
-            override fun isReady(): Boolean = runCatching {
+            override fun isReady(): Boolean = gate.canTouchMap && runCatching {
                 mapHolder.value?.style?.let { it.isFullyLoaded && it.getSource(ROUTE_SOURCE_ID) != null } == true
             }.getOrDefault(false)
 
             override fun apply(built: BuiltLineSources) {
+                if (!gate.canTouchMap) return
                 val style = mapHolder.value?.style ?: return
+                if (!style.isFullyLoaded) return
                 runCatching {
                     built.route?.let { style.getSourceAs<GeoJsonSource>(ROUTE_SOURCE_ID)?.setGeoJson(it) }
                     built.remainingCourse?.let { style.getSourceAs<GeoJsonSource>(COURSE_SOURCE_ID)?.setGeoJson(it) }
@@ -223,18 +229,48 @@ fun GildamMapLibreView(
 
     DisposableEffect(lifecycleOwner, mapView) {
         val observer = LifecycleEventObserver { _, event ->
+            if (gate.destroyed) return@LifecycleEventObserver
             when (event) {
-                Lifecycle.Event.ON_START -> mapView.onStart()
+                Lifecycle.Event.ON_START -> {
+                    mapView.onStart()
+                    gate.started = true
+                    mapStarted.value = true
+                    // 멈춰 있는 동안 건너뛴 선 갱신을 다시 반영
+                    lineUpdater.invalidate()
+                }
                 Lifecycle.Event.ON_RESUME -> mapView.onResume()
                 Lifecycle.Event.ON_PAUSE -> mapView.onPause()
-                Lifecycle.Event.ON_STOP -> mapView.onStop()
-                Lifecycle.Event.ON_DESTROY -> mapView.onDestroy()
+                Lifecycle.Event.ON_STOP -> {
+                    // 화면 꺼짐·백그라운드: 먼저 소스 갱신을 막고 렌더링을 멈춤
+                    gate.started = false
+                    mapStarted.value = false
+                    mapView.onStop()
+                }
+                Lifecycle.Event.ON_DESTROY -> {
+                    gate.started = false
+                    gate.destroyed = true
+                    mapStarted.value = false
+                    mapView.onDestroy()
+                }
                 else -> Unit
             }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
         onDispose {
             lifecycleOwner.lifecycle.removeObserver(observer)
+            // 화면에서 지도가 빠질 때(다른 화면으로 이동) 지도도 정리. 이후 오는 갱신은 모두 무시
+            if (!gate.destroyed) {
+                val state = lifecycleOwner.lifecycle.currentState
+                gate.started = false
+                gate.destroyed = true
+                mapStarted.value = false
+                runCatching {
+                    if (state.isAtLeast(Lifecycle.State.RESUMED)) mapView.onPause()
+                    if (state.isAtLeast(Lifecycle.State.STARTED)) mapView.onStop()
+                    mapView.onDestroy()
+                }
+                mapHolder.value = null
+            }
         }
     }
 
@@ -243,7 +279,9 @@ fun GildamMapLibreView(
             modifier = Modifier.fillMaxSize(),
             factory = { mapView },
             update = { view ->
-                mapHolder.value?.let { map ->
+                // 멈춘 지도·없어지는 지도에는 카메라·소스·스타일 변경을 보내지 않음 (다시 시작되면 이 블록이 다시 돎)
+                val started = mapStarted.value
+                if (started && gate.canTouchMap) mapHolder.value?.let { map ->
                     val styleUrl = if (isDarkTheme) GildamMapConfig.DARK_STYLE_URL else GildamMapConfig.LIGHT_STYLE_URL
 
                     // 현재 위치 → 경로 마지막 점 → 코스 첫 점. 아무것도 없으면 null (카메라를 옮기지 않음, 서울로 튀지 않게)
@@ -476,6 +514,7 @@ fun GildamMapLibreView(
                     if (action == StyleAction.LOAD) {
                         loadedStyleKey[0] = styleUrl
                         map.setStyle(buildKoreanStyle(view.context, styleUrl)) { style ->
+                            if (gate.destroyed) return@setStyle
                             applyKoreanLabelsAtRuntime(style)
                             if (style.getLayer(ROUTE_LAYER_ID) == null) runCatching { addGildamLayers(style) }
                         }
@@ -957,4 +996,11 @@ private fun previewRotator(all: List<LatLonPoint>, bearing: Double, pivot: LatLo
         val (r, u) = OverviewBearingPlanner.rotate((p.longitude - lon0) * k * 111_320.0, (p.latitude - lat0) * 111_320.0, bearing)
         p.copy(latitude = lat0 + u / 111_320.0, longitude = lon0 + r / (k * 111_320.0))
     }
+}
+
+/** 지도에 손대도 되는지: 시작된 상태이고 아직 정리되지 않았을 때만 (메인 스레드에서만 읽고 씀) */
+internal class MapLifecycleGate {
+    var started: Boolean = false
+    var destroyed: Boolean = false
+    val canTouchMap: Boolean get() = started && !destroyed
 }
