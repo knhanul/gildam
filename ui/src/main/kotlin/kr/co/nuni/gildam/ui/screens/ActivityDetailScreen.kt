@@ -33,6 +33,8 @@ import androidx.compose.material.icons.outlined.DevicesOther
 import androidx.compose.material.icons.outlined.IosShare
 import androidx.compose.material.icons.outlined.Lock
 import androidx.compose.material.icons.outlined.OpenInFull
+import androidx.compose.material.icons.outlined.PhotoLibrary
+import kotlinx.coroutines.launch
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -94,7 +96,11 @@ fun ActivityDetailScreen(
         kr.co.nuni.gildam.ui.GildamViewModel.RecordPhotosState(),
     onFindRecordPhotos: () -> Unit = {},
     /** '코스로 저장' (null 이면 버튼 없음) */
-    onSaveAsCourse: ((String) -> Unit)? = null
+    onSaveAsCourse: ((String) -> Unit)? = null,
+    /** 처음에 골라 둘 '길 위의 이야기' (미리보기·테스트용) */
+    initialSelectedWaypointId: String? = null,
+    /** 처음부터 사진을 모두 펼칠지 (미리보기·테스트용) */
+    initialPhotosExpanded: Boolean = false
 ) {
     // 사진 접근 권한 요청. Android 14+ 는 전체/일부(선택한 사진만) 중 고를 수 있게 두 권한을 함께 요청.
     // 결과와 상관없이 다시 찾아 봄 — 허용된 범위의 사진만 보이고, 거절되면 안내 줄이 그대로 남습니다.
@@ -105,16 +111,46 @@ fun ActivityDetailScreen(
         val permissions = when {
             android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.UPSIDE_DOWN_CAKE -> arrayOf(
                 android.Manifest.permission.READ_MEDIA_IMAGES,
-                "android.permission.READ_MEDIA_VISUAL_USER_SELECTED"
+                "android.permission.READ_MEDIA_VISUAL_USER_SELECTED",
+                android.Manifest.permission.ACCESS_MEDIA_LOCATION
             )
             android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU -> arrayOf(
-                android.Manifest.permission.READ_MEDIA_IMAGES
+                android.Manifest.permission.READ_MEDIA_IMAGES,
+                android.Manifest.permission.ACCESS_MEDIA_LOCATION
+            )
+            android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q -> arrayOf(
+                android.Manifest.permission.READ_EXTERNAL_STORAGE,
+                android.Manifest.permission.ACCESS_MEDIA_LOCATION
             )
             else -> arrayOf(android.Manifest.permission.READ_EXTERNAL_STORAGE)
         }
         runCatching { photoPermissionLauncher.launch(permissions) }
         Unit
     }
+    // 사진 속 위치(EXIF GPS) 읽기: Android 10+ 는 이 권한이 없으면 시스템이 GPS 를 지운 사본을 줌.
+    // 사진 접근을 이미 허용한 사용자는 기록 상세를 처음 열 때 한 번만 조용히 요청 (대개 별도 창 없이 허용됨),
+    // 그래도 안 되면 사진 구역의 '위치 읽기 허용' 줄로 다시 요청.
+    val mediaLocationLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { onFindRecordPhotos() }
+    val requestMediaLocation = {
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
+            runCatching { mediaLocationLauncher.launch(android.Manifest.permission.ACCESS_MEDIA_LOCATION) }
+        }
+        Unit
+    }
+    LaunchedEffect(recordPhotos.locationRedacted) {
+        if (recordPhotos.locationRedacted && !MediaLocationAsk.askedThisSession) {
+            MediaLocationAsk.askedThisSession = true
+            requestMediaLocation()
+        }
+    }
+    val listState = androidx.compose.foundation.lazy.rememberLazyListState()
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
+    var photosExpanded by androidx.compose.runtime.saveable.rememberSaveable(bundle?.activity?.id) { mutableStateOf(initialPhotosExpanded) }
+    // '길 위의 이야기'에서 고른 곳: 그곳 사진만 보이고 지도에 강조
+    var selectedWaypointId by androidx.compose.runtime.saveable.rememberSaveable(bundle?.activity?.id) { mutableStateOf(initialSelectedWaypointId) }
+    var viewingPhoto by remember { mutableStateOf<kr.co.nuni.gildam.data.photo.MatchedPhoto?>(null) }
     var showEdit by remember { mutableStateOf(false) }
     var showDelete by remember { mutableStateOf(false) }
     // 기록 지도 전체 화면 (사진 핀 포함)
@@ -201,7 +237,26 @@ fun ActivityDetailScreen(
             TrackGapDetector.countGaps(trackPoints)
         }
 
+        val waypointPhotos = remember(bundle.waypoints, recordPhotos.photos) {
+            bundle.waypoints.associate { w -> w.waypoint.id to photosNearWaypoint(w, recordPhotos.photos) }
+        }
+        val selectedWaypoint = bundle.waypoints.firstOrNull { it.waypoint.id == selectedWaypointId }
+        val placeFilter = selectedWaypoint?.let { w ->
+            PhotoPlaceFilter(w.waypoint.id, waypointLabel(w), waypointPhotos[w.waypoint.id].orEmpty())
+        }
+        val highlight = selectedWaypoint?.let { LatLonPoint(it.waypoint.latitude, it.waypoint.longitude) }
+        val filterPins = remember(placeFilter) {
+            placeFilter?.photos.orEmpty().mapNotNull { p ->
+                val lat = p.pointLat ?: return@mapNotNull null
+                val lon = p.pointLon ?: return@mapNotNull null
+                kr.co.nuni.gildam.map.MapPhotoMarker(id = p.uri, latitude = lat, longitude = lon, uri = p.uri, timeOnly = p.timeOnly)
+            }
+        }
+
+        viewingPhoto?.let { p -> PhotoViewerDialog(p, onClose = { viewingPhoto = null }) }
+
         LazyColumn(
+            state = listState,
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding),
@@ -266,6 +321,9 @@ fun ActivityDetailScreen(
                             trackPoints = latLonList,
                             currentLocation = null,
                             fitToTrack = true,
+                            highlightPoint = highlight,
+                            photoMarkers = filterPins,
+                            onPhotoMarkerTap = { uri -> viewingPhoto = placeFilter?.photos?.firstOrNull { it.uri == uri } },
                             modifier = Modifier.fillMaxSize()
                         )
                         // 전체 화면으로 보기 (작은 아이콘 + 말풍선 안내)
@@ -350,15 +408,26 @@ fun ActivityDetailScreen(
                     )
                 }
 
-                // 이 기록과 같은 시간·자리에 찍힌 기기 사진 (사진은 기기에만, URI 만 참조)
-                RecordPhotoSection(
-                    loading = recordPhotos.loading,
-                    permissionDenied = recordPhotos.permissionDenied,
-                    photos = recordPhotos.photos,
-                    truncated = recordPhotos.truncated,
-                    onRequestPermission = requestPhotoAccess
-                )
+            }
 
+            // 이 기록과 같은 시간·자리에 찍힌 기기 사진 (사진은 기기에만, URI 만 참조).
+            // 줄마다 item 이라 사진이 많아도 상세 화면과 함께 끝까지 스크롤됨
+            recordPhotoSectionItems(
+                loading = recordPhotos.loading,
+                permissionDenied = recordPhotos.permissionDenied,
+                photos = recordPhotos.photos,
+                truncated = recordPhotos.truncated,
+                locationRedacted = recordPhotos.locationRedacted,
+                expanded = photosExpanded,
+                filter = placeFilter,
+                onToggleExpanded = { photosExpanded = !photosExpanded },
+                onClearFilter = { selectedWaypointId = null },
+                onOpenPhoto = { viewingPhoto = it },
+                onRequestPermission = requestPhotoAccess,
+                onRequestLocationAccess = requestMediaLocation
+            )
+
+            item(key = "waypoints_title") {
                 Spacer(modifier = Modifier.height(12.dp))
 
                 Text(
@@ -387,8 +456,16 @@ fun ActivityDetailScreen(
                 }
             } else {
                 items(bundle.waypoints, key = { it.waypoint.id }) { item ->
+                    val selected = item.waypoint.id == selectedWaypointId
                     WaypointStoryCard(
                         item = item,
+                        selected = selected,
+                        nearbyPhotoCount = waypointPhotos[item.waypoint.id]?.size ?: 0,
+                        onClick = {
+                            selectedWaypointId = if (selected) null else item.waypoint.id
+                            // 고르면 위로 올려 지도 강조와 그곳 사진이 바로 보이게
+                            if (!selected) scope.launch { listState.animateScrollToItem(0) }
+                        },
                         onRequestRelinkPhoto = { photoId ->
                             relinkingPhotoId = photoId
                             relinkPicker.launch(
@@ -406,6 +483,38 @@ fun ActivityDetailScreen(
             }
         }
     }
+}
+
+/** 기록 상세 사진 위치 권한을 이번 실행에서 이미 물어봤는지 (화면을 열 때마다 묻지 않게) */
+internal object MediaLocationAsk {
+    @Volatile var askedThisSession: Boolean = false
+}
+
+/** 길 위의 이야기 이름 (사진 필터 칩용): 사진 설명 → 메모 첫 줄, 길면 줄임 */
+internal fun waypointLabel(w: WaypointWithPhoto): String {
+    val raw = w.waypoint.caption?.takeIf { it.isNotBlank() } ?: w.waypoint.memoText.lineSequence().firstOrNull().orEmpty()
+    val t = raw.trim()
+    return if (t.length > 12) t.take(12) + "…" else t
+}
+
+/** 그 메모에 직접 붙인 사진 + 근처(50m·앞뒤 3분)에서 찍은 사진 */
+internal fun photosNearWaypoint(
+    w: WaypointWithPhoto,
+    photos: List<kr.co.nuni.gildam.data.photo.MatchedPhoto>
+): List<kr.co.nuni.gildam.data.photo.MatchedPhoto> {
+    val linked = listOfNotNull(
+        w.localPhoto?.takeIf { it.uriStatus == UriStatus.VALID }?.let { ph ->
+            kr.co.nuni.gildam.data.photo.MatchedPhoto(
+                uri = ph.mediaStoreUri, takenAtMs = ph.capturedAtEpochMs,
+                alongTrackM = null, offsetM = null, timeOnly = false,
+                pointLat = ph.latitude, pointLon = ph.longitude
+            )
+        }
+    )
+    val anchor = kr.co.nuni.gildam.data.photo.WaypointPhotoFilter.Anchor(
+        w.waypoint.latitude, w.waypoint.longitude, w.waypoint.recordedAtEpochMs
+    )
+    return kr.co.nuni.gildam.data.photo.WaypointPhotoFilter.select(anchor, photos, linked)
 }
 
 @Composable
@@ -429,6 +538,9 @@ private fun DetailMetricColumn(label: String, value: String) {
 @Composable
 private fun WaypointStoryCard(
     item: WaypointWithPhoto,
+    selected: Boolean = false,
+    nearbyPhotoCount: Int = 0,
+    onClick: () -> Unit = {},
     onRequestRelinkPhoto: (photoId: String) -> Unit,
     onRemoveMissingPhotoKeepMemo: () -> Unit,
     modifier: Modifier = Modifier
@@ -437,8 +549,12 @@ private fun WaypointStoryCard(
     val localPhoto = item.localPhoto
 
     Card(
+        onClick = onClick,
         shape = RoundedCornerShape(18.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+        colors = CardDefaults.cardColors(
+            containerColor = if (selected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant
+        ),
+        border = if (selected) androidx.compose.foundation.BorderStroke(2.dp, MaterialTheme.colorScheme.primary) else null,
         modifier = modifier.fillMaxWidth()
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
@@ -561,6 +677,23 @@ private fun WaypointStoryCard(
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
+            // 이곳 사진 모아 보기 안내 (근처 사진이 있거나 골랐을 때)
+            if (selected || nearbyPhotoCount > 0) {
+                Spacer(modifier = Modifier.height(6.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        Icons.Outlined.PhotoLibrary, null, modifier = Modifier.size(14.dp),
+                        tint = MaterialTheme.colorScheme.primary
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        text = if (selected) stringResource(R.string.waypoint_photos_selected)
+                        else stringResource(R.string.waypoint_photos_here, nearbyPhotoCount),
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                }
+            }
         }
     }
 }

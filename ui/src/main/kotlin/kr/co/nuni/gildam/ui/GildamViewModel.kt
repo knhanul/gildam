@@ -386,7 +386,9 @@ class GildamViewModel @Inject constructor(
         val permissionDenied: Boolean = false,
         val photos: List<MatchedPhoto> = emptyList(),
         val truncated: Boolean = false,
-        val searched: Boolean = false
+        val searched: Boolean = false,
+        /** 사진 위치 읽기 권한이 없어 GPS 가 지워진 상태 (경로 기준 추정으로 보여 줌) */
+        val locationRedacted: Boolean = false
     )
 
     private val _recordPhotos = MutableStateFlow(RecordPhotosState())
@@ -415,7 +417,8 @@ class GildamViewModel @Inject constructor(
                 permissionDenied = result.permissionDenied,
                 photos = result.photos,
                 truncated = result.truncated,
-                searched = true
+                searched = true,
+                locationRedacted = result.locationRedacted
             )
         }
     }

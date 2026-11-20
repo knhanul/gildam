@@ -580,4 +580,15 @@
     <string name="note_camera_failed">Couldn’t create a place to save the photo</string>
     <string name="note_camera_unavailable">Couldn’t open a camera app</string>
     <string name="note_camera_permission">Storage permission is needed to save the photo</string>
+    <string name="photo_route_estimated">Est. on route</string>
+    <string name="photo_pos_route_estimated">%1$s · estimated from route by photo time</string>
+    <string name="record_photos_location_desc">Allow reading photo locations to place photos exactly. For now, positions are estimated on the route from photo times.</string>
+    <string name="record_photos_location_allow">Allow</string>
+    <string name="record_photos_show_all">View all (%1$s)</string>
+    <string name="record_photos_show_less">Show less</string>
+    <string name="record_photos_filter_chip">Only %1$s</string>
+    <string name="record_photos_filter_clear">Clear filter</string>
+    <string name="record_photos_filter_none">No photos taken near here (50 m or ±3 min)</string>
+    <string name="waypoint_photos_here">%1$s photos here · tap to view</string>
+    <string name="waypoint_photos_selected">Showing this spot’s photos above · tap again to clear</string>
 </resources>

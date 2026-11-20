@@ -120,6 +120,8 @@ fun GildamMapLibreView(
     followingCourse: Boolean = false,
     /** 고도 그래프와 연결: 코스에서 고른 지점까지 거리(km). 점으로 표시 */
     selectedCourseKm: Double? = null,
+    /** 강조할 한 점 (기록 상세에서 고른 '길 위의 이야기' 자리). 코스 선택 점과 같은 모양 */
+    highlightPoint: LatLonPoint? = null,
     /** 코스 선을 탭하면 그 지점의 시작점부터 거리(km). 코스가 없으면 호출 안 됨 */
     onCourseTap: ((Double) -> Unit)? = null,
     /** 기록에 붙은 사진들을 지도 위 작은 원형 핀으로 표시 (사진 자리 또는 가장 가까운 경로 점) */
@@ -161,7 +163,7 @@ fun GildamMapLibreView(
             showDirectionArrow = showDirectionArrow,
             arrowBearingDeg = LocationArrow.screenRotationDeg(heading, previewBearing),
             offCourse = offCourse,
-            selectedCourse = selectedCourseKm?.let { km -> MapRouteGeometry.pointAtKm(coursePoints, km)?.let(rot) },
+            selectedCourse = (selectedCourseKm?.let { km -> MapRouteGeometry.pointAtKm(coursePoints, km) } ?: highlightPoint)?.let(rot),
             modifier = modifier
         )
         }
@@ -453,7 +455,7 @@ fun GildamMapLibreView(
                             !arrowShown && coursePoints.size >= 2 && MapRouteGeometry.splitIndexAt(coursePoints, it) > 0
                         },
                         offCourse = offCourse,
-                        selectedCourse = selectedCourseKm?.let { km -> MapRouteGeometry.pointAtKm(coursePoints, km) }
+                        selectedCourse = selectedCourseKm?.let { km -> MapRouteGeometry.pointAtKm(coursePoints, km) } ?: highlightPoint
                     )
                     // 길담 레이어(코스·경로·점·사진 핀)를 스타일 위에 쌓기
                     val addGildamLayers: (Style) -> Unit = { style ->

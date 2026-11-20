@@ -571,4 +571,15 @@
     <string name="note_camera_failed">사진을 저장할 자리를 만들지 못했어요</string>
     <string name="note_camera_unavailable">카메라 앱을 열 수 없어요</string>
     <string name="note_camera_permission">사진을 저장하려면 저장소 권한이 필요해요</string>
+    <string name="photo_route_estimated">경로 기준 위치</string>
+    <string name="photo_pos_route_estimated">%1$s · 경로 기준 위치(촬영 시각으로 추정)</string>
+    <string name="record_photos_location_desc">사진 속 위치를 읽도록 허용하면 찍은 자리에 정확히 놓아요. 지금은 촬영 시각으로 경로 위 자리를 추정했어요.</string>
+    <string name="record_photos_location_allow">위치 읽기 허용</string>
+    <string name="record_photos_show_all">전체 보기 (%1$s장)</string>
+    <string name="record_photos_show_less">접기</string>
+    <string name="record_photos_filter_chip">%1$s 사진만</string>
+    <string name="record_photos_filter_clear">필터 해제</string>
+    <string name="record_photos_filter_none">이곳 근처(50m·앞뒤 3분)에서 찍은 사진이 없어요</string>
+    <string name="waypoint_photos_here">이곳 사진 %1$s장 · 눌러서 보기</string>
+    <string name="waypoint_photos_selected">이곳 사진을 위에 모아 보는 중 · 다시 누르면 해제</string>
 </resources>
