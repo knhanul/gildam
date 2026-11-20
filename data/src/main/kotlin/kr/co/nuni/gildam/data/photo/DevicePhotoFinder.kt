@@ -32,7 +32,12 @@ class DevicePhotoFinder @Inject constructor(@ApplicationContext private val cont
         /** 시간창 안 후보 수 (잘리기 전) */
         val candidateCount: Int = 0,
         /** 후보 상한에 걸려 일부만 확인했는지 */
-        val truncated: Boolean = false
+        val truncated: Boolean = false,
+        /**
+         * Android 10+ 에서 '사진 위치 읽기'(ACCESS_MEDIA_LOCATION) 권한이 없어
+         * 시스템이 사진 속 GPS 를 지운 채로 보여 주는 상태인지 (허용하면 정확한 자리로 바뀜)
+         */
+        val locationRedacted: Boolean = false
     )
 
     /** 사진 접근 권한이 있는지 (Android 14 부분 허용도 '있음'으로 봄) */
@@ -46,6 +51,14 @@ class DevicePhotoFinder @Inject constructor(@ApplicationContext private val cont
             granted(ctx, Manifest.permission.READ_EXTERNAL_STORAGE)
         }
     }
+
+    /**
+     * 사진 속 위치(EXIF GPS)를 읽을 수 있는지.
+     * Android 10(Q)+ 는 ACCESS_MEDIA_LOCATION 이 없으면 시스템이 GPS 를 지운 사본을 넘겨 줍니다.
+     */
+    fun hasMediaLocationPermission(): Boolean =
+        Build.VERSION.SDK_INT < Build.VERSION_CODES.Q ||
+            granted(context, Manifest.permission.ACCESS_MEDIA_LOCATION)
 
     private fun granted(ctx: Context, permission: String): Boolean =
         ContextCompat.checkSelfPermission(ctx, permission) == PackageManager.PERMISSION_GRANTED
@@ -62,15 +75,17 @@ class DevicePhotoFinder @Inject constructor(@ApplicationContext private val cont
         if (!hasPermission()) return@withContext Result(permissionDenied = true)
         val all = runCatching { queryWindow(startMs, endMs) }.getOrElse { return@withContext Result() }
         val truncated = all.size > MAX_CANDIDATES
+        val canReadLocation = hasMediaLocationPermission()
         val withGps = all.take(MAX_CANDIDATES).map { (uri, taken) ->
-            val gps = runCatching { readGps(uri) }.getOrNull()
+            val gps = runCatching { readGps(uri, canReadLocation) }.getOrNull()
             PhotoCandidate(uri.toString(), taken, gps?.first, gps?.second)
         }
         val route = RecordPhotoMatcher.routeWithDistance(routePoints)
         Result(
             photos = RecordPhotoMatcher.match(startMs, endMs, route, withGps),
             candidateCount = all.size,
-            truncated = truncated
+            truncated = truncated,
+            locationRedacted = !canReadLocation && all.isNotEmpty()
         )
     }
 
@@ -101,12 +116,28 @@ class DevicePhotoFinder @Inject constructor(@ApplicationContext private val cont
         return out
     }
 
-    /** EXIF GPS 만 읽기 (사진 내용은 쓰지 않고, 스트림만 열었다 닫음). 없거나 못 읽으면 null. */
-    private fun readGps(uri: Uri): Pair<Double, Double>? = try {
-        context.contentResolver.openInputStream(uri)?.use { input ->
+    /**
+     * EXIF GPS 만 읽기 (사진 내용은 쓰지 않고, 스트림만 열었다 닫음). 없거나 못 읽으면 null.
+     *
+     * Android 10+ 는 ACCESS_MEDIA_LOCATION 을 가진 앱이 [MediaStore.setRequireOriginal] 로 연
+     * 스트림에만 GPS 를 남겨 줍니다. 그냥 열면 GPS 가 지워져 모든 사진이 '위치 없음'이 됩니다.
+     */
+    private fun readGps(uri: Uri, canReadLocation: Boolean): Pair<Double, Double>? = try {
+        val source = if (canReadLocation && Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            runCatching { MediaStore.setRequireOriginal(uri) }.getOrDefault(uri)
+        } else uri
+        val stream = try {
+            context.contentResolver.openInputStream(source)
+        } catch (e: SecurityException) {
+            // 원본 요청이 거절되면(권한이 막 빠진 경우 등) 일반 스트림으로 — GPS 는 없겠지만 사진은 붙음
+            if (source != uri) context.contentResolver.openInputStream(uri) else throw e
+        } catch (e: UnsupportedOperationException) {
+            if (source != uri) context.contentResolver.openInputStream(uri) else throw e
+        }
+        stream?.use { input ->
             val exif = ExifInterface(input)
-            val latLong = FloatArray(2)
-            if (exif.getLatLong(latLong)) latLong[0].toDouble() to latLong[1].toDouble() else null
+            val latLong = exif.latLong
+            if (latLong != null) usableGps(latLong[0], latLong[1]) else null
         }
     } catch (e: SecurityException) {
         null // 권한이 빠진 사진(부분 허용 목록 밖 등)은 위치 없이 시간으로만 판단
@@ -115,6 +146,14 @@ class DevicePhotoFinder @Inject constructor(@ApplicationContext private val cont
     }
 
     companion object {
+        /** 지워진 GPS(0,0)·잘못된 값은 위치 없음으로 */
+        internal fun usableGps(lat: Double, lon: Double): Pair<Double, Double>? = when {
+            !lat.isFinite() || !lon.isFinite() -> null
+            lat !in -90.0..90.0 || lon !in -180.0..180.0 -> null
+            lat == 0.0 && lon == 0.0 -> null
+            else -> lat to lon
+        }
+
         /** 한 번에 EXIF 를 읽는 최대 사진 수 */
         const val MAX_CANDIDATES = 200
     }

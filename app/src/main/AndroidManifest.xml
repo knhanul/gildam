@@ -21,6 +21,8 @@
     <uses-permission
         android:name="android.permission.READ_EXTERNAL_STORAGE"
         android:maxSdkVersion="32" />
+    <!-- Android 10+: 사진 속 위치(EXIF GPS)를 읽어 기록 경로 위 자리에 사진을 놓을 때 필요 (없으면 시스템이 GPS 를 지움) -->
+    <uses-permission android:name="android.permission.ACCESS_MEDIA_LOCATION" />
     <!-- '카메라로 찍기' 사진을 DCIM/Camera 에 만들 때 Android 9 이하에서만 필요 -->
     <uses-permission
         android:name="android.permission.WRITE_EXTERNAL_STORAGE"

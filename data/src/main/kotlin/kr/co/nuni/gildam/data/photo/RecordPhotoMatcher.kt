@@ -22,10 +22,16 @@ data class MatchedPhoto(
     val offsetM: Double?,
     /** 위치 정보가 없어 시간만으로 붙였는지 */
     val timeOnly: Boolean,
-    /** 지도 핀을 놓을 좌표: 사진 GPS 가 있으면 그 지점, 없으면 가장 가까운 시각의 경로 점 */
+    /** 지도 핀을 놓을 좌표: 사진 GPS 가 있으면 그 지점, 없으면 촬영 시각의 경로 위치(추정) */
     val pointLat: Double? = null,
     val pointLon: Double? = null
-)
+) {
+    /** 사진에 GPS 는 없지만 촬영 시각으로 경로 위 자리를 추정했는지 (화면에 '경로 기준 위치') */
+    val routeEstimated: Boolean get() = timeOnly && pointLat != null && pointLon != null
+
+    /** GPS 도 경로 추정도 없어 자리를 전혀 모르는지 (화면에 '위치 정보 없음') */
+    val noLocation: Boolean get() = timeOnly && (pointLat == null || pointLon == null)
+}
 
 /**
  * 기록(시간·경로)과 기기 사진을 짝지어 줍니다 (순수 함수).
@@ -34,7 +40,9 @@ data class MatchedPhoto(
  * - 촬영 시각이 기록 시간창 [start - GRACE][end + GRACE] 안이어야 함 (기본 여유 5분)
  * - 사진에 GPS 가 있으면 가장 가까운 경로 점까지 [MAX_DISTANCE_M](200m) 이내일 때만 붙임
  *   (경로 점은 기록 시각 ± [TRACK_SLACK_MS] 안의 점만 비교 — 쉬는 동안 찍은 사진도 붙게)
- * - GPS 가 없으면 시간만으로 붙이고 [MatchedPhoto.timeOnly] = true (화면에 '위치 정보 없음')
+ * - GPS 가 없으면 시간만으로 붙이고 [MatchedPhoto.timeOnly] = true.
+ *   촬영 시각에 경로 위 어디였는지 앞뒤 점 사이를 시간 비율로 이어 추정 ([positionAt], 화면에 '경로 기준 위치').
+ *   경로가 없을 때만 '위치 정보 없음'
  * - 결과는 촬영 시각 순
  */
 object RecordPhotoMatcher {
@@ -85,16 +93,53 @@ object RecordPhotoMatcher {
                         pointLat = c.latitude, pointLon = c.longitude
                     )
                 } else {
-                    // GPS 없음: 시간만으로 붙임 (경로가 있으면 '가장 가까운 시각의 점'을 참고 위치로)
-                    val near = usableRoute.minByOrNull { kotlin.math.abs(it.recordedAtMs - c.takenAtMs) }
+                    // GPS 없음: 시간만으로 붙이고, 촬영 시각의 경로 위 자리를 추정
+                    val est = positionAt(route, c.takenAtMs)
                     MatchedPhoto(
-                        c.uri, c.takenAtMs, near?.alongM, null, timeOnly = true,
-                        pointLat = near?.latitude, pointLon = near?.longitude
+                        c.uri, c.takenAtMs, est?.alongM, null, timeOnly = true,
+                        pointLat = est?.latitude, pointLon = est?.longitude
                     )
                 }
             }
             .sortedBy { it.takenAtMs }
             .toList()
+    }
+
+    /** 앞뒤 경로 점 사이가 이보다 오래 비면(멈춤·끊김) 잇지 않고 시각이 더 가까운 점을 씀 */
+    const val MAX_INTERP_GAP_MS = 3 * 60 * 1000L
+
+    /**
+     * [atMs] 시각에 경로 위 어디였는지 추정 (시각 순 경로, [routeWithDistance] 결과).
+     * - 경로 시작 전/끝 뒤면 첫/끝 점
+     * - 앞뒤 점 사이면 시간 비율로 선형 보간 (누적 거리 포함)
+     * - 앞뒤 점 간격이 [MAX_INTERP_GAP_MS] 보다 길면 시각이 더 가까운 점
+     * 경로가 비어 있으면 null.
+     */
+    fun positionAt(route: List<RoutePoint>, atMs: Long): RoutePoint? {
+        if (route.isEmpty()) return null
+        if (atMs <= route.first().recordedAtMs) return route.first()
+        if (atMs >= route.last().recordedAtMs) return route.last()
+        // atMs 보다 늦은 첫 점 (이진 탐색)
+        var lo = 0
+        var hi = route.lastIndex
+        while (lo < hi) {
+            val mid = (lo + hi) ushr 1
+            if (route[mid].recordedAtMs <= atMs) lo = mid + 1 else hi = mid
+        }
+        val b = route[lo]
+        val a = route[lo - 1]
+        val gap = b.recordedAtMs - a.recordedAtMs
+        if (gap <= 0L) return a
+        if (gap > MAX_INTERP_GAP_MS) {
+            return if (atMs - a.recordedAtMs <= b.recordedAtMs - atMs) a else b
+        }
+        val f = (atMs - a.recordedAtMs).toDouble() / gap
+        return RoutePoint(
+            a.latitude + (b.latitude - a.latitude) * f,
+            a.longitude + (b.longitude - a.longitude) * f,
+            atMs,
+            a.alongM + (b.alongM - a.alongM) * f
+        )
     }
 
     /** 두 좌표 사이 거리(m) */
