@@ -1,5 +1,6 @@
 package kr.co.nuni.gildam.ui.screens
 
+import kr.co.nuni.gildam.ui.l10n.label
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.layout.Arrangement
@@ -306,9 +307,10 @@ private fun ReorderableGaugeList(
 private fun ActivityPicker(selected: TransportType, onSelect: (TransportType) -> Unit) {
     var expanded by remember { mutableStateOf(false) }
     val cs = MaterialTheme.colorScheme
+    val selectedLabel = selected.label
     ExposedDropdownMenuBox(expanded = expanded, onExpandedChange = { expanded = it }, modifier = Modifier.fillMaxWidth()) {
         OutlinedTextField(
-            value = selected.label,
+            value = selectedLabel,
             onValueChange = {},
             readOnly = true,
             singleLine = true,
@@ -331,12 +333,13 @@ private fun ActivityPicker(selected: TransportType, onSelect: (TransportType) ->
             shape = RoundedCornerShape(12.dp)
         ) {
             TransportType.entries.forEach { t ->
+                val tLabel = t.label
                 DropdownMenuItem(
                     text = {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             TransportSticker(t, selected = t == selected, size = 24.dp)
                             Spacer(Modifier.width(10.dp))
-                            Text(t.label, fontWeight = if (t == selected) FontWeight.Bold else FontWeight.Normal)
+                            Text(tLabel, fontWeight = if (t == selected) FontWeight.Bold else FontWeight.Normal)
                         }
                     },
                     onClick = { onSelect(t); expanded = false }

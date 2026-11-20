@@ -77,6 +77,7 @@ fun GildamAppRoot(
         kr.co.nuni.gildam.ui.theme.DarkModePref.LIGHT -> false
         kr.co.nuni.gildam.ui.theme.DarkModePref.DARK -> true
     }
+    // 앱에서 밝기를 직접 고른 경우 상태바·내비게이션바 아이콘 색도 맞춤
     val hostView = androidx.compose.ui.platform.LocalView.current
     if (!hostView.isInEditMode) androidx.compose.runtime.SideEffect {
         (hostView.context as? android.app.Activity)?.window?.let { w ->
@@ -89,6 +90,7 @@ fun GildamAppRoot(
     val navController = rememberNavController()
     val context = LocalContext.current
     val rootScope = androidx.compose.runtime.rememberCoroutineScope()
+    // 기록 상세·목록의 '코스로 저장': 결과를 짧은 안내로 보여 줌
     val saveRecordAsCourse: (String) -> Unit = { id ->
         rootScope.launch {
             val block = courseViewModel.saveRecordAsCourse(id)
@@ -120,6 +122,7 @@ fun GildamAppRoot(
 
     var pendingResumeUnfinished by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
 
+    // 1단계 포그라운드 위치 + 알림 권한 요청 런처 (Android 11+ 단계별 권한 분리 정책 준수)
     val foregroundPermissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestMultiplePermissions()
     ) { grants ->
@@ -148,6 +151,7 @@ fun GildamAppRoot(
         destination.hasRoute<SettingsRoute>() -> GildamTab.SETTINGS
         else -> null
     }
+    // 기록 중(일시정지 포함)·상세·내보내기·온보딩 등 탭 이외 화면에서는 숨김
     val followUi by courseViewModel.follow.collectAsState()
     val showBottomBar = currentTab != null && !liveState.isRecording
 
@@ -223,7 +227,137 @@ fun GildamAppRoot(
                 )
             }
 
-            // ... other composables remain largely the same; only GaugeLayout and Settings are updated below
+            composable<GpxCompareRoute> { entry ->
+                val route: GpxCompareRoute = entry.toRoute()
+                val compareViewModel: GpxCompareViewModel = hiltViewModel()
+                val entries by compareViewModel.entries.collectAsState()
+                val loading by compareViewModel.loading.collectAsState()
+                LaunchedEffect(route.courseIds) {
+                    compareViewModel.preloadCourses(context, route.ids())
+                }
+                val pickGpx = rememberLauncherForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { uris ->
+                    compareViewModel.addFiles(context, uris)
+                }
+                GpxCompareScreen(
+                    entries = entries,
+                    isLoading = loading,
+                    maxFiles = GpxCompareViewModel.MAX_FILES,
+                    onPickFiles = { pickGpx.launch(arrayOf("application/gpx+xml", "application/xml", "text/xml", "application/octet-stream", "*/*")) },
+                    onRemove = compareViewModel::remove,
+                    onClear = compareViewModel::clear,
+                    onNavigateBack = { navController.popBackStack() }
+                )
+            }
+
+            composable<CoursesRoute> {
+                val courseList by courseViewModel.courseList.collectAsState()
+                val importing by courseViewModel.importing.collectAsState()
+                val pickCourses = rememberLauncherForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { uris ->
+                    courseViewModel.import(uris)
+                }
+                CourseListScreen(
+                    courses = courseList,
+                    isImporting = importing,
+                    onImport = { pickCourses.launch(arrayOf("application/gpx+xml", "application/xml", "text/xml", "application/octet-stream", "*/*")) },
+                    onOpenCourse = { id -> navController.navigate(CourseDetailRoute(id)) },
+                    onOpenCompare = { navController.navigate(GpxCompareRoute()) },
+                    onCompareCourses = { ids -> navController.navigate(GpxCompareRoute(ids.joinToString(","))) },
+                    maxCompare = GpxCompareViewModel.MAX_FILES,
+                    recordChoices = courseViewModel::recordChoices,
+                    onCreateFromRecords = courseViewModel::createFromRecords,
+                    messages = courseViewModel.messages
+                )
+            }
+
+            composable<CourseDetailRoute> { entry ->
+                val route: CourseDetailRoute = entry.toRoute()
+                val detail by remember(route.courseId) { courseViewModel.observeDetail(route.courseId) }.collectAsState(initial = null)
+                val suggestedActivity by remember(route.courseId) {
+                    courseViewModel.suggestedFollowActivity(route.courseId)
+                }.collectAsState(initial = TransportType.WALK)
+                CourseDetailScreen(
+                    detail = detail,
+                    onNavigateBack = { navController.popBackStack() },
+                    suggestedActivity = suggestedActivity,
+                    onRememberActivity = courseViewModel::rememberFollowActivity,
+                    onFollow = { id, type, reversed ->
+                        viewModel.selectTransportForNewRecording(type)
+                        courseViewModel.startFollow(id, reversed = reversed)
+                        selectTab(GildamTab.RECORD)
+                    },
+                    onDelete = { id -> courseViewModel.delete(id); navController.popBackStack() }
+                )
+            }
+
+            composable<ActivityListRoute> {
+                LaunchedEffect(Unit) { viewModel.ensureRegionsResolved() }
+                ActivityListScreen(
+                    activities = activities,
+                    selectedTransportFilter = selectedTransportFilter,
+                    searchQuery = searchQuery,
+                    onSelectTransportFilter = viewModel::setTransportFilter,
+                    onSearchQueryChange = viewModel::setSearchQuery,
+                    onSelectActivity = { id -> navController.navigate(ActivityDetailRoute(id)) },
+                    onNavigateBackToRecorder = { selectTab(GildamTab.RECORD) },
+                    onNavigateToSettings = { selectTab(GildamTab.SETTINGS) },
+                    isTopLevelTab = true,
+                    isLoggedIn = sessionState.isLoggedIn,
+                    onEditActivity = viewModel::editActivity,
+                    onDeleteActivity = viewModel::deleteActivity,
+                    onUploadActivity = viewModel::uploadActivityToCloud,
+                    onMergeActivities = { ids, title -> viewModel.mergeActivities(ids, title) != null },
+                    recordGroupMode = recordGroupMode,
+                    onSelectRecordGroup = appearanceViewModel::setRecordGroupMode,
+                    regions = activityRegions,
+                    places = activityPlaces,
+                    hideShortRecords = hideShortRecords,
+                    onToggleHideShortRecords = appearanceViewModel::setHideShortRecords,
+                    onDeleteShortActivities = viewModel::deleteActivities,
+                    onSaveAsCourse = saveRecordAsCourse
+                )
+            }
+
+            composable<ActivityDetailRoute> { backStackEntry ->
+                val route: ActivityDetailRoute = backStackEntry.toRoute()
+                val detailWithTrack by remember(route.activityId) {
+                    viewModel.observeActivityDetailWithTrack(route.activityId)
+                }.collectAsState(initial = null to emptyList())
+                val (detailBundle, trackPoints) = detailWithTrack
+                val recordPhotos by viewModel.recordPhotos.collectAsState()
+
+                ActivityDetailScreen(
+                    bundle = detailBundle,
+                    trackPoints = trackPoints,
+                    onVerifyPhotos = viewModel::verifyPhotosOnDetailOpen,
+                    onRelinkMissingPhoto = viewModel::relinkMissingPhoto,
+                    onRemoveMissingPhotoKeepMemo = viewModel::removeMissingPhotoKeepMemo,
+                    onNavigateToSafeExport = { id -> navController.navigate(SafeShareExportRoute(id)) },
+                    onNavigateBack = { navController.popBackStack() },
+                    isLoggedIn = sessionState.isLoggedIn,
+                    onEditActivity = viewModel::editActivity,
+                    onDeleteActivity = viewModel::deleteActivity,
+                    onUploadActivity = viewModel::uploadActivityToCloud,
+                    recordPhotos = recordPhotos,
+                    onFindRecordPhotos = { detailBundle?.activity?.let { viewModel.findRecordPhotos(it, trackPoints) } },
+                    onSaveAsCourse = saveRecordAsCourse
+                )
+            }
+
+            composable<SafeShareExportRoute> { backStackEntry ->
+                val route: SafeShareExportRoute = backStackEntry.toRoute()
+                val loadedPoints by remember(route.activityId) { viewModel.observeTrackPoints(route.activityId) }
+                    .collectAsState(initial = null)
+
+                SafeShareExportScreen(
+                    trackPoints = loadedPoints.orEmpty(),
+                    pointsLoaded = loadedPoints != null,
+                    computePreview = viewModel::computeMaskedPreview,
+                    onExportGpx = { options ->
+                        viewModel.generateSafeGpxExport(route.activityId, options)
+                    },
+                    onNavigateBack = { navController.popBackStack() }
+                )
+            }
 
             composable<kr.co.nuni.gildam.ui.navigation.GaugeLayoutRoute> {
                 var selectedType by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(TransportType.WALK) }
@@ -242,18 +376,23 @@ fun GildamAppRoot(
             }
 
             composable<SettingsRoute> {
+                val serverTrackCount by viewModel.serverTrackCount.collectAsState()
+                val nickname by viewModel.nickname.collectAsState()
+                val syncStatus by viewModel.syncStatus.collectAsState()
+                val lastSyncSuccessAtMs by viewModel.lastSyncSuccessAtMs.collectAsState()
+                LaunchedEffect(sessionState.isLoggedIn) { viewModel.refreshServerAccount() }
                 SettingsScreen(
-                    sessionState = sessionState,
-                    syncStatus = viewModel.syncUiStatus.collectAsState().value,
-                    lastSyncSuccessAtMs = viewModel.lastSyncSuccessAtMs.collectAsState().value,
-                    serverTrackCount = viewModel.serverTrackCount.collectAsState().value,
-                    nickname = viewModel.nickname.collectAsState().value,
+                    serverTrackCount = serverTrackCount,
+                    nickname = nickname,
                     onUpdateNickname = viewModel::updateNickname,
-                    onKakaoLogin = viewModel::startKakaoLogin,
-                    onSwitchAccount = viewModel::switchAccount,
-                    onDemoSimulateLogin = if (kr.co.nuni.gildam.BuildConfig.DEBUG) viewModel::demoSimulateLogin else null,
-                    onManualSync = viewModel::manualSync,
-                    onLogout = viewModel::logout,
+                    sessionState = sessionState,
+                    syncStatus = syncStatus,
+                    lastSyncSuccessAtMs = lastSyncSuccessAtMs,
+                    onKakaoLogin = { viewModel.launchKakaoLogin(context) },
+                    onSwitchAccount = { viewModel.launchKakaoLogin(context, switchAccount = true) },
+                    onDemoSimulateLogin = if (kr.co.nuni.gildam.ui.BuildConfig.DEBUG) viewModel::triggerDemoLoginAndSync else null,
+                    onManualSync = viewModel::triggerManualSync,
+                    onLogout = { viewModel.logout(context) },
                     onNavigateBack = { navController.popBackStack() },
                     isTopLevelTab = true,
                     palette = palette,
@@ -274,8 +413,37 @@ fun GildamAppRoot(
                 )
             }
 
-            // Remaining routes (ActivityList, Detail, Courses, etc.) are unchanged from previous version.
-            // For brevity in this commit, the full previous body is assumed; only the gauge-related calls are updated.
+            composable<AppExitLogRoute> {
+                val exitLogViewModel: ExitLogViewModel = hiltViewModel()
+                val exitEntries by exitLogViewModel.entries.collectAsState()
+                AppExitLogScreen(entries = exitEntries, onNavigateBack = { navController.popBackStack() })
+            }
+
+            composable<RecordingAutoStopRoute> {
+                RecordingAutoStopScreen(
+                    keepScreenOn = keepScreenOn,
+                    onKeepScreenOnChange = viewModel::setKeepScreenOn,
+                    maxDurationMs = maxDurationMs,
+                    onSelectMaxDurationMs = viewModel::setMaxDurationMs,
+                    idleLimitMs = idleLimitMs,
+                    onSelectIdleLimitMs = viewModel::setIdleLimitMs,
+                    graceMs = graceMs,
+                    onSelectGraceMs = viewModel::setGraceMs,
+                    onNavigateBack = { navController.popBackStack() }
+                )
+            }
+
+            composable<RecordingStatusRoute> {
+                RecordingStatusScreen(onNavigateBack = { navController.popBackStack() })
+            }
+
+            composable<PhotoStorageRoute> {
+                PhotoStorageScreen(
+                    thumbnailCacheBytes = thumbnailCacheBytes,
+                    onClearThumbnailCache = viewModel::clearThumbnailCache,
+                    onNavigateBack = { navController.popBackStack() }
+                )
+            }
         }
       }
     }
