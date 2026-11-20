@@ -572,6 +572,7 @@
     <string name="note_photo_linked_gallery">갤러리 사진이 연결됐어요 (바꾸려면 다시 고르세요)</string>
     <string name="note_photo_local_only">사진은 기기에만 있고, 길담은 연결 정보만 가져요</string>
     <string name="note_camera_failed">사진을 저장할 자리를 만들지 못했어요</string>
+    <string name="note_camera_not_saved">사진이 저장되지 않았어요. 다시 찍어 주세요</string>
     <string name="note_camera_unavailable">카메라 앱을 열 수 없어요</string>
     <string name="note_camera_permission">사진을 저장하려면 저장소 권한이 필요해요</string>
     <string name="photo_route_estimated">경로 기준 위치</string>

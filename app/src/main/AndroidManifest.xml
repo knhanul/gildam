@@ -76,6 +76,17 @@
                 android:value="androidx.startup"
                 tools:node="remove" />
         </provider>
+
+        <!-- '카메라로 찍기': 카메라 앱에 앱 전용 임시 파일을 넘김 (제조사 카메라도 안정적으로 씀) -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.camerafiles"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/camera_paths" />
+        </provider>
     </application>
 
 </manifest>

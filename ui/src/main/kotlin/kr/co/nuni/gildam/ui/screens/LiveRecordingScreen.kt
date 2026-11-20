@@ -60,6 +60,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.LaunchedEffect
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -691,8 +692,9 @@ private fun AddWaypointBottomSheet(
     var caption by rememberSaveable { mutableStateOf("") }
     var selectedUri by rememberSaveable { mutableStateOf<String?>(null) }
     var source by rememberSaveable { mutableStateOf<WaypointPhotoSource?>(null) }
-    // 카메라에 넘긴 빈 사진 자리 (앱이 잠시 내려가도 기억)
-    var pendingCameraUri by rememberSaveable { mutableStateOf<String?>(null) }
+    // 카메라에 넘긴 임시 파일 경로 (앱이 잠시 내려가거나 화면이 다시 만들어져도 기억)
+    var pendingCameraPath by rememberSaveable { mutableStateOf<String?>(null) }
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
 
     val photoPickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.PickVisualMedia()
@@ -704,29 +706,37 @@ private fun AddWaypointBottomSheet(
     }
     val cameraLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.TakePicture()
-    ) { ok ->
-        val pending = pendingCameraUri?.let(android.net.Uri::parse)
-        pendingCameraUri = null
-        if (pending == null) return@rememberLauncherForActivityResult
-        if (ok || CameraPhotoStore.hasContent(context, pending)) {
-            CameraPhotoStore.publish(context, pending)
-            selectedUri = pending.toString()
-            source = WaypointPhotoSource.CAMERA
-        } else {
-            // 찍다가 취소: 빈 항목을 지워 갤러리에 빈 파일이 남지 않게
-            CameraPhotoStore.discard(context, pending)
+    ) { _ ->
+        // 결과 코드(ok)는 카메라 앱마다 제각각이라 믿지 않고, 임시 파일에 실제로 내용이 있는지로 판단
+        val file = pendingCameraPath?.let { java.io.File(it) }
+        pendingCameraPath = null
+        if (file == null) return@rememberLauncherForActivityResult
+        if (!CameraPhotoStore.hasContent(file)) {
+            CameraPhotoStore.discard(file) // 찍다가 취소
+            return@rememberLauncherForActivityResult
+        }
+        scope.launch {
+            val saved = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                CameraPhotoStore.saveToGallery(context.applicationContext, file)
+            }
+            if (saved != null) {
+                selectedUri = saved.toString()
+                source = WaypointPhotoSource.CAMERA
+            } else {
+                android.widget.Toast.makeText(context, context.getString(R.string.note_camera_not_saved), android.widget.Toast.LENGTH_LONG).show()
+            }
         }
     }
     val launchCamera: () -> Unit = {
-        val uri = CameraPhotoStore.createPending(context)
-        if (uri == null) {
+        val file = CameraPhotoStore.createCaptureFile(context)
+        if (file == null) {
             android.widget.Toast.makeText(context, context.getString(R.string.note_camera_failed), android.widget.Toast.LENGTH_SHORT).show()
         } else {
-            pendingCameraUri = uri.toString()
-            val started = runCatching { cameraLauncher.launch(uri) }.isSuccess
+            pendingCameraPath = file.absolutePath
+            val started = runCatching { cameraLauncher.launch(CameraPhotoStore.captureUri(context, file)) }.isSuccess
             if (!started) {
-                pendingCameraUri = null
-                CameraPhotoStore.discard(context, uri)
+                pendingCameraPath = null
+                CameraPhotoStore.discard(file)
                 android.widget.Toast.makeText(context, context.getString(R.string.note_camera_unavailable), android.widget.Toast.LENGTH_SHORT).show()
             }
         }

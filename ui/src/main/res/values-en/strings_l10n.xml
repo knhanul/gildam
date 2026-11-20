@@ -581,6 +581,7 @@
     <string name="note_photo_linked_gallery">Gallery photo linked (pick again to change)</string>
     <string name="note_photo_local_only">Photos stay on your device; Gildam only keeps a link</string>
     <string name="note_camera_failed">Couldn’t create a place to save the photo</string>
+    <string name="note_camera_not_saved">The photo wasn\'t saved. Please try again</string>
     <string name="note_camera_unavailable">Couldn’t open a camera app</string>
     <string name="note_camera_permission">Storage permission is needed to save the photo</string>
     <string name="photo_route_estimated">Est. on route</string>
