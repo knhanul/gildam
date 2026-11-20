@@ -483,47 +483,75 @@ internal fun LiveWeatherGaugeCard(
         color = MaterialTheme.colorScheme.surfaceVariant,
         modifier = modifier
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 8.dp, vertical = padV),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            Text(
-                text = stringResource(R.string.gauge_weather),
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                textAlign = TextAlign.Center,
-                maxLines = 1
-            )
-            Spacer(modifier = Modifier.height(if (compactVertical) 1.dp else 2.dp))
-            if (weather == null || !weather.hasDisplayableData()) {
-                Text(
-                    text = stringResource(R.string.gauge_value_missing),
-                    style = valueStyle.copy(textAlign = TextAlign.Center),
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 1
-                )
-            } else if (transportType == TransportType.BIKE) {
-                BikeGaugeWeatherBody(
-                    weather = weather,
-                    headingUp = headingUp,
-                    mapBearingDeg = mapBearingDeg,
-                    valueStyle = valueStyle,
-                    compactVertical = compactVertical,
-                    modifier = Modifier.alpha(contentAlpha)
-                )
-            } else {
-                GeneralGaugeWeatherBody(
-                    weather = weather,
-                    headingUp = headingUp,
-                    mapBearingDeg = mapBearingDeg,
-                    valueStyle = valueStyle,
-                    compactVertical = compactVertical,
-                    modifier = Modifier.alpha(contentAlpha)
-                )
+        val dir = weather?.takeIf { it.hasDisplayableData() }?.windDirDeg
+        val titleGap = if (compactVertical) 1.dp else 2.dp
+        if (dir == null) {
+            // 바람 방향이 없으면 예전처럼 제목·값을 가운데에
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 8.dp, vertical = padV),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                WeatherGaugeTitle()
+                Spacer(modifier = Modifier.height(titleGap))
+                LiveWeatherGaugeValues(weather, transportType, headingUp, mapBearingDeg, valueStyle, compactVertical, contentAlpha)
+            }
+        } else {
+            // 바람 화살표를 왼쪽에 '날씨' 제목까지 포함한 3줄 높이로, 오른쪽 글자와는 한 글자쯤 띄움
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 8.dp, vertical = padV),
+                horizontalArrangement = Arrangement.Center,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                // 제목(16sp) + 큰 값(24~26sp) + 작은 줄(16sp) 높이에 맞춤
+                WindDial(dir, mapBearingDeg, headingUp, size = if (compactVertical) 52.dp else 58.dp,
+                    modifier = Modifier.alpha(contentAlpha))
+                Spacer(Modifier.width(14.dp))
+                Column(horizontalAlignment = Alignment.Start) {
+                    WeatherGaugeTitle()
+                    Spacer(modifier = Modifier.height(titleGap))
+                    LiveWeatherGaugeValues(weather, transportType, headingUp, mapBearingDeg, valueStyle, compactVertical, contentAlpha)
+                }
             }
         }
+    }
+}
+
+@Composable
+private fun WeatherGaugeTitle() {
+    Text(
+        text = stringResource(R.string.gauge_weather),
+        style = MaterialTheme.typography.labelSmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        maxLines = 1
+    )
+}
+
+/** 날씨 칸의 값 2줄 (바람 화살표 제외) */
+@Composable
+private fun LiveWeatherGaugeValues(
+    weather: WeatherNow?,
+    transportType: TransportType,
+    headingUp: Boolean,
+    mapBearingDeg: Float,
+    valueStyle: TextStyle,
+    compactVertical: Boolean,
+    contentAlpha: Float
+) {
+    if (weather == null || !weather.hasDisplayableData()) {
+        Text(
+            text = stringResource(R.string.gauge_value_missing),
+            style = valueStyle.copy(textAlign = TextAlign.Center),
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            maxLines = 1
+        )
+    } else if (transportType == TransportType.BIKE) {
+        BikeGaugeWeatherBody(weather, headingUp, mapBearingDeg, valueStyle, compactVertical, Modifier.alpha(contentAlpha))
+    } else {
+        GeneralGaugeWeatherBody(weather, headingUp, mapBearingDeg, valueStyle, compactVertical, Modifier.alpha(contentAlpha))
     }
 }
 
@@ -533,36 +561,19 @@ private fun windSideText(dir: Double, headingUp: Boolean, mapBearingDeg: Float):
     if (headingUp) relativeWind(dir, mapBearingDeg.toDouble()).label to WindHeadingOrange
     else windCardinal16(dir).label to MaterialTheme.colorScheme.onSurfaceVariant
 
-/**
- * 날씨 칸 공통 배치: 바람 방향 화살표를 **왼쪽에 글자 2줄 높이로** 크게 두고,
- * 오른쪽에 큰 값(1줄) + 작은 설명(2줄)을 쌓습니다. 바람 방향이 없으면 글자만 가운데에.
- */
+/** 날씨 칸 값 2줄: 큰 값 + 작은 설명. 바람 화살표는 [LiveWeatherGaugeCard] 가 왼쪽에 3줄 높이로 그림 */
 @Composable
-private fun WindLeftLayout(
-    dir: Double?,
-    headingUp: Boolean,
-    mapBearingDeg: Float,
-    compactVertical: Boolean,
+private fun WeatherValueColumn(
+    centered: Boolean,
     modifier: Modifier = Modifier,
     content: @Composable () -> Unit
 ) {
-    Row(
-        modifier = modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.Center,
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        if (dir != null) {
-            // 큰 값 줄(약 24~26sp) + 작은 줄(16sp) 높이에 맞춤
-            WindDial(dir, mapBearingDeg, headingUp, size = if (compactVertical) 38.dp else 42.dp)
-            Spacer(Modifier.width(8.dp))
-        }
-        Column(horizontalAlignment = if (dir != null) Alignment.Start else Alignment.CenterHorizontally) {
-            content()
-        }
+    Column(modifier = modifier, horizontalAlignment = if (centered) Alignment.CenterHorizontally else Alignment.Start) {
+        content()
     }
 }
 
-/** 자전거: 왼쪽 큰 바람 화살표 + 풍속(크게) / 맞바람·방위 · 기온 */
+/** 자전거: 풍속(크게) / 맞바람·방위 · 기온 */
 @Composable
 private fun BikeGaugeWeatherBody(
     weather: WeatherNow,
@@ -576,7 +587,7 @@ private fun BikeGaugeWeatherBody(
     val dir = weather.windDirDeg
     val tempText = weather.tempC?.let { stringResource(R.string.weather_temp, formatWeatherNumber(it)) }
     val heroSp = if (compactVertical) 20.sp else 22.sp
-    WindLeftLayout(dir, headingUp, mapBearingDeg, compactVertical, modifier) {
+    WeatherValueColumn(centered = dir == null, modifier = modifier) {
         Text(
             text = speed?.let { stringResource(R.string.weather_wind_ms, formatWeatherNumber(it)) }
                 ?: tempText ?: stringResource(R.string.gauge_value_missing),
@@ -600,7 +611,7 @@ private fun BikeGaugeWeatherBody(
     }
 }
 
-/** 일반 활동: 왼쪽 큰 바람 화살표 + 하늘 아이콘·기온(크게) / 풍속 · 맞바람·방위 */
+/** 일반 활동: 하늘 아이콘·기온(크게) / 풍속 · 맞바람·방위 */
 @Composable
 private fun GeneralGaugeWeatherBody(
     weather: WeatherNow,
@@ -615,7 +626,7 @@ private fun GeneralGaugeWeatherBody(
     val speed = weather.windSpeedMs
     val dir = weather.windDirDeg
     val heroSp = if (compactVertical) 20.sp else 22.sp
-    WindLeftLayout(dir, headingUp, mapBearingDeg, compactVertical, modifier) {
+    WeatherValueColumn(centered = dir == null, modifier = modifier) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             skyIcon?.let { icon ->
                 Icon(icon, contentDescription = stringResource(R.string.weather_sky_icon_cd),
