@@ -381,6 +381,7 @@ fun GildamAppRoot(
                 val syncStatus by viewModel.syncStatus.collectAsState()
                 val lastSyncSuccessAtMs by viewModel.lastSyncSuccessAtMs.collectAsState()
                 LaunchedEffect(sessionState.isLoggedIn) { viewModel.refreshServerAccount() }
+                LaunchedEffect(Unit) { viewModel.warmUpKakaoLogin() }
                 SettingsScreen(
                     serverTrackCount = serverTrackCount,
                     nickname = nickname,

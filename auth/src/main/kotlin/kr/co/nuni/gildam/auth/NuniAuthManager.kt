@@ -1,8 +1,12 @@
 package kr.co.nuni.gildam.auth
 
+import android.content.ComponentName
 import android.content.Context
 import android.net.Uri
+import androidx.browser.customtabs.CustomTabsClient
 import androidx.browser.customtabs.CustomTabsIntent
+import androidx.browser.customtabs.CustomTabsServiceConnection
+import androidx.browser.customtabs.CustomTabsSession
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -40,18 +44,61 @@ class NuniAuthManager @Inject constructor(
     val lastError: StateFlow<String?> = _lastError.asStateFlow()
     fun clearError() { _lastError.value = null }
 
+    // ── Custom Tabs 미리 준비 (로그인 버튼을 누르기 전에 브라우저를 깨우고 로그인 주소를 미리 불러 둠) ──
+    @Volatile private var tabsBound = false
+    @Volatile private var tabsSession: CustomTabsSession? = null
+    /** 미리 만들어 둔 PKCE 값 (아직 저장하지 않음: 진행 중인 로그인의 state 를 덮어쓰지 않도록 누를 때 저장) */
+    @Volatile private var preparedPkce: PkceSession? = null
+
+    /**
+     * 설정 화면에 들어올 때 부릅니다(메인 스레드가 아니어도 됨).
+     * 브라우저 프로세스를 미리 띄우고(warmup), 로그인 주소를 미리 불러(mayLaunchUrl) 버튼을 누른 뒤 첫 화면이 빨리 뜨게 합니다.
+     */
+    fun warmUpLogin(context: Context) {
+        if (preparedPkce == null) preparedPkce = PkceGenerator.generateSession()
+        if (tabsBound) { prefetchLoginUrl(); return }
+        val app = context.applicationContext
+        val pkg = runCatching { CustomTabsClient.getPackageName(app, null) }.getOrNull() ?: return
+        tabsBound = runCatching {
+            CustomTabsClient.bindCustomTabsService(app, pkg, object : CustomTabsServiceConnection() {
+                override fun onCustomTabsServiceConnected(name: ComponentName, client: CustomTabsClient) {
+                    runCatching { client.warmup(0L) }
+                    tabsSession = runCatching { client.newSession(null) }.getOrNull()
+                    prefetchLoginUrl()
+                }
+
+                override fun onServiceDisconnected(name: ComponentName?) {
+                    tabsSession = null
+                    tabsBound = false
+                }
+            })
+        }.getOrDefault(false)
+    }
+
+    private fun prefetchLoginUrl() {
+        val pkce = preparedPkce ?: return
+        val session = tabsSession ?: return
+        runCatching { session.mayLaunchUrl(Uri.parse(authorizeUrl(pkce, forceLogin = false)), null, null) }
+    }
+
+    private fun authorizeUrl(pkce: PkceSession, forceLogin: Boolean): String = NuniOidc.buildUrl(
+        NuniAuthConfig.AUTHORIZE_ENDPOINT,
+        NuniOidc.authorizeParams(pkce, NuniAuthConfig.CLIENT_ID, forceLogin = forceLogin)
+    )
+
     /**
      * 카카오 로그인(NUNI ID) 시작.
+     * 진행 중 요청 저장(암호화 저장소 쓰기)은 IO 스레드에서 하고, 브라우저는 메인 스레드에서 엽니다.
      * @param switchAccount true 면 prompt=login 으로 카카오 계정을 다시 입력받습니다(계정 전환).
      */
-    fun launchLogin(activityContext: Context, switchAccount: Boolean = false) {
-        val pkce = PkceGenerator.generateSession()
-        tokenStore.savePendingAuth(pkce)
-        val url = NuniOidc.buildUrl(
-            NuniAuthConfig.AUTHORIZE_ENDPOINT,
-            NuniOidc.authorizeParams(pkce, NuniAuthConfig.CLIENT_ID, forceLogin = switchAccount)
-        )
-        CustomTabsIntent.Builder().setShowTitle(true).build().launchUrl(activityContext, Uri.parse(url))
+    suspend fun launchLogin(activityContext: Context, switchAccount: Boolean = false) {
+        val pkce = preparedPkce ?: withContext(Dispatchers.Default) { PkceGenerator.generateSession() }
+        preparedPkce = null // 한 번 쓴 값은 다시 쓰지 않음
+        withContext(Dispatchers.IO) { tokenStore.savePendingAuth(pkce) }
+        val url = authorizeUrl(pkce, forceLogin = switchAccount)
+        withContext(Dispatchers.Main) {
+            CustomTabsIntent.Builder(tabsSession).setShowTitle(true).build().launchUrl(activityContext, Uri.parse(url))
+        }
     }
 
     fun isAuthRedirect(uri: Uri): Boolean =
