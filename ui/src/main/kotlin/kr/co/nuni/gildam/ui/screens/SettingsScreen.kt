@@ -24,7 +24,6 @@ import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.outlined.BugReport
 import androidx.compose.material.icons.outlined.DarkMode
 import androidx.compose.material.icons.outlined.FilterAlt
-import androidx.compose.material.icons.outlined.Map
 import androidx.compose.material.icons.outlined.NightsStay
 import androidx.compose.material.icons.outlined.Palette
 import androidx.compose.material.icons.outlined.PhotoLibrary
@@ -87,8 +86,7 @@ fun SettingsScreen(
     onSelectPalette: (GildamPalette) -> Unit = {},
     onSelectDarkMode: (DarkModePref) -> Unit = {},
     onOpenRecordingStatus: () -> Unit = {},
-    onOpenGaugeEditor: () -> Unit = {},
-    /** 설정 > 계기판 구성 */
+    /** 설정 > 계기판 구성 (통합된 화면) */
     onOpenGaugeLayout: () -> Unit = {},
     onOpenPhotoStorage: () -> Unit = {},
     keepScreenOn: Boolean = kr.co.nuni.gildam.data.prefs.RecordingPrefs.DEFAULT_KEEP_SCREEN_ON,
@@ -158,13 +156,6 @@ fun SettingsScreen(
                     valueEmphasis = screenOffStatus.warn,
                     icon = Icons.Outlined.NightsStay,
                     onClick = onOpenRecordingStatus
-                )
-                SettingsItemDivider()
-                SettingsListItem(
-                    title = stringResource(R.string.gauge_highlight_title),
-                    supportingText = stringResource(R.string.settings_gauge_desc),
-                    icon = Icons.Outlined.Map,
-                    onClick = onOpenGaugeEditor
                 )
                 SettingsItemDivider()
                 SettingsListItem(
