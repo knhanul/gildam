@@ -9,6 +9,7 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kr.co.nuni.gildam.data.list.RecordGroupMode
+import kr.co.nuni.gildam.data.model.GaugeLayout
 import kr.co.nuni.gildam.data.model.GaugeMetric
 import kr.co.nuni.gildam.data.model.TransportType
 import kr.co.nuni.gildam.data.prefs.AppearancePrefs
@@ -55,36 +56,17 @@ class AppearanceViewModel @Inject constructor(
         viewModelScope.launch { gaugePrefs.setSelection(type, metric) }
     }
 
-    /** 활동별 선택을 모두 지워 기본값으로 되돌림 */
-    /** 설정 > 계기판 구성 */
-    val gaugeLayout: StateFlow<kr.co.nuni.gildam.data.model.GaugeLayout> = gaugePrefs.gridLayout
-        .stateIn(viewModelScope, SharingStarted.Eagerly, kr.co.nuni.gildam.data.model.GaugeLayout.DEFAULT)
+    /** 활동 구분별 계기판 구성 */
+    val gaugeLayouts: StateFlow<Map<TransportType, GaugeLayout>> = gaugePrefs.layouts
+        .stateIn(viewModelScope, SharingStarted.Eagerly, TransportType.entries.associateWith { GaugeLayout.DEFAULT })
 
-    fun setGaugeLayout(layout: kr.co.nuni.gildam.data.model.GaugeLayout) {
+    fun setGaugeLayout(type: TransportType, layout: GaugeLayout) {
         viewModelScope.launch {
-            if (layout == kr.co.nuni.gildam.data.model.GaugeLayout.DEFAULT) gaugePrefs.resetGridLayout() else gaugePrefs.setGridLayout(layout)
+            if (layout == GaugeLayout.DEFAULT) gaugePrefs.resetLayout(type) else gaugePrefs.setLayout(type, layout)
         }
     }
 
-    fun resetGaugeLayout() { viewModelScope.launch { gaugePrefs.resetGridLayout() } }
-
-    fun resetGaugeSelections() { viewModelScope.launch { gaugePrefs.resetAll() } }
-
-    /**
-     * 지도 강조 지표 편집 화면의 '완료' 저장: 바뀐 활동만 저장합니다.
-     * 기본값과 같아진 선택은 저장된 값을 지워 진짜 기본값으로 되돌립니다.
-     */
-    fun applyGaugeSelections(saved: Map<TransportType, GaugeMetric>, draft: Map<TransportType, GaugeMetric>) {
-        viewModelScope.launch {
-            TransportType.entries.forEach { type ->
-                val next = draft[type] ?: return@forEach
-                if (next != saved[type]) {
-                    if (next == GaugeMetric.defaultFor(type)) gaugePrefs.resetSelection(type)
-                    else gaugePrefs.setSelection(type, next)
-                }
-            }
-        }
-    }
+    fun resetGaugeLayout(type: TransportType) { viewModelScope.launch { gaugePrefs.resetLayout(type) } }
 
     fun setPalette(p: GildamPalette) { viewModelScope.launch { prefs.setPalette(p.name) } }
     fun setDarkMode(m: DarkModePref) { viewModelScope.launch { prefs.setDarkMode(m.name) } }
