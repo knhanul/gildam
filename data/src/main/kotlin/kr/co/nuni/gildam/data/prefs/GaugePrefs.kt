@@ -16,47 +16,63 @@ import javax.inject.Singleton
 private val Context.gaugeStore by preferencesDataStore(name = "gauge")
 
 /**
- * 활동 구분별 '지도 위 계기판' 선택을 저장합니다.
- * 저장한 값이 없거나 알 수 없는 값이면 그 활동의 기본값([GaugeMetric.defaultFor])을 씁니다.
+ * 활동 구분별 계기판 구성(순서+켜기/끄기) 과 지도 위 강조 지표를 저장합니다.
+ * 저장한 값이 없으면 기본값을 씁니다.
  */
 @Singleton
 class GaugePrefs @Inject constructor(@ApplicationContext private val context: Context) {
-    private fun key(type: TransportType) = stringPreferencesKey("overlay_${type.name}")
+    private fun overlayKey(type: TransportType) = stringPreferencesKey("overlay_${type.name}")
+    private fun layoutKey(type: TransportType) = stringPreferencesKey("layout_${type.name}")
 
-    private fun resolve(name: String?, type: TransportType): GaugeMetric =
+    private fun resolveOverlay(name: String?, type: TransportType): GaugeMetric =
         GaugeMetric.entries.firstOrNull { it.name == name } ?: GaugeMetric.defaultFor(type)
 
-    /** 활동 구분 5개 전부의 선택 (저장값이 없으면 기본값) */
+    /** 활동 구분 5개 전부의 지도 강조 지표 (저장값 없으면 기본값) */
     val selections: Flow<Map<TransportType, GaugeMetric>> = context.gaugeStore.data.map { prefs ->
-        TransportType.entries.associateWith { type -> resolve(prefs[key(type)], type) }
+        TransportType.entries.associateWith { type -> resolveOverlay(prefs[overlayKey(type)], type) }
     }
 
     suspend fun setSelection(type: TransportType, metric: GaugeMetric) {
-        context.gaugeStore.edit { it[key(type)] = metric.name }
+        context.gaugeStore.edit { it[overlayKey(type)] = metric.name }
     }
 
-    /** 한 활동의 선택만 지워 그 활동의 기본값으로 되돌림 */
     suspend fun resetSelection(type: TransportType) {
-        context.gaugeStore.edit { it.remove(key(type)) }
+        context.gaugeStore.edit { it.remove(overlayKey(type)) }
     }
 
-    /** 활동 5개 선택을 모두 지워 기본값으로 되돌림 */
-    suspend fun resetAll() {
+    suspend fun resetAllOverlays() {
         context.gaugeStore.edit { prefs ->
-            TransportType.entries.forEach { prefs.remove(key(it)) }
+            TransportType.entries.forEach { prefs.remove(overlayKey(it)) }
         }
     }
 
-    private val layoutKey = stringPreferencesKey("grid_layout")
-
-    /** 설정 > 계기판 구성 (저장값이 없으면 기본 배치) */
-    val gridLayout: Flow<GaugeLayout> = context.gaugeStore.data.map { GaugeLayout.decode(it[layoutKey]) }
-
-    suspend fun setGridLayout(layout: GaugeLayout) {
-        context.gaugeStore.edit { it[layoutKey] = layout.encode() }
+    /** 활동 구분별 계기판 구성 (저장값 없으면 기본) */
+    val layouts: Flow<Map<TransportType, GaugeLayout>> = context.gaugeStore.data.map { prefs ->
+        TransportType.entries.associateWith { type ->
+            GaugeLayout.decode(prefs[layoutKey(type)])
+        }
     }
 
-    suspend fun resetGridLayout() {
-        context.gaugeStore.edit { it.remove(layoutKey) }
+    suspend fun setLayout(type: TransportType, layout: GaugeLayout) {
+        context.gaugeStore.edit { it[layoutKey(type)] = layout.encode() }
+    }
+
+    suspend fun resetLayout(type: TransportType) {
+        context.gaugeStore.edit { it.remove(layoutKey(type)) }
+    }
+
+    suspend fun resetAllLayouts() {
+        context.gaugeStore.edit { prefs ->
+            TransportType.entries.forEach { prefs.remove(layoutKey(it)) }
+        }
+    }
+
+    // Legacy global layout (kept for migration; new code uses per-type)
+    private val legacyLayoutKey = stringPreferencesKey("grid_layout")
+
+    val legacyGridLayout: Flow<GaugeLayout> = context.gaugeStore.data.map { GaugeLayout.decode(it[legacyLayoutKey]) }
+
+    suspend fun clearLegacyLayout() {
+        context.gaugeStore.edit { it.remove(legacyLayoutKey) }
     }
 }
