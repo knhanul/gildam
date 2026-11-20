@@ -22,11 +22,17 @@ import androidx.compose.material.icons.outlined.DragHandle
 import androidx.compose.material.icons.outlined.RestartAlt
 import androidx.compose.material.icons.outlined.Star
 import androidx.compose.material.icons.outlined.StarBorder
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExposedDropdownMenuBox
+import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.MenuAnchorType
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
@@ -62,6 +68,7 @@ import kr.co.nuni.gildam.data.model.GaugeLayout
 import kr.co.nuni.gildam.data.model.GaugeMetric
 import kr.co.nuni.gildam.data.model.TransportType
 import kr.co.nuni.gildam.ui.R
+import kr.co.nuni.gildam.ui.illustration.TransportSticker
 import kr.co.nuni.gildam.ui.l10n.labelWithUnitText
 import kotlin.math.roundToInt
 
@@ -117,7 +124,6 @@ fun GaugeLayoutScreen(
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
             Spacer(Modifier.height(12.dp))
-            // Activity type picker (reused pattern from old highlight screen)
             ActivityPicker(selected = selectedType, onSelect = onSelectType)
             Spacer(Modifier.height(12.dp))
             GaugeLayoutPreview(layout = layout, overlay = overlay)
@@ -298,10 +304,44 @@ private fun ReorderableGaugeList(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun ActivityPicker(selected: TransportType, onSelect: (TransportType) -> Unit) {
-    // Simplified; full implementation reuses the one from GaugeHighlightEditorScreen if needed
-    // For brevity in this patch, use a basic version or copy from existing
     var expanded by remember { mutableStateOf(false) }
-    // ... (copy the ExposedDropdownMenuBox logic from the old GaugeHighlightEditorScreen)
-    // Placeholder: in full code, paste the ActivityPicker from GaugeHighlightEditorScreen.kt
-    Text("Activity: ${selected.name}", modifier = Modifier.padding(8.dp)) // temporary
+    val cs = MaterialTheme.colorScheme
+    ExposedDropdownMenuBox(expanded = expanded, onExpandedChange = { expanded = it }, modifier = Modifier.fillMaxWidth()) {
+        OutlinedTextField(
+            value = selected.label,
+            onValueChange = {},
+            readOnly = true,
+            singleLine = true,
+            textStyle = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.SemiBold),
+            leadingIcon = { TransportSticker(selected, selected = true, size = 26.dp) },
+            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedContainerColor = cs.surfaceVariant.copy(alpha = 0.55f),
+                unfocusedContainerColor = cs.surfaceVariant.copy(alpha = 0.55f),
+                focusedBorderColor = cs.primary,
+                unfocusedBorderColor = cs.outlineVariant
+            ),
+            shape = RoundedCornerShape(14.dp),
+            modifier = Modifier.menuAnchor(MenuAnchorType.PrimaryNotEditable).fillMaxWidth()
+        )
+        ExposedDropdownMenu(
+            expanded = expanded,
+            onDismissRequest = { expanded = false },
+            containerColor = cs.surface,
+            shape = RoundedCornerShape(12.dp)
+        ) {
+            TransportType.entries.forEach { t ->
+                DropdownMenuItem(
+                    text = {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            TransportSticker(t, selected = t == selected, size = 24.dp)
+                            Spacer(Modifier.width(10.dp))
+                            Text(t.label, fontWeight = if (t == selected) FontWeight.Bold else FontWeight.Normal)
+                        }
+                    },
+                    onClick = { onSelect(t); expanded = false }
+                )
+            }
+        }
+    }
 }
