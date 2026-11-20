@@ -19,6 +19,16 @@ class GaugeLayoutTest {
         assertEquals(4, GaugeLayout.DEFAULT.gridCells(GaugeMetric.DISTANCE, recording = false).size)
     }
 
+    @Test fun weatherOrElevationOnMapIsSkippedBelow() {
+        val weatherUp = GaugeLayout.DEFAULT.gridCells(GaugeMetric.WEATHER, recording = true)
+        assertEquals(6, weatherUp.size)
+        assertEquals(false, GaugeCell.WEATHER in weatherUp)
+        val elevUp = GaugeLayout.DEFAULT.gridCells(GaugeMetric.ELEVATION, recording = true)
+        assertEquals(false, GaugeCell.ELEVATION in elevUp)
+        // 기록 전에는 둘 다 원래 안 보이므로 다른 칸 5개가 그대로
+        assertEquals(5, GaugeLayout.DEFAULT.gridCells(GaugeMetric.WEATHER, recording = false).size)
+    }
+
     @Test fun roundTripAndOrder() {
         val l = GaugeLayout.DEFAULT.moved(6, 0).toggled(GaugeCell.CLOCK, false)
         val back = GaugeLayout.decode(l.encode())

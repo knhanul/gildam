@@ -159,17 +159,17 @@ fun SettingsScreen(
                 )
                 SettingsItemDivider()
                 SettingsListItem(
-                    title = stringResource(R.string.gauge_layout_title),
-                    supportingText = stringResource(R.string.settings_gauge_layout_desc),
-                    icon = Icons.Outlined.GridView,
-                    onClick = onOpenGaugeLayout
-                )
-                SettingsItemDivider()
-                SettingsListItem(
                     title = stringResource(R.string.recording_screen_autostop_title),
                     supportingText = recordingAutoStopSummary(keepScreenOn, maxDurationMs, idleLimitMs),
                     icon = Icons.Outlined.Timer,
                     onClick = onOpenRecordingAutoStop
+                )
+                SettingsItemDivider()
+                SettingsListItem(
+                    title = stringResource(R.string.gauge_layout_title),
+                    supportingText = stringResource(R.string.settings_gauge_layout_desc),
+                    icon = Icons.Outlined.GridView,
+                    onClick = onOpenGaugeLayout
                 )
             }
 

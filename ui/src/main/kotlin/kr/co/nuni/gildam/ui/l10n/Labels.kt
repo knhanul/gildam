@@ -72,6 +72,8 @@ val GaugeMetric.label: String @Composable get() = stringResource(
         GaugeMetric.CURRENT_SPEED -> R.string.gauge_current_speed
         GaugeMetric.MOVING_AVG_SPEED -> R.string.gauge_moving_avg_speed
         GaugeMetric.CLOCK -> R.string.gauge_clock
+        GaugeMetric.ELEVATION -> R.string.gauge_elevation_gain_loss
+        GaugeMetric.WEATHER -> R.string.gauge_weather
         GaugeMetric.NONE -> R.string.gauge_none
     }
 )
@@ -83,6 +85,8 @@ val GaugeMetric.desc: String @Composable get() = stringResource(
         GaugeMetric.CURRENT_SPEED -> R.string.gauge_current_speed_desc
         GaugeMetric.MOVING_AVG_SPEED -> R.string.gauge_moving_avg_speed_desc
         GaugeMetric.CLOCK -> R.string.gauge_clock_desc
+        GaugeMetric.ELEVATION -> R.string.gauge_elevation_desc
+        GaugeMetric.WEATHER -> R.string.gauge_weather_desc
         GaugeMetric.NONE -> R.string.gauge_none_desc
     }
 )

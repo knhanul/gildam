@@ -533,7 +533,36 @@ private fun windSideText(dir: Double, headingUp: Boolean, mapBearingDeg: Float):
     if (headingUp) relativeWind(dir, mapBearingDeg.toDouble()).label to WindHeadingOrange
     else windCardinal16(dir).label to MaterialTheme.colorScheme.onSurfaceVariant
 
-/** 자전거: 바람(화살표 + m/s)을 크게, 아래에 맞바람/방위 · 기온 */
+/**
+ * 날씨 칸 공통 배치: 바람 방향 화살표를 **왼쪽에 글자 2줄 높이로** 크게 두고,
+ * 오른쪽에 큰 값(1줄) + 작은 설명(2줄)을 쌓습니다. 바람 방향이 없으면 글자만 가운데에.
+ */
+@Composable
+private fun WindLeftLayout(
+    dir: Double?,
+    headingUp: Boolean,
+    mapBearingDeg: Float,
+    compactVertical: Boolean,
+    modifier: Modifier = Modifier,
+    content: @Composable () -> Unit
+) {
+    Row(
+        modifier = modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.Center,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        if (dir != null) {
+            // 큰 값 줄(약 24~26sp) + 작은 줄(16sp) 높이에 맞춤
+            WindDial(dir, mapBearingDeg, headingUp, size = if (compactVertical) 38.dp else 42.dp)
+            Spacer(Modifier.width(8.dp))
+        }
+        Column(horizontalAlignment = if (dir != null) Alignment.Start else Alignment.CenterHorizontally) {
+            content()
+        }
+    }
+}
+
+/** 자전거: 왼쪽 큰 바람 화살표 + 풍속(크게) / 맞바람·방위 · 기온 */
 @Composable
 private fun BikeGaugeWeatherBody(
     weather: WeatherNow,
@@ -547,20 +576,14 @@ private fun BikeGaugeWeatherBody(
     val dir = weather.windDirDeg
     val tempText = weather.tempC?.let { stringResource(R.string.weather_temp, formatWeatherNumber(it)) }
     val heroSp = if (compactVertical) 20.sp else 22.sp
-    Column(modifier = modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.Center) {
-            if (dir != null) {
-                WindDial(dir, mapBearingDeg, headingUp, size = if (compactVertical) 22.dp else 24.dp)
-                Spacer(Modifier.width(5.dp))
-            }
-            Text(
-                text = speed?.let { stringResource(R.string.weather_wind_ms, formatWeatherNumber(it)) }
-                    ?: tempText ?: stringResource(R.string.gauge_value_missing),
-                style = valueStyle.copy(fontSize = heroSp, lineHeight = (heroSp.value + 4f).sp, fontWeight = FontWeight.Bold),
-                color = MaterialTheme.colorScheme.onSurface,
-                maxLines = 1, softWrap = false, overflow = TextOverflow.Clip
-            )
-        }
+    WindLeftLayout(dir, headingUp, mapBearingDeg, compactVertical, modifier) {
+        Text(
+            text = speed?.let { stringResource(R.string.weather_wind_ms, formatWeatherNumber(it)) }
+                ?: tempText ?: stringResource(R.string.gauge_value_missing),
+            style = valueStyle.copy(fontSize = heroSp, lineHeight = (heroSp.value + 4f).sp, fontWeight = FontWeight.Bold),
+            color = MaterialTheme.colorScheme.onSurface,
+            maxLines = 1, softWrap = false, overflow = TextOverflow.Clip
+        )
         val side = dir?.let { windSideText(it, headingUp, mapBearingDeg) }
         if (side != null || (speed != null && tempText != null)) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -569,7 +592,7 @@ private fun BikeGaugeWeatherBody(
                         color = c, maxLines = 1, softWrap = false)
                 }
                 if (speed != null) tempText?.let {
-                    Text("· $it", style = MaterialTheme.typography.labelSmall.copy(fontFeatureSettings = "tnum"),
+                    Text(if (side != null) "· $it" else it, style = MaterialTheme.typography.labelSmall.copy(fontFeatureSettings = "tnum"),
                         color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, softWrap = false)
                 }
             }
@@ -577,7 +600,7 @@ private fun BikeGaugeWeatherBody(
     }
 }
 
-/** 일반 활동: 기온을 크게, 아래에 바람 화살표 · m/s · 맞바람/방위 */
+/** 일반 활동: 왼쪽 큰 바람 화살표 + 하늘 아이콘·기온(크게) / 풍속 · 맞바람·방위 */
 @Composable
 private fun GeneralGaugeWeatherBody(
     weather: WeatherNow,
@@ -592,8 +615,8 @@ private fun GeneralGaugeWeatherBody(
     val speed = weather.windSpeedMs
     val dir = weather.windDirDeg
     val heroSp = if (compactVertical) 20.sp else 22.sp
-    Column(modifier = modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.Center) {
+    WindLeftLayout(dir, headingUp, mapBearingDeg, compactVertical, modifier) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
             skyIcon?.let { icon ->
                 Icon(icon, contentDescription = stringResource(R.string.weather_sky_icon_cd),
                     tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(if (compactVertical) 16.dp else 18.dp))
@@ -607,17 +630,18 @@ private fun GeneralGaugeWeatherBody(
                 maxLines = 1, softWrap = false
             )
         }
-        if (tempText != null && (dir != null || speed != null)) {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(3.dp)) {
-                dir?.let { WindDial(it, mapBearingDeg, headingUp, size = 17.dp) }
-                speed?.let {
+        val showSpeed = tempText != null && speed != null
+        if (showSpeed || dir != null) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                if (showSpeed) speed?.let {
                     Text(stringResource(R.string.weather_wind_ms, formatWeatherNumber(it)),
                         style = MaterialTheme.typography.labelSmall.copy(fontFeatureSettings = "tnum"),
                         color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, softWrap = false)
                 }
                 dir?.let { d ->
                     val (t, c) = windSideText(d, headingUp, mapBearingDeg)
-                    Text(t, style = MaterialTheme.typography.labelSmall, fontWeight = if (headingUp) FontWeight.Bold else FontWeight.Medium,
+                    Text(if (showSpeed) "· $t" else t, style = MaterialTheme.typography.labelSmall,
+                        fontWeight = if (headingUp) FontWeight.Bold else FontWeight.Medium,
                         color = c, maxLines = 1, softWrap = false)
                 }
             }
@@ -665,56 +689,5 @@ internal fun formatWeatherNumber(value: Double, locale: Locale = Locale.getDefau
         rounded.toLong().toString()
     } else {
         String.format(locale, "%.1f", rounded)
-    }
-}
-
-/**
- * 기록 중 계기판 날씨 칸의 바람 표시.
- * 화살표 높이를 텍스트 2단 높이에 맞추고, 왼쪽에 배치합니다.
- */
-@Composable
-internal fun GaugeWindDisplay(
-    windFromDeg: Double?,
-    windSpeedMs: Double?,
-    mapBearingDeg: Float,
-    headingUp: Boolean,
-    modifier: Modifier = Modifier
-) {
-    if (windFromDeg == null && windSpeedMs == null) return
-    Row(
-        modifier = modifier,
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        windFromDeg?.let { dir ->
-            WindDial(
-                windFromDeg = dir,
-                mapBearingDeg = mapBearingDeg,
-                headingUp = headingUp,
-                size = 40.dp   // 2단 텍스트 높이에 맞춤
-            )
-            Spacer(Modifier.width(8.dp))
-        }
-        Column {
-            windSpeedMs?.let { speed ->
-                Text(
-                    text = stringResource(R.string.weather_wind_ms, formatWeatherNumber(speed)),
-                    style = MaterialTheme.typography.titleMedium.copy(
-                        fontWeight = FontWeight.Bold,
-                        fontFeatureSettings = "tnum"
-                    ),
-                    color = MaterialTheme.colorScheme.onSurface,
-                    maxLines = 1
-                )
-            }
-            windFromDeg?.let { dir ->
-                val (relText, relColor) = windSideText(dir, headingUp, mapBearingDeg)
-                Text(
-                    text = relText,
-                    style = MaterialTheme.typography.labelMedium,
-                    color = relColor,
-                    maxLines = 1
-                )
-            }
-        }
     }
 }
