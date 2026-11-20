@@ -377,6 +377,8 @@
     <string name="gauge_current_speed_desc">Your speed right now</string>
     <string name="gauge_moving_avg_speed_desc">Average speed while moving</string>
     <string name="gauge_clock_desc">Current time of day</string>
+    <string name="gauge_elevation_desc">Total climb and descent since start</string>
+    <string name="gauge_weather_desc">Current wind and temperature</string>
     <string name="label_with_unit">%1$s (%2$s)</string>
     <string name="grade_easy">Easy</string>
     <string name="grade_moderate">Moderate</string>
@@ -565,8 +567,9 @@
     <string name="wind_mode_north_cd">Wind arrow relative to north</string>
     <string name="gauge_layout_title">Gauge layout</string>
     <string name="gauge_layout_desc">Turn gauge cells on or off, and drag the handle to reorder them.</string>
-    <string name="gauge_layout_preview">While recording</string>
-    <string name="gauge_layout_note">Cells are laid out in 2 columns; an odd last cell spans the full width. The value shown large on the map is skipped here, and climb/descent and weather appear only while recording.</string>
+    <string name="gauge_layout_on_map">On map</string>
+    <string name="gauge_layout_on_map_cd">Show %1$s large on the map</string>
+    <string name="gauge_layout_note">Cells are laid out in 2 columns; an odd last cell spans the full width. The item marked \"On map\" is shown large on the map and skipped below. Climb/descent and weather appear only while recording.</string>
     <string name="gauge_layout_reset">Reset to default</string>
     <string name="gauge_layout_move_up">Move up</string>
     <string name="gauge_layout_move_down">Move down</string>

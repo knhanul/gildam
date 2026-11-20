@@ -1,19 +1,19 @@
 package kr.co.nuni.gildam.data.model
 
 /** 지도 아래 계기판 칸 종류 */
-enum class GaugeCell(val metric: GaugeMetric?) {
+enum class GaugeCell(val metric: GaugeMetric) {
     DISTANCE(GaugeMetric.DISTANCE),
     TOTAL_TIME(GaugeMetric.TOTAL_TIME),
     CURRENT_SPEED(GaugeMetric.CURRENT_SPEED),
     MOVING_AVG_SPEED(GaugeMetric.MOVING_AVG_SPEED),
     CLOCK(GaugeMetric.CLOCK),
     /** 오르막·내리막 (기록 중에만) */
-    ELEVATION(null),
+    ELEVATION(GaugeMetric.ELEVATION),
     /** 실시간 날씨 (기록 중에만) */
-    WEATHER(null);
+    WEATHER(GaugeMetric.WEATHER);
 
     /** 기록 중에만 보이는 칸 */
-    val recordingOnly: Boolean get() = this == ELEVATION || this == WEATHER
+    val recordingOnly: Boolean get() = metric.recordingOnly
 }
 
 /**
@@ -30,7 +30,7 @@ data class GaugeLayout(val entries: List<Entry>) {
      * 기록 중이 아니면 오르막·내리막·날씨 칸도 뺍니다.
      */
     fun gridCells(overlay: GaugeMetric, recording: Boolean): List<GaugeCell> =
-        enabledCells.filter { (it.metric == null || it.metric != overlay) && (recording || !it.recordingOnly) }
+        enabledCells.filter { it.metric != overlay && (recording || !it.recordingOnly) }
 
     fun toggled(cell: GaugeCell, enabled: Boolean): GaugeLayout {
         // 마지막 하나는 끌 수 없음 (빈 계기판 방지)

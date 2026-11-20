@@ -1,6 +1,7 @@
 package kr.co.nuni.gildam.ui.screens
 
 import kr.co.nuni.gildam.ui.l10n.label
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.layout.Arrangement
@@ -11,6 +12,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -21,8 +23,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.outlined.DragHandle
 import androidx.compose.material.icons.outlined.RestartAlt
-import androidx.compose.material.icons.outlined.Star
-import androidx.compose.material.icons.outlined.StarBorder
+import androidx.compose.material.icons.outlined.Check
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuBox
@@ -52,12 +53,14 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.CustomAccessibilityAction
 import androidx.compose.ui.semantics.customActions
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -78,7 +81,7 @@ internal val GaugeCell.label: String
     @Composable get() = when (this) {
         GaugeCell.ELEVATION -> stringResource(R.string.gauge_elevation_gain_loss)
         GaugeCell.WEATHER -> stringResource(R.string.gauge_weather)
-        else -> metric!!.labelWithUnitText
+        else -> metric.labelWithUnitText
     }
 
 private val ROW_HEIGHT = 56.dp
@@ -126,8 +129,6 @@ fun GaugeLayoutScreen(
             )
             Spacer(Modifier.height(12.dp))
             ActivityPicker(selected = selectedType, onSelect = onSelectType)
-            Spacer(Modifier.height(12.dp))
-            GaugeLayoutPreview(layout = layout, overlay = overlay)
             Spacer(Modifier.height(16.dp))
             ReorderableGaugeList(
                 layout = layout,
@@ -155,37 +156,7 @@ fun GaugeLayoutScreen(
     }
 }
 
-/** 기록 중 계기판 모양 미리보기 (2열, 강조 지표 표시) */
-@Composable
-private fun GaugeLayoutPreview(layout: GaugeLayout, overlay: GaugeMetric) {
-    val cells = layout.gridCells(overlay, recording = true)
-    Surface(shape = RoundedCornerShape(18.dp), color = MaterialTheme.colorScheme.surface, tonalElevation = 2.dp,
-        modifier = Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text(stringResource(R.string.gauge_layout_preview), style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant)
-            cells.chunked(2).forEach { row ->
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-                    row.forEach { cell ->
-                        Box(
-                            Modifier
-                                .weight(1f)
-                                .height(34.dp)
-                                .clip(RoundedCornerShape(10.dp))
-                                .background(MaterialTheme.colorScheme.surfaceVariant),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text(cell.label, style = MaterialTheme.typography.labelSmall, maxLines = 1,
-                                overflow = TextOverflow.Ellipsis, textAlign = TextAlign.Center)
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
-
-/** 끌어서 순서 바꾸기 + 켜고 끄기 + 지도 강조 선택 */
+/** 끌어서 순서 바꾸기 + 켜고 끄기 + 지도 위에 크게 띄울 항목 선택 */
 @Composable
 private fun ReorderableGaugeList(
     layout: GaugeLayout,
@@ -210,7 +181,7 @@ private fun ReorderableGaugeList(
                 val cell = entry.cell
                 val isDragging = dragging == cell
                 val bottomCount = working.gridCells(overlay, true).size
-                val wouldBreakEven = entry.enabled && bottomCount <= 2 && (cell.metric == null || cell.metric != overlay)
+                val wouldBreakEven = entry.enabled && bottomCount <= 2 && cell.metric != overlay
                 if (index > 0) HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
                 Row(
                     modifier = Modifier
@@ -243,19 +214,14 @@ private fun ReorderableGaugeList(
                         maxLines = 1, overflow = TextOverflow.Ellipsis,
                         modifier = Modifier.weight(1f)
                     )
-                    // Map highlight star (only for metric cells)
-                    if (cell.metric != null) {
-                        val isOverlay = cell.metric == overlay
-                        IconButton(onClick = { onChangeOverlay(if (isOverlay) GaugeMetric.NONE else cell.metric!!) }) {
-                            Icon(
-                                if (isOverlay) Icons.Outlined.Star else Icons.Outlined.StarBorder,
-                                contentDescription = "지도 강조",
-                                tint = if (isOverlay) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                    } else {
-                        Spacer(Modifier.width(48.dp))
-                    }
+                    // 지도 위에 크게 띄울 항목 (하나만, 다시 누르면 해제)
+                    val isOverlay = cell.metric == overlay
+                    OnMapToggle(
+                        selected = isOverlay,
+                        itemLabel = cell.label,
+                        onClick = { onChangeOverlay(if (isOverlay) GaugeMetric.NONE else cell.metric) }
+                    )
+                    Spacer(Modifier.width(6.dp))
                     Switch(
                         checked = entry.enabled,
                         enabled = !wouldBreakEven,
@@ -298,6 +264,43 @@ private fun ReorderableGaugeList(
                 }
               }
             }
+        }
+    }
+}
+
+/**
+ * '지도 위' 알약 버튼. 고른 항목은 색이 채워지고, 나머지는 옅은 테두리만 보입니다.
+ * 별표보다 '지도 위에 크게 뜬다'는 뜻이 바로 읽히도록 글자로 표시합니다.
+ */
+@Composable
+private fun OnMapToggle(selected: Boolean, itemLabel: String, onClick: () -> Unit) {
+    val cs = MaterialTheme.colorScheme
+    val cd = stringResource(R.string.gauge_layout_on_map_cd, itemLabel)
+    Surface(
+        selected = selected,
+        onClick = onClick,
+        shape = RoundedCornerShape(50),
+        color = if (selected) cs.primary else Color.Transparent,
+        contentColor = if (selected) cs.onPrimary else cs.onSurfaceVariant.copy(alpha = 0.7f),
+        border = if (selected) null else BorderStroke(1.dp, cs.outline.copy(alpha = 0.45f)),
+        modifier = Modifier
+            .heightIn(min = 32.dp)
+            .semantics { contentDescription = cd }
+    ) {
+        Row(
+            Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            if (selected) {
+                Icon(Icons.Outlined.Check, contentDescription = null, modifier = Modifier.size(14.dp))
+                Spacer(Modifier.width(3.dp))
+            }
+            Text(
+                stringResource(R.string.gauge_layout_on_map),
+                style = MaterialTheme.typography.labelMedium,
+                fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
+                maxLines = 1
+            )
         }
     }
 }

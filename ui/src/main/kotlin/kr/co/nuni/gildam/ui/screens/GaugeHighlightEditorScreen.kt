@@ -279,6 +279,8 @@ private fun PreviewChip(metric: GaugeMetric, modifier: Modifier = Modifier) {
         GaugeMetric.MOVING_AVG_SPEED -> "18.3" to "km/h"
         GaugeMetric.TOTAL_TIME -> "01:12:45" to null
         GaugeMetric.CLOCK -> "15:28" to null
+        GaugeMetric.ELEVATION -> "↑120 ↓85" to "m"
+        GaugeMetric.WEATHER -> "3.5" to "m/s"
         GaugeMetric.NONE -> "" to null
     }
     Surface(

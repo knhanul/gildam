@@ -350,12 +350,15 @@ fun LiveRecordingScreen(
             )
 
             // '표시 안 함'을 고른 활동은 지도 위에 큰 값을 띄우지 않습니다.
-            if (overlayMetric != GaugeMetric.NONE) {
+            // 오르막·내리막·날씨는 기록 중에만 값이 있으므로 그때만 띄웁니다.
+            if (overlayMetric != GaugeMetric.NONE && (liveState.isRecording || !overlayMetric.recordingOnly)) {
                 GaugeOverlayChip(
                     metric = overlayMetric,
                     live = liveState,
                     clockTick = clockTick,
-                    modifier = Modifier.padding(bottom = if (compactGauge) 2.dp else 6.dp)
+                    modifier = Modifier.padding(bottom = if (compactGauge) 2.dp else 6.dp),
+                    headingUp = effectiveMode == MapCameraMode.HEADING,
+                    mapBearingDeg = mapBearing
                 )
             }
 
@@ -421,7 +424,7 @@ fun LiveRecordingScreen(
                                         mapBearingDeg = mapBearing
                                     )
                                     else -> StatSubCard(
-                                        metric = cell.metric ?: GaugeMetric.DISTANCE,
+                                        metric = cell.metric,
                                         live = liveState,
                                         clockTick = clockTick,
                                         valueStyle = gaugeValueStyle,
@@ -870,6 +873,9 @@ internal fun gaugeValue(metric: GaugeMetric, live: LiveRecordingState, clockNowM
     GaugeMetric.CURRENT_SPEED -> GaugeFormat.speedKmh(live.currentSpeedMps)
     GaugeMetric.MOVING_AVG_SPEED -> GaugeFormat.speedKmh(live.movingAvgSpeedMps)
     GaugeMetric.CLOCK -> GaugeFormat.clockHms(clockNowMs)
+    GaugeMetric.ELEVATION ->
+        "↑${live.elevationGainM.coerceAtLeast(0f).roundToInt()} ↓${live.elevationLossM.coerceAtLeast(0f).roundToInt()}"
+    GaugeMetric.WEATHER -> live.liveWeather.weather?.windSpeedMs?.let { formatWeatherNumber(it) } ?: "–"
     GaugeMetric.NONE -> ""
 }
 

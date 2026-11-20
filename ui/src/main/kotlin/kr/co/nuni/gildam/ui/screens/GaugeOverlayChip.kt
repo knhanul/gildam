@@ -14,10 +14,12 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Air
 import androidx.compose.material.icons.outlined.AvTimer
 import androidx.compose.material.icons.outlined.Schedule
 import androidx.compose.material.icons.outlined.Speed
 import androidx.compose.material.icons.outlined.Straighten
+import androidx.compose.material.icons.outlined.Terrain
 import androidx.compose.material.icons.outlined.Timer
 import androidx.compose.material.icons.outlined.VisibilityOff
 import androidx.compose.material3.Icon
@@ -41,6 +43,7 @@ import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.TextStyle
 import kr.co.nuni.gildam.data.model.GaugeMetric
+import kr.co.nuni.gildam.data.weather.windArrowScreenDeg
 import kr.co.nuni.gildam.recording.LiveRecordingState
 import kr.co.nuni.gildam.ui.illustration.GildamTooltip
 import kr.co.nuni.gildam.ui.illustration.brandGradient
@@ -55,6 +58,8 @@ val GaugeMetric.icon: ImageVector
         GaugeMetric.CURRENT_SPEED -> Icons.Outlined.Speed
         GaugeMetric.MOVING_AVG_SPEED -> Icons.Outlined.AvTimer
         GaugeMetric.CLOCK -> Icons.Outlined.Schedule
+        GaugeMetric.ELEVATION -> Icons.Outlined.Terrain
+        GaugeMetric.WEATHER -> Icons.Outlined.Air
         GaugeMetric.NONE -> Icons.Outlined.VisibilityOff // 칩 자체는 표시하지 않음
     }
 
@@ -72,7 +77,11 @@ fun GaugeOverlayChip(
     metric: GaugeMetric,
     live: LiveRecordingState,
     clockTick: androidx.compose.runtime.State<Long>,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    /** 날씨 항목: 지도가 진행 방향 위인지 */
+    headingUp: Boolean = false,
+    /** 날씨 항목: 지금 지도가 돌아간 각도 */
+    mapBearingDeg: Float = 0f
 ) {
     val label = metric.tooltipLabel()
     val value = gaugeValue(metric, live, clockTick.value)
@@ -84,6 +93,22 @@ fun GaugeOverlayChip(
                 .padding(horizontal = 12.dp, vertical = 2.dp),
             verticalAlignment = Alignment.Bottom
         ) {
+            // 날씨: 바람 방향 화살표를 숫자 왼쪽에 크게 (지도 위에서도 보이게 흰 동그라미 바탕)
+            val windDir = if (metric == GaugeMetric.WEATHER) live.liveWeather.weather?.windDirDeg else null
+            if (windDir != null) {
+                val rot = windArrowScreenDeg(windDir, mapBearingDeg.toDouble())
+                Box(
+                    Modifier
+                        .padding(bottom = 4.dp)
+                        .size(42.dp)
+                        .clip(CircleShape)
+                        .background(Color.White.copy(alpha = 0.9f)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    WindArrowGlyph(rot, if (headingUp) WindHeadingOrange else Color(0xFF16201B), 32.dp)
+                }
+                Spacer(Modifier.width(8.dp))
+            }
             OutlinedNumber(value, TabularStatHeroStyle.copy(fontSize = 46.sp, lineHeight = 50.sp))
             metric.unit?.let { unit ->
                 Spacer(Modifier.width(5.dp))

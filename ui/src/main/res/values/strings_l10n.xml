@@ -377,6 +377,8 @@
     <string name="gauge_current_speed_desc">지금 이 순간의 속도</string>
     <string name="gauge_moving_avg_speed_desc">움직인 시간 동안의 평균 속도</string>
     <string name="gauge_clock_desc">지금 시각</string>
+    <string name="gauge_elevation_desc">출발부터 오르고 내린 높이</string>
+    <string name="gauge_weather_desc">지금 바람과 기온</string>
     <string name="label_with_unit">%1$s (%2$s)</string>
     <string name="grade_easy">쉬움</string>
     <string name="grade_moderate">보통</string>
@@ -556,8 +558,9 @@
     <string name="wind_mode_north_cd">북쪽 기준 바람 화살표</string>
     <string name="gauge_layout_title">계기판 구성</string>
     <string name="gauge_layout_desc">기록 화면 아래 계기판에 보일 칸을 켜고 끄고, 오른쪽 손잡이를 끌어 순서를 바꿔요.</string>
-    <string name="gauge_layout_preview">기록 중 모양</string>
-    <string name="gauge_layout_note">켠 칸을 2열로 놓고, 홀수면 마지막 칸을 넓게 써요. 지도 위에 크게 띄운 값은 아래 칸에서 빠지고, 오르막·내리막과 날씨는 기록 중에만 보여요.</string>
+    <string name="gauge_layout_on_map">지도 위</string>
+    <string name="gauge_layout_on_map_cd">%1$s 지도 위에 크게 띄우기</string>
+    <string name="gauge_layout_note">켠 칸을 2열로 놓고, 홀수면 마지막 칸을 넓게 써요. \'지도 위\'를 누른 항목 하나는 지도 위에 크게 뜨고 아래 칸에서 빠져요. 오르막·내리막과 날씨는 기록 중에만 보여요.</string>
     <string name="gauge_layout_reset">기본값으로 되돌리기</string>
     <string name="gauge_layout_move_up">위로 옮기기</string>
     <string name="gauge_layout_move_down">아래로 옮기기</string>

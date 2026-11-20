@@ -486,8 +486,19 @@ class GildamViewModel @Inject constructor(
         }
     }
 
+    private var loginLaunching = false
+
     fun launchKakaoLogin(activityContext: Context, switchAccount: Boolean = false) {
-        authManager.launchLogin(activityContext, switchAccount)
+        if (loginLaunching) return // 연타 방지
+        loginLaunching = true
+        viewModelScope.launch {
+            try { authManager.launchLogin(activityContext, switchAccount) } finally { loginLaunching = false }
+        }
+    }
+
+    /** 설정 화면 진입 시: 로그인 브라우저를 미리 깨워 둠 */
+    fun warmUpKakaoLogin() {
+        viewModelScope.launch(kotlinx.coroutines.Dispatchers.Default) { authManager.warmUpLogin(appContext) }
     }
 
     fun triggerDemoLoginAndSync() {

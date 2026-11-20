@@ -14,6 +14,10 @@ enum class GaugeMetric(val labelKo: String, val descKo: String) {
     CURRENT_SPEED("현재 속도", "지금 이 순간의 속도"),
     MOVING_AVG_SPEED("이동 평균 속도", "움직인 시간 동안의 평균 속도"),
     CLOCK("현재 시간", "지금 시각"),
+    /** 오르막·내리막 누적 (기록 중에만 값이 있음) */
+    ELEVATION("오르막·내리막", "출발부터 오르고 내린 높이"),
+    /** 실시간 날씨·바람 (기록 중에만 값이 있음) */
+    WEATHER("날씨", "지금 바람과 기온"),
     /** 지도 위에 큰 값을 띄우지 않는 선택지 (지도 아래 계기판에는 5개 모두 표시) */
     NONE("표시 안 함", "지도 위에 크게 띄우는 값이 없어요");
 
@@ -22,8 +26,13 @@ enum class GaugeMetric(val labelKo: String, val descKo: String) {
         get() = when (this) {
             DISTANCE -> "km"
             CURRENT_SPEED, MOVING_AVG_SPEED -> "km/h"
+            ELEVATION -> "m"
+            WEATHER -> "m/s"
             TOTAL_TIME, CLOCK, NONE -> null
         }
+
+    /** 기록 중에만 값이 있는 항목 (기록 전에는 지도 위에도 띄우지 않음) */
+    val recordingOnly: Boolean get() = this == ELEVATION || this == WEATHER
 
     /** 라벨에 붙이는 단위. 속도는 지도 위 칩에서 값 옆에 단위가 나오므로 라벨엔 달지 않음 */
     val labelUnit: String?
