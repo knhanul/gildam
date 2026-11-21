@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
     <background android:drawable="@color/ic_launcher_background" />
-    <foreground android:drawable="@drawable/ic_launcher_foreground_inset" />
+    <!-- 새 로고: assets/gildam_icon.png 를 drawable로 사용 (기본). 테마별로는 앱 내 GildamLogo 컴포저블에서 선택 -->
+    <foreground android:drawable="@drawable/gildam_icon" />
 </adaptive-icon>
