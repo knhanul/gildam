@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024" role="img" aria-label="길담: 지도와 위치 핀 위에 크게 겹친 purple 누니 심벌">
+  <defs>
+    <linearGradient id="pinColor" x1=".12" y1=".06" x2=".82" y2=".92" objectBoundingBox="true"><stop stop-color="#DCB8FF"/><stop offset=".36" stop-color="#B46CFF"/><stop offset=".78" stop-color="#8937ED"/><stop offset="1" stop-color="#6520C8"/></linearGradient>
+    <linearGradient id="mapLeft" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#FCF9FF"/><stop offset="1" stop-color="#EBDEFF"/></linearGradient>
+    <linearGradient id="mapCenter" x1="0" y1="0" x2="0.7" y2="1"><stop stop-color="#D4ADFF"/><stop offset="1" stop-color="#B780FF"/></linearGradient>
+    <linearGradient id="nuniBody" x1="0" y1="0" x2="0.85" y2="1"><stop stop-color="#C285FF"/><stop offset=".55" stop-color="#913EEC"/><stop offset="1" stop-color="#6324C0"/></linearGradient>
+    <radialGradient id="nuniGlow" cx="45%" cy="32%" fx="39%" fy="25%" r="67%"><stop stop-color="#FFFFFF"/><stop offset=".13" stop-color="#F6EFFF"/><stop offset=".43" stop-color="#D5ABFF"/><stop offset=".76" stop-color="#AC62F6"/><stop offset="1" stop-color="#7927DA"/></radialGradient>
+  </defs>
+  <!-- All background outside the logo is transparent. Folded map, placed behind the pin and nuni mark. -->
+  <path d="M80 746 Q88 725 111 717 L305 652 Q322 646 344 654 L524 730 L704 647 Q728 639 752 650 L922 722 Q945 732 952 755 L1000 916 Q1006 939 987 946 L751 869 Q731 863 711 874 L521 954 Q509 959 498 954 L307 874 Q288 865 270 872 L42 943 Q17 950 26 921Z" fill="#9750EE" stroke="#632BBE" stroke-width="13" stroke-linejoin="round"/>
+  <path d="M85 767 L306 690 L519 767 L519 932 L307 846 L65 921 Q50 924 57 900Z" fill="url(#mapLeft)"/>
+  <path d="M306 690 L519 767 L519 932 L306 846Z" fill="url(#mapCenter)"/>
+  <path d="M519 767 L719 684 L916 766 L970 914 L740 844 L519 932Z" fill="url(#mapLeft)"/>
+  <path d="M519 767 L719 684 L740 844 L519 932Z" fill="#E0C4FF"/>
+  <!-- Large location pin -->
+  <path d="M370 22 C177 22 41 173 41 354 C41 516 158 667 350 837 Q366 851 383 830 C570 615 703 495 703 340 C703 161 560 22 370 22Z" fill="url(#pinColor)" stroke="#7E36DF" stroke-width="15" stroke-linejoin="round"/>
+  <path d="M370 43 C202 43 63 184 63 354" fill="none" stroke="#EFDFFF" stroke-width="11" stroke-linecap="round" opacity=".60"/>
+  <circle cx="368" cy="331" r="130" fill="#FFFDFC" stroke="#9646EB" stroke-width="12"/>
+  <!-- Original nuni logo reduced by 25%. White outside stroke visually separates the two symbols without a gap. -->
+  <g transform="translate(450 328) scale(.56625) translate(-238 -233)">
+    <path d="M364 1013 V686.5 A172.5 172.5 0 0 1 709 686.5 V853.5 A159.5 159.5 0 0 0 1028 853.5 V572" fill="none" stroke="#FFFFFF" stroke-width="310" stroke-linecap="round" stroke-linejoin="round"/>
+    <circle cx="1028" cy="359" r="145" fill="#FFFFFF"/>
+    <path d="M364 1013 V686.5 A172.5 172.5 0 0 1 709 686.5 V853.5 A159.5 159.5 0 0 0 1028 853.5 V572" fill="none" stroke="url(#nuniBody)" stroke-width="252" stroke-linecap="round" stroke-linejoin="round"/>
+    <circle cx="1028" cy="359" r="126" fill="url(#nuniGlow)"/>
+  </g>
+</svg>
